@@ -1,0 +1,94 @@
+#ifndef __APP_UI_H__
+#define __APP_UI_H__
+
+#include <stdbool.h>
+
+#include "app_manager.h"
+#include "lvgl.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/** @brief Common objects owned by one application page. */
+typedef struct app_ui_page
+{
+    lv_obj_t *root;    /**< Full-screen root object. */
+    lv_obj_t *header;  /**< Fixed page header. */
+    lv_obj_t *content; /**< Scrollable page content. */
+    lv_obj_t *title;   /**< Header title label. */
+} app_ui_page_t;
+
+/**
+ * @brief Create and style one full-screen application page.
+ * @param page receives the created LVGL object handles.
+ * @param title is the page header text.
+ * @param show_back controls creation of the back button.
+ */
+void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back);
+/**
+ * @brief Delete a page root and clear all stored object pointers.
+ * @param page owns the page objects to delete.
+ */
+void app_ui_page_destroy(app_ui_page_t *page);
+
+/**
+ * @brief Add a section label to a page container.
+ * @param parent is the LVGL parent object.
+ * @param text is the section label text.
+ * @return Created label object.
+ */
+lv_obj_t *app_ui_add_section(lv_obj_t *parent, const char *text);
+/**
+ * @brief Add a clickable application action row.
+ * @param parent is the LVGL parent object.
+ * @param symbol is the optional LVGL symbol text.
+ * @param title is the primary row text.
+ * @param subtitle is the optional secondary text.
+ * @param callback receives click events.
+ * @param user_data is retained as LVGL event user data.
+ * @return Created action object.
+ */
+lv_obj_t *app_ui_add_action(lv_obj_t *parent, const char *symbol,
+                            const char *title, const char *subtitle,
+                            lv_event_cb_t callback, void *user_data);
+/**
+ * @brief Add a name/value row and optionally return its value label.
+ * @param parent is the LVGL parent object.
+ * @param name is the row name.
+ * @param value is the displayed value.
+ * @param value_label optionally receives the created value label.
+ * @return Created row object.
+ */
+lv_obj_t *app_ui_add_value_row(lv_obj_t *parent, const char *name,
+                               const char *value, lv_obj_t **value_label);
+/**
+ * @brief Add a wrapped body-text label.
+ * @param parent is the LVGL parent object.
+ * @param text is the body text.
+ * @return Created label object.
+ */
+lv_obj_t *app_ui_add_body_label(lv_obj_t *parent, const char *text);
+
+/**
+ * @brief Return a loaded theme font, falling back to the LVGL default.
+ * @param id selects the theme font role.
+ * @return Loaded font or LV_FONT_DEFAULT.
+ */
+const lv_font_t *app_ui_font(app_theme_font_id_t id);
+/** @brief Queue navigation back from an LVGL event callback. */
+void app_ui_request_back(void);
+/**
+ * @brief Queue navigation using an application identifier with stable storage.
+ *
+ * @note The identifier is copied before this function returns.
+ *
+ * @param app_id identifies the application to run.
+ */
+void app_ui_request_run(const char *app_id);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* __APP_UI_H__ */
