@@ -65,6 +65,7 @@ add_executable(app_ui_navigation_test
 target_include_directories(app_ui_navigation_test PRIVATE
     include
     ../../common/include
+    ../../../app_manager/app_core/include
 )
 
 target_compile_definitions(app_ui_navigation_test PRIVATE _GNU_SOURCE)

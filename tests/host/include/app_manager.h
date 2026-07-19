@@ -2,10 +2,7 @@
 #ifndef __APPS_HOST_APP_MANAGER_H__
 #define __APPS_HOST_APP_MANAGER_H__
 
-#include <stdint.h>
-
-#include "esp_err.h"
-#include "lvgl.h"
+#include "app_manager_types.h"
 
 /** @brief Font roles exposed to application fixtures. */
 typedef enum
@@ -19,12 +16,12 @@ typedef enum
     APP_THEME_FONT_MAX,
 } app_theme_font_id_t;
 
-/** @brief Record a fake application navigation request. */
-esp_err_t app_manager_run(const char *app_id);
-/** @brief Record a fake back-navigation request. */
-esp_err_t app_manager_goback(void);
-/** @brief Queue one callback on the fake UI worker. */
-esp_err_t app_manager_ui_post(void (*callback)(void *), void *arg);
+/** @brief Admit and copy one fake asynchronous navigation request. */
+esp_err_t app_manager_navigate_async(const app_manager_nav_request_t *request,
+                                     app_manager_nav_completion_cb_t completion,
+                                     void *context);
+/** @brief Return the fake screen owned by the current page callback. */
+lv_obj_t *app_manager_this_page_screen(void);
 /** @brief Return one fake theme font. */
 const lv_font_t *app_manager_get_font(app_theme_font_id_t id);
 

@@ -25,7 +25,6 @@ idf_component_register(
         wifi_service
         time_service
         power_service
-        freertos
         lvgl__lvgl
         mt_log
 )

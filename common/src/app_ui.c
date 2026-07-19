@@ -3,7 +3,6 @@
 #include "mt_log.h"
 
 #include "app_ui.h"
-#include "freertos/FreeRTOS.h"
 #include <string.h>
 
 #define COLOR_BACKGROUND 0x0D1113
@@ -13,78 +12,55 @@
 #define COLOR_MUTED      0x91A0A8
 #define COLOR_ACCENT     0x39C6C8
 
-#define APP_UI_RUN_SLOT_COUNT 24U
-#define APP_UI_APP_ID_BYTES   32U
-
-typedef struct app_ui_run_slot
-{
-    bool in_use;
-    char app_id[APP_UI_APP_ID_BYTES];
-} app_ui_run_slot_t;
-
-static app_ui_run_slot_t s_run_slots[APP_UI_RUN_SLOT_COUNT];
-static portMUX_TYPE s_run_slot_lock = portMUX_INITIALIZER_UNLOCKED;
-
-static app_ui_run_slot_t *_app_ui_run_slot_allocate(const char *app_id,
-        size_t app_id_length)
-{
-    app_ui_run_slot_t *slot = NULL;
-
-    taskENTER_CRITICAL(&s_run_slot_lock);
-    for (size_t index = 0; index < APP_UI_RUN_SLOT_COUNT; ++index)
-    {
-        if (!s_run_slots[index].in_use)
-        {
-            slot = &s_run_slots[index];
-            slot->in_use = true;
-            memcpy(slot->app_id, app_id, app_id_length);
-            slot->app_id[app_id_length] = '\0';
-            break;
-        }
-    }
-    taskEXIT_CRITICAL(&s_run_slot_lock);
-    return slot;
-}
-
-static void _app_ui_run_slot_take(app_ui_run_slot_t *slot,
-                                  char app_id[APP_UI_APP_ID_BYTES])
-{
-    taskENTER_CRITICAL(&s_run_slot_lock);
-    memcpy(app_id, slot->app_id, APP_UI_APP_ID_BYTES);
-    memset(slot, 0, sizeof(*slot));
-    taskEXIT_CRITICAL(&s_run_slot_lock);
-}
-
-static void _app_ui_run_slot_release(app_ui_run_slot_t *slot)
-{
-    taskENTER_CRITICAL(&s_run_slot_lock);
-    memset(slot, 0, sizeof(*slot));
-    taskEXIT_CRITICAL(&s_run_slot_lock);
-}
-
 const lv_font_t *app_ui_font(app_theme_font_id_t id)
 {
     const lv_font_t *font = app_manager_get_font(id);
     return font != NULL ? font : LV_FONT_DEFAULT;
 }
 
-static void _app_ui_back_on_worker(void *arg)
+static bool _app_ui_id_is_valid(const char *id)
 {
-    (void)arg;
-    esp_err_t result = app_manager_goback();
+    size_t length = id != NULL ? strnlen(id, APP_MANAGER_ID_BYTES) : 0U;
+    return length > 0U && length < APP_MANAGER_ID_BYTES;
+}
+
+static void _app_ui_navigation_complete(esp_err_t result, void *context)
+{
+    const char *operation = context;
+    (void)operation;
     if (result != ESP_OK)
     {
-        LOG_W("back failed: %s", esp_err_to_name(result));
+        LOG_W("%s failed: %s", operation, esp_err_to_name(result));
+    }
+}
+
+static void _app_ui_navigate(app_manager_nav_operation_t operation,
+                             const char *app_id, const char *page_id,
+                             const char *operation_name)
+{
+    const app_manager_nav_request_t request =
+    {
+        .operation = operation,
+        .app_id = app_id,
+        .page_id = page_id,
+        .transition =
+        {
+            .effect = APP_MANAGER_TRANSITION_DEFAULT,
+        },
+    };
+    esp_err_t result = app_manager_navigate_async(
+                           &request, _app_ui_navigation_complete,
+                           (void *)operation_name);
+    if (result != ESP_OK)
+    {
+        LOG_W("failed to queue %s: %s", operation_name,
+              esp_err_to_name(result));
     }
 }
 
 void app_ui_request_back(void)
 {
-    esp_err_t result = app_manager_ui_post(_app_ui_back_on_worker, NULL);
-    if (result != ESP_OK)
-    {
-        LOG_W("failed to queue back: %s", esp_err_to_name(result));
-    }
+    _app_ui_navigate(APP_MANAGER_NAV_OP_BACK, NULL, NULL, "back");
 }
 
 static void _app_ui_back_event(lv_event_t *event)
@@ -95,44 +71,30 @@ static void _app_ui_back_event(lv_event_t *event)
     }
 }
 
-static void _app_ui_run_on_worker(void *arg)
-{
-    app_ui_run_slot_t *slot = arg;
-    char app_id[APP_UI_APP_ID_BYTES];
-    _app_ui_run_slot_take(slot, app_id);
-    esp_err_t result = app_manager_run(app_id);
-    if (result != ESP_OK)
-    {
-        LOG_W("run %s failed: %s", app_id, esp_err_to_name(result));
-    }
-}
-
 void app_ui_request_run(const char *app_id)
 {
-    if (app_id == NULL)
-    {
-        goto exit;
-    }
-    const size_t app_id_length = strnlen(app_id, APP_UI_APP_ID_BYTES);
-    if (app_id_length == 0 || app_id_length == APP_UI_APP_ID_BYTES)
+    if (!_app_ui_id_is_valid(app_id))
     {
         LOG_W("invalid app id");
         goto exit;
     }
 
-    app_ui_run_slot_t *slot = _app_ui_run_slot_allocate(app_id, app_id_length);
-    if (slot == NULL)
+    _app_ui_navigate(APP_MANAGER_NAV_OP_RUN, app_id, NULL, "run app");
+
+exit:
+    return;
+}
+
+void app_ui_request_open_page(const char *app_id, const char *page_id)
+{
+    if (!_app_ui_id_is_valid(app_id) || !_app_ui_id_is_valid(page_id))
     {
-        LOG_W("run command pool full");
+        LOG_W("invalid page id");
         goto exit;
     }
 
-    esp_err_t result = app_manager_ui_post(_app_ui_run_on_worker, slot);
-    if (result != ESP_OK)
-    {
-        _app_ui_run_slot_release(slot);
-        LOG_W("failed to queue %s: %s", app_id, esp_err_to_name(result));
-    }
+    _app_ui_navigate(APP_MANAGER_NAV_OP_OPEN_PAGE, app_id, page_id,
+                     "open page");
 
 exit:
     return;
@@ -142,7 +104,13 @@ void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
 {
     memset(page, 0, sizeof(*page));
 
-    page->root = lv_obj_create(lv_screen_active());
+    lv_obj_t *screen = app_manager_this_page_screen();
+    if (screen == NULL)
+    {
+        LOG_E("page screen unavailable");
+        goto exit;
+    }
+    page->root = lv_obj_create(screen);
     lv_obj_remove_style_all(page->root);
     lv_obj_set_size(page->root, LV_PCT(100), LV_PCT(100));
     lv_obj_align(page->root, LV_ALIGN_TOP_LEFT, 0, 0);
@@ -209,6 +177,9 @@ void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
                           LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_set_scroll_dir(page->content, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(page->content, LV_SCROLLBAR_MODE_AUTO);
+
+exit:
+    return;
 }
 
 void app_ui_page_destroy(app_ui_page_t *page)

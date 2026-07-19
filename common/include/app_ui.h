@@ -86,6 +86,15 @@ void app_ui_request_back(void);
  * @param app_id identifies the application to run.
  */
 void app_ui_request_run(const char *app_id);
+/**
+ * @brief Queue navigation to one statically described application page.
+ *
+ * @note Both identifiers are copied before this function returns.
+ *
+ * @param app_id identifies the owning application.
+ * @param page_id identifies the static page.
+ */
+void app_ui_request_open_page(const char *app_id, const char *page_id);
 
 #ifdef __cplusplus
 }

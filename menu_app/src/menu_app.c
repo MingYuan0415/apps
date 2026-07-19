@@ -5,6 +5,8 @@
 #include "app_manager.h"
 #include "app_ui.h"
 
+#include <string.h>
+
 typedef struct menu_page_state
 {
     app_ui_page_t page;
@@ -40,19 +42,19 @@ static void _menu_page_handler(app_manager_msg_type_t message, void *param)
     switch (message)
     {
     case APP_MANAGER_MSG_ONSTART:
+        memset(state, 0, sizeof(*state));
         LOG_I("started");
         break;
-    case APP_MANAGER_MSG_ONRESUME:
+    case APP_MANAGER_MSG_ONMOUNT:
         if (state->page.root == NULL)
         {
             _menu_page_build(state);
         }
         break;
-    case APP_MANAGER_MSG_ONPAUSE:
+    case APP_MANAGER_MSG_ONUNMOUNT:
         app_ui_page_destroy(&state->page);
         break;
     case APP_MANAGER_MSG_ONSTOP:
-        app_ui_page_destroy(&state->page);
         LOG_I("stopped");
         break;
     default:
@@ -60,10 +62,7 @@ static void _menu_page_handler(app_manager_msg_type_t message, void *param)
     }
 }
 
-static esp_err_t _menu_entry(void)
-{
-    return app_manager_regist_msg_handler_ext("root", _menu_page_handler,
-            NULL, sizeof(menu_page_state_t));
-}
-
-BUILTIN_APP_EXPORT(menu, NULL, APP_MANAGER_ID_MENU, _menu_entry);
+APP_MANAGER_APP_EXPORT(menu, NULL, APP_MANAGER_ID_MENU, "root",
+                       APP_MANAGER_APP_FLAG_NONE);
+APP_MANAGER_PAGE_EXPORT(menu_root, APP_MANAGER_ID_MENU, "root",
+                        _menu_page_handler, NULL, sizeof(menu_page_state_t));

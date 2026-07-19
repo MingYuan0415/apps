@@ -1,9 +1,9 @@
 # Apps Host Tests
 
 These tests compile the production shared navigation helper and Setup Wi-Fi
-adapter against small host fakes. They cover queued app-ID ownership, queue
-failure handling, Wi-Fi session and operation filtering, callback delivery,
-and retryable teardown.
+adapter against small host fakes. They cover RUN/BACK/OPEN_PAGE submission,
+gateway-owned ID copies, admission failure, exactly-once completion, Wi-Fi
+session and operation filtering, callback delivery, and retryable teardown.
 
 Run each profile from the repository root:
 

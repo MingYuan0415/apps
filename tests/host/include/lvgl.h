@@ -40,8 +40,6 @@ typedef void (*lv_event_cb_t)(lv_event_t *event);
 #define LV_SYMBOL_LEFT              "left"
 #define LV_SYMBOL_RIGHT             "right"
 
-/** @brief Return the fake active screen. */
-lv_obj_t *lv_screen_active(void);
 /** @brief Create a fake generic object. */
 lv_obj_t *lv_obj_create(lv_obj_t *parent);
 /** @brief Create a fake button. */

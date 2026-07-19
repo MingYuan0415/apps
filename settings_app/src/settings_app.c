@@ -20,6 +20,7 @@ typedef struct settings_root_state
     lv_obj_t *brightness_slider;
     lv_obj_t *brightness_value;
     lv_obj_t *save_status;
+    uint8_t brightness;
 } settings_root_state_t;
 
 typedef struct settings_power_state
@@ -29,16 +30,15 @@ typedef struct settings_power_state
     lv_obj_t *voltage_value;
     lv_obj_t *source_value;
     lv_obj_t *sample_value;
+    lv_obj_t *pm_value;
     event_bus_sub_handle_t power_subscription;
+    int32_t timeout_ms;
 } settings_power_state_t;
 
 typedef struct settings_about_state
 {
     app_ui_page_t page;
 } settings_about_state_t;
-
-static void _settings_power_handler(app_manager_msg_type_t message, void *param);
-static void _settings_about_handler(app_manager_msg_type_t message, void *param);
 
 static void _settings_render_brightness(settings_root_state_t *state,
                                         uint8_t brightness)
@@ -51,6 +51,7 @@ static void _settings_brightness_event(lv_event_t *event)
 {
     settings_root_state_t *state = lv_event_get_user_data(event);
     uint8_t brightness = (uint8_t)lv_slider_get_value(state->brightness_slider);
+    state->brightness = brightness;
     _settings_render_brightness(state, brightness);
 
     esp_err_t result;
@@ -74,48 +75,16 @@ static void _settings_brightness_event(lv_event_t *event)
     }
 }
 
-static void _settings_open_power_on_worker(void *arg)
-{
-    (void)arg;
-    esp_err_t result = app_manager_create_page_ext(
-                           SETTINGS_PAGE_POWER, _settings_power_handler, NULL,
-                           sizeof(settings_power_state_t));
-    if (result != ESP_OK)
-    {
-        LOG_W("open power page failed: %s", esp_err_to_name(result));
-    }
-}
-
-static void _settings_open_about_on_worker(void *arg)
-{
-    (void)arg;
-    esp_err_t result = app_manager_create_page_ext(
-                           SETTINGS_PAGE_ABOUT, _settings_about_handler, NULL,
-                           sizeof(settings_about_state_t));
-    if (result != ESP_OK)
-    {
-        LOG_W("open about page failed: %s", esp_err_to_name(result));
-    }
-}
-
 static void _settings_open_power_event(lv_event_t *event)
 {
     (void)event;
-    esp_err_t result = app_manager_ui_post(_settings_open_power_on_worker, NULL);
-    if (result != ESP_OK)
-    {
-        LOG_W("page navigation queue failed: %s", esp_err_to_name(result));
-    }
+    app_ui_request_open_page(APP_MANAGER_ID_SETTINGS, SETTINGS_PAGE_POWER);
 }
 
 static void _settings_open_about_event(lv_event_t *event)
 {
     (void)event;
-    esp_err_t result = app_manager_ui_post(_settings_open_about_on_worker, NULL);
-    if (result != ESP_OK)
-    {
-        LOG_W("page navigation queue failed: %s", esp_err_to_name(result));
-    }
+    app_ui_request_open_page(APP_MANAGER_ID_SETTINGS, SETTINGS_PAGE_ABOUT);
 }
 
 static void _settings_root_build(settings_root_state_t *state)
@@ -159,8 +128,7 @@ static void _settings_root_build(settings_root_state_t *state)
     lv_obj_set_width(state->brightness_slider, LV_PCT(100));
     lv_obj_set_height(state->brightness_slider, 20);
     lv_slider_set_range(state->brightness_slider, 10, 255);
-    uint8_t brightness_value = app_manager_screen_get_brightness();
-    lv_slider_set_value(state->brightness_slider, brightness_value,
+    lv_slider_set_value(state->brightness_slider, state->brightness,
                         LV_ANIM_OFF);
     lv_obj_set_style_bg_color(state->brightness_slider,
                               lv_color_hex(0x30393E), LV_PART_MAIN);
@@ -178,7 +146,7 @@ static void _settings_root_build(settings_root_state_t *state)
     lv_obj_set_style_text_color(state->save_status, lv_color_hex(0x91A0A8), 0);
     lv_obj_set_style_text_font(state->save_status,
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
-    _settings_render_brightness(state, brightness_value);
+    _settings_render_brightness(state, state->brightness);
 
     app_ui_add_section(state->page.content, "SYSTEM");
     app_ui_add_action(state->page.content, LV_SYMBOL_POWER, "Power",
@@ -189,6 +157,15 @@ static void _settings_root_build(settings_root_state_t *state)
                       NULL);
 }
 
+static void _settings_root_resume(settings_root_state_t *state)
+{
+    state->brightness = app_manager_screen_get_brightness();
+    lv_slider_set_value(state->brightness_slider, state->brightness,
+                        LV_ANIM_OFF);
+    _settings_render_brightness(state, state->brightness);
+    lv_label_set_text(state->save_status, "Stored brightness");
+}
+
 static void _settings_root_handler(app_manager_msg_type_t message, void *param)
 {
     (void)param;
@@ -196,22 +173,26 @@ static void _settings_root_handler(app_manager_msg_type_t message, void *param)
     switch (message)
     {
     case APP_MANAGER_MSG_ONSTART:
+        memset(state, 0, sizeof(*state));
+        state->brightness = app_manager_screen_get_brightness();
         LOG_I("started");
         break;
-    case APP_MANAGER_MSG_ONRESUME:
+    case APP_MANAGER_MSG_ONMOUNT:
         if (state->page.root == NULL)
         {
             _settings_root_build(state);
         }
         break;
-    case APP_MANAGER_MSG_ONPAUSE:
+    case APP_MANAGER_MSG_ONRESUME:
+        _settings_root_resume(state);
+        break;
+    case APP_MANAGER_MSG_ONUNMOUNT:
         app_ui_page_destroy(&state->page);
         state->brightness_slider = NULL;
         state->brightness_value = NULL;
         state->save_status = NULL;
         break;
     case APP_MANAGER_MSG_ONSTOP:
-        app_ui_page_destroy(&state->page);
         LOG_I("stopped");
         break;
     default:
@@ -297,30 +278,54 @@ static void _settings_power_build(settings_power_state_t *state)
                          &state->sample_value);
 
     app_ui_add_section(state->page.content, "POWER MANAGEMENT");
-    lv_obj_t *pm_value;
-    app_ui_add_value_row(state->page.content, "Screen off", "--", &pm_value);
-    int32_t timeout = app_manager_pm_get_timeout_ms();
-    if (timeout < 0)
+    app_ui_add_value_row(state->page.content, "Screen off", "--",
+                         &state->pm_value);
+    if (state->timeout_ms < 0)
     {
-        lv_label_set_text(pm_value, "Disabled");
+        lv_label_set_text(state->pm_value, "Disabled");
     }
     else
     {
-        lv_label_set_text_fmt(pm_value, "%ld s", (long)(timeout / 1000));
+        lv_label_set_text_fmt(state->pm_value, "%ld s",
+                              (long)(state->timeout_ms / 1000));
     }
     app_ui_add_action(state->page.content, LV_SYMBOL_POWER, "Turn screen off",
                       "Touch or HOME wakes the display",
                       _settings_screen_off_event, NULL);
 
-    esp_err_t result = event_bus_subscribe(
-                           POWER_SERVICE_MSG,
-                           POWER_SERVICE_MSG_SUB_TYPE_SNAPSHOT_UPDATE,
-                           _settings_power_event, state, EVENT_BUS_DISPATCH_UI,
-                           &state->power_subscription);
-    if (result != ESP_OK)
+    power_service_snapshot_t snapshot;
+    if (power_service_get_snapshot(&snapshot) == ESP_OK)
     {
-        state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        LOG_W("power subscription failed: %s", esp_err_to_name(result));
+        _settings_power_render(state, &snapshot);
+    }
+}
+
+static void _settings_power_resume(settings_power_state_t *state)
+{
+    state->timeout_ms = app_manager_pm_get_timeout_ms();
+    if (state->timeout_ms < 0)
+    {
+        lv_label_set_text(state->pm_value, "Disabled");
+    }
+    else
+    {
+        lv_label_set_text_fmt(state->pm_value, "%ld s",
+                              (long)(state->timeout_ms / 1000));
+    }
+
+    if (state->power_subscription == EVENT_BUS_SUB_HANDLE_INVALID)
+    {
+        esp_err_t result = event_bus_subscribe(
+                               POWER_SERVICE_MSG,
+                               POWER_SERVICE_MSG_SUB_TYPE_SNAPSHOT_UPDATE,
+                               _settings_power_event, state,
+                               EVENT_BUS_DISPATCH_UI,
+                               &state->power_subscription);
+        if (result != ESP_OK)
+        {
+            state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+            LOG_W("power subscription failed: %s", esp_err_to_name(result));
+        }
     }
 
     power_service_snapshot_t snapshot;
@@ -330,22 +335,38 @@ static void _settings_power_build(settings_power_state_t *state)
     }
 }
 
-static void _settings_power_teardown(settings_power_state_t *state)
+static esp_err_t _settings_power_pause(settings_power_state_t *state)
 {
+    esp_err_t result = ESP_OK;
+
     if (state->power_subscription != EVENT_BUS_SUB_HANDLE_INVALID)
     {
-        esp_err_t result = event_bus_unsubscribe(state->power_subscription);
-        if (result != ESP_OK && result != ESP_ERR_NOT_FOUND)
+        result = event_bus_unsubscribe(state->power_subscription);
+        if (result == ESP_OK || result == ESP_ERR_NOT_FOUND)
+        {
+            state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+            result = ESP_OK;
+        }
+        else
         {
             LOG_W("power unsubscribe failed: %s", esp_err_to_name(result));
         }
-        state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     }
+    if (result != ESP_OK)
+    {
+        app_manager_this_page_report_cleanup_error(result);
+    }
+    return result;
+}
+
+static void _settings_power_unmount(settings_power_state_t *state)
+{
     app_ui_page_destroy(&state->page);
     state->battery_value = NULL;
     state->voltage_value = NULL;
     state->source_value = NULL;
     state->sample_value = NULL;
+    state->pm_value = NULL;
 }
 
 static void _settings_power_handler(app_manager_msg_type_t message, void *param)
@@ -355,17 +376,27 @@ static void _settings_power_handler(app_manager_msg_type_t message, void *param)
     switch (message)
     {
     case APP_MANAGER_MSG_ONSTART:
+        memset(state, 0, sizeof(*state));
         state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+        state->timeout_ms = app_manager_pm_get_timeout_ms();
         break;
-    case APP_MANAGER_MSG_ONRESUME:
+    case APP_MANAGER_MSG_ONMOUNT:
         if (state->page.root == NULL)
         {
             _settings_power_build(state);
         }
         break;
+    case APP_MANAGER_MSG_ONRESUME:
+        _settings_power_resume(state);
+        break;
     case APP_MANAGER_MSG_ONPAUSE:
+        (void)_settings_power_pause(state);
+        break;
+    case APP_MANAGER_MSG_ONUNMOUNT:
+        _settings_power_unmount(state);
+        break;
     case APP_MANAGER_MSG_ONSTOP:
-        _settings_power_teardown(state);
+        (void)_settings_power_pause(state);
         break;
     default:
         break;
@@ -397,21 +428,28 @@ static void _settings_about_handler(app_manager_msg_type_t message, void *param)
 {
     (void)param;
     settings_about_state_t *state = app_manager_this_page_memory();
-    if (message == APP_MANAGER_MSG_ONRESUME && state->page.root == NULL)
+    if (message == APP_MANAGER_MSG_ONSTART)
+    {
+        memset(state, 0, sizeof(*state));
+    }
+    else if (message == APP_MANAGER_MSG_ONMOUNT && state->page.root == NULL)
     {
         _settings_about_build(state);
     }
-    else if (message == APP_MANAGER_MSG_ONPAUSE ||
-             message == APP_MANAGER_MSG_ONSTOP)
+    else if (message == APP_MANAGER_MSG_ONUNMOUNT)
     {
         app_ui_page_destroy(&state->page);
     }
 }
 
-static esp_err_t _settings_entry(void)
-{
-    return app_manager_regist_msg_handler_ext("root", _settings_root_handler,
-            NULL, sizeof(settings_root_state_t));
-}
-
-BUILTIN_APP_EXPORT(settings, NULL, APP_MANAGER_ID_SETTINGS, _settings_entry);
+APP_MANAGER_APP_EXPORT(settings, NULL, APP_MANAGER_ID_SETTINGS, "root",
+                       APP_MANAGER_APP_FLAG_NONE);
+APP_MANAGER_PAGE_EXPORT(settings_root, APP_MANAGER_ID_SETTINGS, "root",
+                        _settings_root_handler, NULL,
+                        sizeof(settings_root_state_t));
+APP_MANAGER_PAGE_EXPORT(settings_power, APP_MANAGER_ID_SETTINGS,
+                        SETTINGS_PAGE_POWER, _settings_power_handler, NULL,
+                        sizeof(settings_power_state_t));
+APP_MANAGER_PAGE_EXPORT(settings_about, APP_MANAGER_ID_SETTINGS,
+                        SETTINGS_PAGE_ABOUT, _settings_about_handler, NULL,
+                        sizeof(settings_about_state_t));

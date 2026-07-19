@@ -734,7 +734,7 @@ exit:
     return result;
 }
 
-static void _setup_page_build(setup_page_state_t *state)
+static void _setup_page_mount(setup_page_state_t *state)
 {
     app_ui_page_create(&state->page, "Setup", true);
     (void)app_ui_add_section(state->page.content, "WIFI");
@@ -763,11 +763,9 @@ static void _setup_page_build(setup_page_state_t *state)
     lv_obj_set_style_pad_row(state->controls, 8, 0);
     lv_obj_set_flex_flow(state->controls, LV_FLEX_FLOW_COLUMN);
     lv_obj_remove_flag(state->controls, LV_OBJ_FLAG_SCROLLABLE);
-
-    (void)_setup_start_adapter(state);
 }
 
-static esp_err_t _setup_page_teardown(setup_page_state_t *state)
+static esp_err_t _setup_page_pause(setup_page_state_t *state)
 {
     esp_err_t result = setup_wifi_adapter_close(&state->adapter);
     if (result != ESP_OK)
@@ -783,14 +781,19 @@ static esp_err_t _setup_page_teardown(setup_page_state_t *state)
     state->globally_connected = false;
     state->scan_results_visible = false;
     state->scan_outcome_visible = false;
+
+exit:
+    return result;
+}
+
+static void _setup_page_unmount(setup_page_state_t *state)
+{
     app_ui_page_destroy(&state->page);
     state->status_label = NULL;
     state->detail_label = NULL;
     state->controls = NULL;
     state->password_mask = NULL;
-
-exit:
-    return result;
+    state->key_action_count = 0;
 }
 
 static void _setup_page_handler(app_manager_msg_type_t message, void *param)
@@ -803,17 +806,23 @@ static void _setup_page_handler(app_manager_msg_type_t message, void *param)
         memset(state, 0, sizeof(*state));
         LOG_I("started");
         break;
-    case APP_MANAGER_MSG_ONRESUME:
+    case APP_MANAGER_MSG_ONMOUNT:
         if (state->page.root == NULL)
         {
-            _setup_page_build(state);
+            _setup_page_mount(state);
         }
         break;
+    case APP_MANAGER_MSG_ONRESUME:
+        (void)_setup_start_adapter(state);
+        break;
     case APP_MANAGER_MSG_ONPAUSE:
-        (void)_setup_page_teardown(state);
+        (void)_setup_page_pause(state);
+        break;
+    case APP_MANAGER_MSG_ONUNMOUNT:
+        _setup_page_unmount(state);
         break;
     case APP_MANAGER_MSG_ONSTOP:
-        if (_setup_page_teardown(state) == ESP_OK)
+        if (_setup_page_pause(state) == ESP_OK)
         {
             LOG_I("stopped");
         }
@@ -823,10 +832,8 @@ static void _setup_page_handler(app_manager_msg_type_t message, void *param)
     }
 }
 
-static esp_err_t _setup_entry(void)
-{
-    return app_manager_regist_msg_handler_ext("root", _setup_page_handler,
-            NULL, sizeof(setup_page_state_t));
-}
-
-BUILTIN_APP_EXPORT(setup, NULL, APP_MANAGER_ID_SETUP, _setup_entry);
+APP_MANAGER_APP_EXPORT(setup, NULL, APP_MANAGER_ID_SETUP, "root",
+                       APP_MANAGER_APP_FLAG_NONE);
+APP_MANAGER_PAGE_EXPORT(setup_root, APP_MANAGER_ID_SETUP, "root",
+                        _setup_page_handler, NULL,
+                        sizeof(setup_page_state_t));
