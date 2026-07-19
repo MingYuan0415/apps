@@ -11,6 +11,9 @@
 #define COLOR_TEXT       0xF2F5F6
 #define COLOR_MUTED      0x91A0A8
 #define COLOR_ACCENT     0x39C6C8
+#define COLOR_SUCCESS    0x65D18A
+#define COLOR_WARNING    0xF0B35A
+#define COLOR_ERROR      0xF06A6A
 
 const lv_font_t *app_ui_font(app_theme_font_id_t id)
 {
@@ -193,9 +196,10 @@ lv_obj_t *app_ui_add_section(lv_obj_t *parent, const char *text)
     return label;
 }
 
-lv_obj_t *app_ui_add_action(lv_obj_t *parent, const char *symbol,
-                            const char *title, const char *subtitle,
-                            lv_event_cb_t callback, void *user_data)
+static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, const char *symbol,
+                                    const char *title, const char *subtitle,
+                                    lv_event_cb_t callback, void *user_data,
+                                    bool navigation)
 {
     lv_obj_t *button = lv_button_create(parent);
     lv_obj_set_width(button, LV_PCT(100));
@@ -246,9 +250,12 @@ lv_obj_t *app_ui_add_action(lv_obj_t *parent, const char *symbol,
                                    app_ui_font(APP_THEME_FONT_SMALL), 0);
     }
 
-    lv_obj_t *chevron = lv_label_create(button);
-    lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
-    lv_obj_set_style_text_color(chevron, lv_color_hex(COLOR_MUTED), 0);
+    if (navigation)
+    {
+        lv_obj_t *chevron = lv_label_create(button);
+        lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
+        lv_obj_set_style_text_color(chevron, lv_color_hex(COLOR_MUTED), 0);
+    }
 
     if (callback != NULL)
     {
@@ -257,13 +264,29 @@ lv_obj_t *app_ui_add_action(lv_obj_t *parent, const char *symbol,
     return button;
 }
 
+lv_obj_t *app_ui_add_action(lv_obj_t *parent, const char *symbol,
+                            const char *title, const char *subtitle,
+                            lv_event_cb_t callback, void *user_data)
+{
+    return _app_ui_add_action(parent, symbol, title, subtitle, callback,
+                              user_data, true);
+}
+
+lv_obj_t *app_ui_add_command(lv_obj_t *parent, const char *symbol,
+                             const char *title, const char *subtitle,
+                             lv_event_cb_t callback, void *user_data)
+{
+    return _app_ui_add_action(parent, symbol, title, subtitle, callback,
+                              user_data, false);
+}
+
 lv_obj_t *app_ui_add_value_row(lv_obj_t *parent, const char *name,
                                const char *value, lv_obj_t **value_label)
 {
     lv_obj_t *row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
     lv_obj_set_width(row, LV_PCT(100));
-    lv_obj_set_height(row, 54);
+    lv_obj_set_height(row, 68);
     lv_obj_set_style_bg_color(row, lv_color_hex(COLOR_SURFACE), 0);
     lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(row, 6, 0);
@@ -278,11 +301,16 @@ lv_obj_t *app_ui_add_value_row(lv_obj_t *parent, const char *name,
 
     lv_obj_t *name_label = lv_label_create(row);
     lv_label_set_text(name_label, name);
+    lv_obj_set_width(name_label, LV_PCT(36));
+    lv_label_set_long_mode(name_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(name_label, lv_color_hex(COLOR_MUTED), 0);
     lv_obj_set_style_text_font(name_label, app_ui_font(APP_THEME_FONT_SMALL), 0);
 
     lv_obj_t *current = lv_label_create(row);
     lv_label_set_text(current, value);
+    lv_obj_set_width(current, LV_PCT(60));
+    lv_label_set_long_mode(current, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(current, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_style_text_color(current, lv_color_hex(COLOR_TEXT), 0);
     lv_obj_set_style_text_font(current, app_ui_font(APP_THEME_FONT_BODY), 0);
     if (value_label != NULL)
@@ -302,4 +330,30 @@ lv_obj_t *app_ui_add_body_label(lv_obj_t *parent, const char *text)
     lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_obj_set_style_text_line_space(label, 6, 0);
     return label;
+}
+
+void app_ui_set_status_text(lv_obj_t *label, const char *text,
+                            app_ui_status_t status)
+{
+    uint32_t color = COLOR_MUTED;
+    switch (status)
+    {
+    case APP_UI_STATUS_ACCENT:
+        color = COLOR_ACCENT;
+        break;
+    case APP_UI_STATUS_SUCCESS:
+        color = COLOR_SUCCESS;
+        break;
+    case APP_UI_STATUS_WARNING:
+        color = COLOR_WARNING;
+        break;
+    case APP_UI_STATUS_ERROR:
+        color = COLOR_ERROR;
+        break;
+    case APP_UI_STATUS_NEUTRAL:
+    default:
+        break;
+    }
+    lv_label_set_text(label, text);
+    lv_obj_set_style_text_color(label, lv_color_hex(color), 0);
 }

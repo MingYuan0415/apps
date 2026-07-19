@@ -85,17 +85,17 @@ static void _setup_scrub_credentials(setup_page_state_t *state)
 
 static const char *_setup_security_name(wifi_service_security_t security)
 {
-    const char *name = "Invalid";
+    const char *name = "未知";
     switch (security)
     {
     case WIFI_SERVICE_SECURITY_OPEN:
-        name = "Open";
+        name = "无密码";
         break;
     case WIFI_SERVICE_SECURITY_PERSONAL:
-        name = "Secured";
+        name = "需密码";
         break;
     case WIFI_SERVICE_SECURITY_UNSUPPORTED:
-        name = "Unsupported";
+        name = "不支持";
         break;
     default:
         break;
@@ -249,8 +249,7 @@ static void _setup_editor_cancel_event(lv_event_t *event)
     _setup_scrub_credentials(state);
     state->scan_results_visible = true;
     state->scan_outcome_visible = false;
-    _setup_set_status(state, "Select a network",
-                      "Password entry cancelled");
+    _setup_set_status(state, "选择网络", "已取消密码输入");
     _setup_render_networks(state);
 }
 
@@ -262,8 +261,7 @@ static void _setup_submit_connect(setup_page_state_t *state)
         wifi_service_secure_zero(state->password, sizeof(state->password));
         state->password_length = 0;
         _setup_update_password_mask(state);
-        _setup_set_status(state, "Password too short",
-                          "Use 8 to 63 characters");
+        _setup_set_status(state, "密码过短", "请输入 8 至 63 个字符");
         return;
     }
 
@@ -285,16 +283,16 @@ static void _setup_submit_connect(setup_page_state_t *state)
     {
         state->scan_results_visible = true;
         state->scan_outcome_visible = false;
-        _setup_set_status(state, "Connection not started",
+        _setup_set_status(state, "连接未开始",
                           esp_err_to_name(result));
         _setup_render_networks(state);
         return;
     }
-    _setup_set_status(state, "Connecting...", "Waiting for the access point");
+    _setup_set_status(state, "正在连接", "等待接入点响应");
     lv_obj_clean(state->controls);
-    (void)app_ui_add_action(state->controls, LV_SYMBOL_CLOSE,
-                            "Cancel", "Stop this connection attempt",
-                            _setup_cancel_operation_event, state);
+    (void)app_ui_add_command(state->controls, LV_SYMBOL_CLOSE,
+                             "取消", "停止本次连接", _setup_cancel_operation_event,
+                             state);
 }
 
 static void _setup_connect_event(lv_event_t *event)
@@ -344,10 +342,10 @@ static void _setup_render_keypad(setup_page_state_t *state)
     }
 
     lv_obj_t *commands = _setup_create_row(state->controls);
-    (void)_setup_add_compact_button(commands, "Cancel",
+    (void)_setup_add_compact_button(commands, "取消",
                                     _setup_editor_cancel_event, state);
-    _setup_add_key_button(state, commands, "Space", ' ');
-    (void)_setup_add_compact_button(commands, "Connect",
+    _setup_add_key_button(state, commands, "空格", ' ');
+    (void)_setup_add_compact_button(commands, "连接",
                                     _setup_connect_event, state);
 }
 
@@ -358,19 +356,19 @@ static void _setup_cancel_operation_event(lv_event_t *event)
     esp_err_t result = setup_wifi_adapter_cancel(&state->adapter);
     if (result == ESP_OK)
     {
-        _setup_set_status(state, "Cancelling...", "Waiting for WiFi cleanup");
+        _setup_set_status(state, "正在取消", "等待 Wi-Fi 操作结束");
         lv_obj_clean(state->controls);
     }
     else if (result == ESP_ERR_NOT_FOUND)
     {
         state->scan_results_visible = false;
         state->scan_outcome_visible = false;
-        _setup_set_status(state, "Ready", "The operation already finished");
+        _setup_set_status(state, "已就绪", "操作已经结束");
         _setup_render_scan_action(state);
     }
     else
     {
-        _setup_set_status(state, "Cancel failed", esp_err_to_name(result));
+        _setup_set_status(state, "取消失败", esp_err_to_name(result));
     }
 }
 
@@ -388,14 +386,14 @@ static void _setup_scan_event(lv_event_t *event)
     esp_err_t result = setup_wifi_adapter_scan(&state->adapter);
     if (result != ESP_OK)
     {
-        _setup_set_status(state, "Scan not started", esp_err_to_name(result));
+        _setup_set_status(state, "扫描未开始", esp_err_to_name(result));
         return;
     }
-    _setup_set_status(state, "Scanning...", "Looking for nearby networks");
+    _setup_set_status(state, "正在扫描", "搜索附近的网络");
     lv_obj_clean(state->controls);
-    (void)app_ui_add_action(state->controls, LV_SYMBOL_CLOSE,
-                            "Cancel", "Stop this network scan",
-                            _setup_cancel_operation_event, state);
+    (void)app_ui_add_command(state->controls, LV_SYMBOL_CLOSE,
+                             "取消", "停止本次网络扫描",
+                             _setup_cancel_operation_event, state);
 }
 
 static void _setup_disconnect_event(lv_event_t *event)
@@ -407,34 +405,34 @@ static void _setup_disconnect_event(lv_event_t *event)
     esp_err_t result = setup_wifi_adapter_disconnect(&state->adapter);
     if (result != ESP_OK)
     {
-        _setup_set_status(state, "Disconnect not started",
+        _setup_set_status(state, "断开未开始",
                           esp_err_to_name(result));
         return;
     }
-    _setup_set_status(state, "Disconnecting...", "Clearing the active link");
+    _setup_set_status(state, "正在断开", "清理当前连接");
     lv_obj_clean(state->controls);
-    (void)app_ui_add_action(state->controls, LV_SYMBOL_CLOSE,
-                            "Cancel", "Stop this disconnect request",
-                            _setup_cancel_operation_event, state);
+    (void)app_ui_add_command(state->controls, LV_SYMBOL_CLOSE,
+                             "取消", "停止本次断开请求",
+                             _setup_cancel_operation_event, state);
 }
 
 static void _setup_render_scan_action(setup_page_state_t *state)
 {
     lv_obj_clean(state->controls);
-    (void)app_ui_add_action(state->controls, LV_SYMBOL_REFRESH,
-                            "Scan networks", "Refresh nearby access points",
-                            _setup_scan_event, state);
+    (void)app_ui_add_command(state->controls, LV_SYMBOL_REFRESH,
+                             "扫描网络", "刷新附近的接入点",
+                             _setup_scan_event, state);
 }
 
 static void _setup_render_connection_actions(setup_page_state_t *state)
 {
     lv_obj_clean(state->controls);
-    (void)app_ui_add_action(state->controls, LV_SYMBOL_CLOSE,
-                            "Disconnect", "End the current WiFi link",
-                            _setup_disconnect_event, state);
-    (void)app_ui_add_action(state->controls, LV_SYMBOL_REFRESH,
-                            "Scan networks", "Find another access point",
-                            _setup_scan_event, state);
+    (void)app_ui_add_command(state->controls, LV_SYMBOL_CLOSE,
+                             "断开连接", "结束当前 Wi-Fi 连接",
+                             _setup_disconnect_event, state);
+    (void)app_ui_add_command(state->controls, LV_SYMBOL_REFRESH,
+                             "扫描网络", "查找其他接入点",
+                             _setup_scan_event, state);
 }
 
 static void _setup_render_scan_outcome_actions(setup_page_state_t *state)
@@ -475,14 +473,13 @@ static void _setup_network_event(lv_event_t *event)
     case WIFI_SERVICE_SECURITY_PERSONAL:
         state->editing_password = true;
         state->key_mode = SETUP_KEY_MODE_LOWER;
-        _setup_set_status(state, "Enter password", state->selected.ssid);
+        _setup_set_status(state, "输入密码", state->selected.ssid);
         _setup_render_keypad(state);
         break;
     case WIFI_SERVICE_SECURITY_UNSUPPORTED:
         state->scan_results_visible = true;
         state->scan_outcome_visible = false;
-        _setup_set_status(state, "Unsupported network",
-                          "This security mode is not supported");
+        _setup_set_status(state, "网络不受支持", "暂不支持该安全类型");
         _setup_render_networks(state);
         break;
     }
@@ -501,8 +498,8 @@ static void _setup_render_networks(setup_page_state_t *state)
         action->state = state;
         action->scan_generation = state->scan_generation;
         action->index = index;
-        (void)app_ui_add_action(state->controls, LV_SYMBOL_WIFI, record->ssid,
-                                detail, _setup_network_event, action);
+        (void)app_ui_add_command(state->controls, LV_SYMBOL_WIFI, record->ssid,
+                                 detail, _setup_network_event, action);
     }
     if (state->record_count == 0)
     {
@@ -515,9 +512,9 @@ static void _setup_render_pending_connection(
 {
     _setup_set_status(state, title, ssid);
     lv_obj_clean(state->controls);
-    (void)app_ui_add_action(state->controls, LV_SYMBOL_CLOSE,
-                            "Cancel", "Stop this connection attempt",
-                            _setup_cancel_operation_event, state);
+    (void)app_ui_add_command(state->controls, LV_SYMBOL_CLOSE,
+                             "取消", "停止本次连接",
+                             _setup_cancel_operation_event, state);
 }
 
 static void _setup_render_idle_status(
@@ -531,12 +528,12 @@ static void _setup_render_idle_status(
             operation_kind == SETUP_WIFI_OPERATION_CONNECT &&
             snapshot->last_error != ESP_OK)
     {
-        _setup_set_status(state, "Connection failed",
+        _setup_set_status(state, "连接失败",
                           esp_err_to_name((esp_err_t)snapshot->last_error));
     }
     else
     {
-        _setup_set_status(state, "WiFi ready", "Not connected");
+        _setup_set_status(state, "Wi-Fi 已就绪", "当前未连接");
     }
     _setup_render_scan_action(state);
 }
@@ -551,7 +548,7 @@ static void _setup_render_status_state(
     {
     case WIFI_SERVICE_STATE_OFFLINE:
         _setup_scrub_credentials(state);
-        _setup_set_status(state, "WiFi unavailable",
+        _setup_set_status(state, "Wi-Fi 不可用",
                           esp_err_to_name((esp_err_t)snapshot->last_error));
         _setup_render_scan_action(state);
         break;
@@ -561,24 +558,24 @@ static void _setup_render_status_state(
     case WIFI_SERVICE_STATE_SCANNING:
         break;
     case WIFI_SERVICE_STATE_CONNECTING:
-        _setup_render_pending_connection(state, "Connecting...", snapshot->ssid);
+        _setup_render_pending_connection(state, "正在连接", snapshot->ssid);
         break;
     case WIFI_SERVICE_STATE_WAITING_IP:
-        _setup_render_pending_connection(state, "Getting an address",
+        _setup_render_pending_connection(state, "正在获取地址",
                                          snapshot->ssid);
         break;
     case WIFI_SERVICE_STATE_IP_READY:
         _setup_scrub_credentials(state);
-        _setup_set_status(state, "Connected", snapshot->ssid);
+        _setup_set_status(state, "已连接", snapshot->ssid);
         _setup_render_connection_actions(state);
         break;
     case WIFI_SERVICE_STATE_RETRY_WAIT:
-        _setup_render_pending_connection(state, "Retrying connection",
+        _setup_render_pending_connection(state, "正在重试连接",
                                          snapshot->ssid);
         break;
     case WIFI_SERVICE_STATE_SUSPENDED:
         _setup_scrub_credentials(state);
-        _setup_set_status(state, "WiFi paused", "System standby is active");
+        _setup_set_status(state, "Wi-Fi 已暂停", "系统正在待机");
         lv_obj_clean(state->controls);
         break;
     }
@@ -631,11 +628,11 @@ static void _setup_scan_snapshot(
     case WIFI_SERVICE_SCAN_RUNNING:
         state->scan_results_visible = false;
         state->scan_outcome_visible = false;
-        _setup_set_status(state, "Scanning...", "Looking for nearby networks");
+        _setup_set_status(state, "正在扫描", "搜索附近的网络");
         lv_obj_clean(state->controls);
-        (void)app_ui_add_action(state->controls, LV_SYMBOL_CLOSE,
-                                "Cancel", "Stop this network scan",
-                                _setup_cancel_operation_event, state);
+        (void)app_ui_add_command(state->controls, LV_SYMBOL_CLOSE,
+                                 "取消", "停止本次网络扫描",
+                                 _setup_cancel_operation_event, state);
         break;
     case WIFI_SERVICE_SCAN_RESULTS:
         state->scan_generation = snapshot->generation;
@@ -644,22 +641,22 @@ static void _setup_scan_snapshot(
                state->record_count * sizeof(state->records[0]));
         state->scan_results_visible = true;
         state->scan_outcome_visible = false;
-        _setup_set_status(state, "Select a network",
+        _setup_set_status(state, "选择网络",
                           snapshot->truncated ?
-                          "Showing the strongest networks" :
-                          "Nearby networks are ready");
+                          "仅显示信号最强的网络" :
+                          "附近网络已就绪");
         _setup_render_networks(state);
         break;
     case WIFI_SERVICE_SCAN_CANCELED:
         state->scan_results_visible = false;
         state->scan_outcome_visible = true;
-        _setup_set_status(state, "Scan cancelled", "Ready to scan again");
+        _setup_set_status(state, "扫描已取消", "可以重新扫描");
         _setup_render_scan_outcome_actions(state);
         break;
     case WIFI_SERVICE_SCAN_FAILED:
         state->scan_results_visible = false;
         state->scan_outcome_visible = true;
-        _setup_set_status(state, "Scan failed",
+        _setup_set_status(state, "扫描失败",
                           esp_err_to_name((esp_err_t)snapshot->last_error));
         _setup_render_scan_outcome_actions(state);
         break;
@@ -677,7 +674,7 @@ static esp_err_t _setup_start_adapter(setup_page_state_t *state)
                        state);
     if (result != ESP_OK)
     {
-        _setup_set_status(state, "WiFi unavailable", esp_err_to_name(result));
+        _setup_set_status(state, "Wi-Fi 不可用", esp_err_to_name(result));
         _setup_render_scan_action(state);
         return result;
     }
@@ -688,16 +685,15 @@ static esp_err_t _setup_start_adapter(setup_page_state_t *state)
         {
             state->scan_results_visible = false;
             state->scan_outcome_visible = false;
-            _setup_set_status(state, "Scanning...",
-                              "Looking for nearby networks");
+            _setup_set_status(state, "正在扫描", "搜索附近的网络");
             lv_obj_clean(state->controls);
-            (void)app_ui_add_action(state->controls, LV_SYMBOL_CLOSE,
-                                    "Cancel", "Stop this network scan",
-                                    _setup_cancel_operation_event, state);
+            (void)app_ui_add_command(state->controls, LV_SYMBOL_CLOSE,
+                                     "取消", "停止本次网络扫描",
+                                     _setup_cancel_operation_event, state);
         }
         else
         {
-            _setup_set_status(state, "Scan not started",
+            _setup_set_status(state, "扫描未开始",
                               esp_err_to_name(result));
             _setup_render_scan_action(state);
         }
@@ -707,11 +703,11 @@ static esp_err_t _setup_start_adapter(setup_page_state_t *state)
 
 static void _setup_page_mount(setup_page_state_t *state)
 {
-    app_ui_page_create(&state->page, "Setup", true);
-    (void)app_ui_add_section(state->page.content, "WIFI");
+    app_ui_page_create(&state->page, "网络设置", true);
+    (void)app_ui_add_section(state->page.content, "WI-FI");
 
     state->status_label = lv_label_create(state->page.content);
-    lv_label_set_text(state->status_label, "Starting...");
+    lv_label_set_text(state->status_label, "正在启动");
     lv_obj_set_width(state->status_label, LV_PCT(100));
     lv_obj_set_style_text_color(state->status_label,
                                 lv_color_hex(SETUP_COLOR_TEXT), 0);
@@ -719,7 +715,7 @@ static void _setup_page_mount(setup_page_state_t *state)
                                app_ui_font(APP_THEME_FONT_BIGL), 0);
 
     state->detail_label = lv_label_create(state->page.content);
-    lv_label_set_text(state->detail_label, "Opening WiFi session");
+    lv_label_set_text(state->detail_label, "正在建立 Wi-Fi 会话");
     lv_obj_set_width(state->detail_label, LV_PCT(100));
     lv_label_set_long_mode(state->detail_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(state->detail_label,

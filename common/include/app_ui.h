@@ -19,6 +19,16 @@ typedef struct app_ui_page
     lv_obj_t *title;   /**< Header title label. */
 } app_ui_page_t;
 
+/** @brief Semantic color applied to dynamic status text. */
+typedef enum
+{
+    APP_UI_STATUS_NEUTRAL = 0, /**< Secondary informational text. */
+    APP_UI_STATUS_ACCENT,      /**< Active or in-progress state. */
+    APP_UI_STATUS_SUCCESS,     /**< Successful or available state. */
+    APP_UI_STATUS_WARNING,     /**< Degraded state requiring attention. */
+    APP_UI_STATUS_ERROR,       /**< Failed or unavailable state. */
+} app_ui_status_t;
+
 /**
  * @brief Create and style one full-screen application page.
  * @param page receives the created LVGL object handles.
@@ -53,6 +63,19 @@ lv_obj_t *app_ui_add_action(lv_obj_t *parent, const char *symbol,
                             const char *title, const char *subtitle,
                             lv_event_cb_t callback, void *user_data);
 /**
+ * @brief Add an immediate command row without a navigation chevron.
+ * @param parent is the LVGL parent object.
+ * @param symbol is the optional LVGL symbol text.
+ * @param title is the primary row text.
+ * @param subtitle is the optional secondary text.
+ * @param callback receives click events.
+ * @param user_data is retained as LVGL event user data.
+ * @return Created command object.
+ */
+lv_obj_t *app_ui_add_command(lv_obj_t *parent, const char *symbol,
+                             const char *title, const char *subtitle,
+                             lv_event_cb_t callback, void *user_data);
+/**
  * @brief Add a name/value row and optionally return its value label.
  * @param parent is the LVGL parent object.
  * @param name is the row name.
@@ -69,6 +92,14 @@ lv_obj_t *app_ui_add_value_row(lv_obj_t *parent, const char *name,
  * @return Created label object.
  */
 lv_obj_t *app_ui_add_body_label(lv_obj_t *parent, const char *text);
+/**
+ * @brief Update label text and apply a semantic status color.
+ * @param label is the LVGL label to update.
+ * @param text is the new label text.
+ * @param status selects the semantic text color.
+ */
+void app_ui_set_status_text(lv_obj_t *label, const char *text,
+                            app_ui_status_t status);
 
 /**
  * @brief Return a loaded theme font, falling back to the LVGL default.

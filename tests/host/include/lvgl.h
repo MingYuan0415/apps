@@ -36,6 +36,7 @@ typedef void (*lv_event_cb_t)(lv_event_t *event);
 #define LV_SIZE_CONTENT              (-1)
 #define LV_STATE_PRESSED             1
 #define LV_TEXT_ALIGN_CENTER         0
+#define LV_TEXT_ALIGN_RIGHT          1
 #define LV_PCT(value)                (value)
 #define LV_SYMBOL_LEFT              "left"
 #define LV_SYMBOL_RIGHT             "right"

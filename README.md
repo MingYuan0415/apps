@@ -4,16 +4,18 @@
 
 ## 目录结构与应用
 
-- `common/`：统一页面、标题栏、操作行和值行，以及基于统一导航命令池的异步返回、应用和静态页面跳转辅助函数。
-- `home_app/`：显示本地时间、时间质量和电源快照，提供常用入口。
-- `menu_app/`：列出 Home、Applications、Settings 和 Setup 内置应用。
-- `settings_app/`：提供亮度调节、电源状态/熄屏入口及设备信息页面。
-- `setup_app/`：通过自有 Wi-Fi session 完成扫描、连接、断开和取消，并过滤非本次操作的事件快照。
+- `common/`：统一 368 x 448 页面骨架、标题栏、导航/命令行、值行和语义状态，保留异步导航 API。
+- `home_app/`：显示本地时间与质量、电量/供电、Wi-Fi 和 SD 挂载状态，提供演示中心、配网和设置入口。
+- `menu_app/`：作为演示中心，包含运动传感、音频、SD 存储和时间/RTC 四个静态页；音频、文件和 RTC 操作均由页面自有 worker 执行。
+- `settings_app/`：提供亮度、固定熄屏/待机延迟选项、电源详情及运行时固件描述。
+- `setup_app/`：通过页面自有 Wi-Fi session 完成扫描、连接、取消和断开，过滤非本次操作的事件快照，并在使用后清零密码。
 - `tests/host/`：共用导航和 Setup Wi-Fi adapter 的宿主测试及最小依赖 fake。
 
 每个应用以 `APP_MANAGER_APP_EXPORT` 导出应用描述符，并以 `APP_MANAGER_PAGE_EXPORT` 导出根页面和其他静态页面；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现两个描述符段。新增应用时应在独立目录中实现生命周期 handler，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，不要使用递归 glob。
 
-页面 UI 只在 `ONMOUNT/ONUNMOUNT` 中创建和销毁，根对象必须挂到 `app_manager_this_page_screen()`。Timer、事件订阅、输入和 Wi-Fi session 只在 `ONRESUME/ONPAUSE` 中启停；清理失败须保留资源 handle，并从 `ONPAUSE` 或 `ONSTOP` 上报以便重试。`ONSTART/ONSTOP` 只管理非视觉保留状态，`ONNEWINTENT` 用于消费更新后的 Typed Blob 参数。
+页面 UI 只在 `ONMOUNT/ONUNMOUNT` 中创建和销毁，根对象必须挂到 `app_manager_this_page_screen()`。Timer、事件订阅、worker 和服务会话只在 `ONRESUME/ONPAUSE` 中启停；清理失败须保留资源 handle，从 `ONPAUSE` 或 `ONSTOP` 上报并允许后续生命周期重试。音频、存储和时钟 worker 的 task stack 必须从 PSRAM 分配，并由页面所有者同步删除，避免占用 LCD 与 I2S 共用的内部 DMA heap。每个页面私有状态都以静态断言约束在 2728 B 以内。
+
+SD 自检仅在已挂载的 `/sdcard` 下以 `O_EXCL` 创建本次独占的 4 KiB 临时文件，分块写入、读回校验并删除；不枚举、覆盖或格式化用户文件。未挂载时应用只提示插卡后重启，不调用存储服务的 init/deinit。
 
 ## ESP-IDF 集成
 
@@ -27,7 +29,7 @@ set(EXTRA_COMPONENT_DIRS
 )
 ```
 
-在固件入口组件中声明 `PRIV_REQUIRES apps`，确保内置应用归档参与最终链接。工程还需提供 `app_core`、`app_theme`、`event_bus`、`wifi_service`、`time_service`、`power_service`、`mt_log` 和 LVGL；具体依赖以根 `CMakeLists.txt` 为准。组件要求 ESP-IDF 5.0 或更高版本。
+在固件入口组件中声明 `PRIV_REQUIRES apps`，确保内置应用归档参与最终链接。工程还需提供 `app_core`、`app_theme`、`event_bus`、`wifi_service`、`time_service`、`power_service`、`imu_service`、`audio_service`、`sd_storage_service`、`freertos`、`heap`、`fatfs`、`esp_app_format`、`esp_hw_support`、`mt_log` 和 LVGL；具体依赖以根 `CMakeLists.txt` 为准。组件要求 ESP-IDF 5.1 或更高版本，并启用外部 RAM task stack 支持。
 
 ## 宿主测试
 
@@ -40,9 +42,11 @@ ctest --test-dir /tmp/mt-apps-host --output-on-failure
 
 `APPS_SANITIZER` 还支持 `address`（ASan/UBSan）和 `thread`（TSan）。当前宿主测试验证 RUN/BACK/OPEN_PAGE 请求、统一命令池准入失败、ID 值复制、completion 恰好一次，以及 Wi-Fi session、操作过滤、回调和可重试清理；不替代 ESP32-S3 上的界面、动画、无线和内存验证。
 
+音频、存储和时钟 worker adapter 的故障恢复测试，以及四个演示页的跨层生命周期测试位于主工程 `tests/integration/`，通过 `CROSS_LAYER_SANITIZER` 分别运行普通、ASan/UBSan 和 TSan 配置。
+
 ## 设计与修改边界
 
-页面资源必须与 App Manager 生命周期对应，稳定后台页不得保留 LVGL 对象、timer、事件订阅或活动 session；释放失败应上报并保留可重试状态。事件总线 UI 回调只消费有效快照，Wi-Fi 密码使用后必须清零。共用 UI 只放跨应用稳定能力，避免应用状态互相耦合。遵循主工程 `doc/code-style.md`，不得修改 ESP-IDF、`managed_components/` 或中间件实现来规避本层问题。
+页面资源必须与 App Manager 生命周期对应，稳定后台页不得保留 LVGL 对象、timer、事件订阅、worker 或活动 session；释放失败应上报并保留可重试状态。UI worker 只投递音频、文件和 RTC 命令并读取线程安全快照，不直接执行 PCM、文件 I/O 或 RTC I2C。遵循主工程 `doc/code-style.md`，不得修改 ESP-IDF、`managed_components/` 或中间件实现来规避本层问题。
 
 ## 许可证
 
