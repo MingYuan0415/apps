@@ -161,7 +161,7 @@ static void _setup_update_password_mask(setup_page_state_t *state)
 {
     if (state->password_mask == NULL)
     {
-        goto exit;
+        return;
     }
     char mask[WIFI_SERVICE_PASSWORD_MAX_BYTES + 16U];
     memset(mask, '*', state->password_length);
@@ -169,9 +169,6 @@ static void _setup_update_password_mask(setup_page_state_t *state)
                    sizeof(mask) - state->password_length,
                    " (%u/63)", (unsigned)state->password_length);
     lv_label_set_text(state->password_mask, mask);
-
-exit:
-    return;
 }
 
 static void _setup_key_event(lv_event_t *event)
@@ -179,19 +176,16 @@ static void _setup_key_event(lv_event_t *event)
     setup_key_action_t *action = lv_event_get_user_data(event);
     if (action == NULL || action->state == NULL)
     {
-        goto exit;
+        return;
     }
     setup_page_state_t *state = action->state;
     if (!state->editing_password ||
             state->password_length >= sizeof(state->password))
     {
-        goto exit;
+        return;
     }
     state->password[state->password_length++] = (uint8_t)action->value;
     _setup_update_password_mask(state);
-
-exit:
-    return;
 }
 
 static void _setup_add_key_button(setup_page_state_t *state, lv_obj_t *row,
@@ -199,15 +193,12 @@ static void _setup_add_key_button(setup_page_state_t *state, lv_obj_t *row,
 {
     if (state->key_action_count >= SETUP_KEY_DESCRIPTOR_COUNT)
     {
-        goto exit;
+        return;
     }
     setup_key_action_t *action = &state->key_actions[state->key_action_count++];
     action->state = state;
     action->value = value;
     (void)_setup_add_compact_button(row, label, _setup_key_event, action);
-
-exit:
-    return;
 }
 
 static void _setup_add_key_row(setup_page_state_t *state, const char *keys)
@@ -273,7 +264,7 @@ static void _setup_submit_connect(setup_page_state_t *state)
         _setup_update_password_mask(state);
         _setup_set_status(state, "Password too short",
                           "Use 8 to 63 characters");
-        goto exit;
+        return;
     }
 
     const size_t ssid_length = strnlen(
@@ -297,16 +288,13 @@ static void _setup_submit_connect(setup_page_state_t *state)
         _setup_set_status(state, "Connection not started",
                           esp_err_to_name(result));
         _setup_render_networks(state);
-        goto exit;
+        return;
     }
     _setup_set_status(state, "Connecting...", "Waiting for the access point");
     lv_obj_clean(state->controls);
     (void)app_ui_add_action(state->controls, LV_SYMBOL_CLOSE,
                             "Cancel", "Stop this connection attempt",
                             _setup_cancel_operation_event, state);
-
-exit:
-    return;
 }
 
 static void _setup_connect_event(lv_event_t *event)
@@ -395,22 +383,19 @@ static void _setup_scan_event(lv_event_t *event)
     if (!setup_wifi_adapter_is_open(&state->adapter))
     {
         (void)_setup_start_adapter(state);
-        goto exit;
+        return;
     }
     esp_err_t result = setup_wifi_adapter_scan(&state->adapter);
     if (result != ESP_OK)
     {
         _setup_set_status(state, "Scan not started", esp_err_to_name(result));
-        goto exit;
+        return;
     }
     _setup_set_status(state, "Scanning...", "Looking for nearby networks");
     lv_obj_clean(state->controls);
     (void)app_ui_add_action(state->controls, LV_SYMBOL_CLOSE,
                             "Cancel", "Stop this network scan",
                             _setup_cancel_operation_event, state);
-
-exit:
-    return;
 }
 
 static void _setup_disconnect_event(lv_event_t *event)
@@ -424,16 +409,13 @@ static void _setup_disconnect_event(lv_event_t *event)
     {
         _setup_set_status(state, "Disconnect not started",
                           esp_err_to_name(result));
-        goto exit;
+        return;
     }
     _setup_set_status(state, "Disconnecting...", "Clearing the active link");
     lv_obj_clean(state->controls);
     (void)app_ui_add_action(state->controls, LV_SYMBOL_CLOSE,
                             "Cancel", "Stop this disconnect request",
                             _setup_cancel_operation_event, state);
-
-exit:
-    return;
 }
 
 static void _setup_render_scan_action(setup_page_state_t *state)
@@ -472,13 +454,13 @@ static void _setup_network_event(lv_event_t *event)
     setup_network_action_t *action = lv_event_get_user_data(event);
     if (action == NULL || action->state == NULL)
     {
-        goto exit;
+        return;
     }
     setup_page_state_t *state = action->state;
     if (action->scan_generation != state->scan_generation ||
             action->index >= state->record_count)
     {
-        goto exit;
+        return;
     }
 
     _setup_scrub_credentials(state);
@@ -504,9 +486,6 @@ static void _setup_network_event(lv_event_t *event)
         _setup_render_networks(state);
         break;
     }
-
-exit:
-    return;
 }
 
 static void _setup_render_networks(setup_page_state_t *state)
@@ -614,7 +593,7 @@ static void _setup_status_snapshot(
     setup_page_state_t *state = user_data;
     if (state->page.root == NULL)
     {
-        goto exit;
+        return;
     }
     state->globally_connected = snapshot->state == WIFI_SERVICE_STATE_IP_READY;
 
@@ -623,20 +602,17 @@ static void _setup_status_snapshot(
              snapshot->state == WIFI_SERVICE_STATE_IP_READY))
     {
         _setup_render_scan_outcome_actions(state);
-        goto exit;
+        return;
     }
     if (state->scan_results_visible &&
             (snapshot->state == WIFI_SERVICE_STATE_IDLE ||
              snapshot->state == WIFI_SERVICE_STATE_IP_READY))
     {
-        goto exit;
+        return;
     }
     state->scan_results_visible = false;
     state->scan_outcome_visible = false;
     _setup_render_status_state(state, snapshot, scope, operation_kind);
-
-exit:
-    return;
 }
 
 static void _setup_scan_snapshot(
@@ -646,7 +622,7 @@ static void _setup_scan_snapshot(
     setup_page_state_t *state = user_data;
     if (state->page.root == NULL)
     {
-        goto exit;
+        return;
     }
     switch (snapshot->state)
     {
@@ -688,9 +664,6 @@ static void _setup_scan_snapshot(
         _setup_render_scan_outcome_actions(state);
         break;
     }
-
-exit:
-    return;
 }
 
 static esp_err_t _setup_start_adapter(setup_page_state_t *state)
@@ -706,7 +679,7 @@ static esp_err_t _setup_start_adapter(setup_page_state_t *state)
     {
         _setup_set_status(state, "WiFi unavailable", esp_err_to_name(result));
         _setup_render_scan_action(state);
-        goto exit;
+        return result;
     }
     if (!state->globally_connected)
     {
@@ -729,8 +702,6 @@ static esp_err_t _setup_start_adapter(setup_page_state_t *state)
             _setup_render_scan_action(state);
         }
     }
-
-exit:
     return result;
 }
 
@@ -772,7 +743,7 @@ static esp_err_t _setup_page_pause(setup_page_state_t *state)
     {
         app_manager_this_page_report_cleanup_error(result);
         LOG_W("WiFi session close incomplete: %s", esp_err_to_name(result));
-        goto exit;
+        return result;
     }
     _setup_scrub_credentials(state);
     wifi_service_secure_zero(state->records, sizeof(state->records));
@@ -781,8 +752,6 @@ static esp_err_t _setup_page_pause(setup_page_state_t *state)
     state->globally_connected = false;
     state->scan_results_visible = false;
     state->scan_outcome_visible = false;
-
-exit:
     return result;
 }
 

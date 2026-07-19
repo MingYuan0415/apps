@@ -209,7 +209,7 @@ static void _settings_power_render(settings_power_state_t *state,
         lv_label_set_text(state->voltage_value, "--");
         lv_label_set_text(state->source_value, "PMU offline");
         lv_label_set_text(state->sample_value, "No valid sample");
-        goto exit;
+        return;
     }
 
     if (snapshot->info.battery_percent >= 0)
@@ -229,9 +229,6 @@ static void _settings_power_render(settings_power_state_t *state,
                        "Battery"));
     lv_label_set_text_fmt(state->sample_value, "%lld ms",
                           (long long)snapshot->sampled_at_ms);
-
-exit:
-    return;
 }
 
 static void _settings_power_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
@@ -244,14 +241,11 @@ static void _settings_power_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
             payload_size != sizeof(power_service_snapshot_t) ||
             state->page.root == NULL)
     {
-        goto exit;
+        return;
     }
     power_service_snapshot_t snapshot;
     memcpy(&snapshot, payload, sizeof(snapshot));
     _settings_power_render(state, &snapshot);
-
-exit:
-    return;
 }
 
 static void _settings_screen_off_event(lv_event_t *event)

@@ -76,13 +76,10 @@ void app_ui_request_run(const char *app_id)
     if (!_app_ui_id_is_valid(app_id))
     {
         LOG_W("invalid app id");
-        goto exit;
+        return;
     }
 
     _app_ui_navigate(APP_MANAGER_NAV_OP_RUN, app_id, NULL, "run app");
-
-exit:
-    return;
 }
 
 void app_ui_request_open_page(const char *app_id, const char *page_id)
@@ -90,14 +87,11 @@ void app_ui_request_open_page(const char *app_id, const char *page_id)
     if (!_app_ui_id_is_valid(app_id) || !_app_ui_id_is_valid(page_id))
     {
         LOG_W("invalid page id");
-        goto exit;
+        return;
     }
 
     _app_ui_navigate(APP_MANAGER_NAV_OP_OPEN_PAGE, app_id, page_id,
                      "open page");
-
-exit:
-    return;
 }
 
 void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
@@ -108,7 +102,7 @@ void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
     if (screen == NULL)
     {
         LOG_E("page screen unavailable");
-        goto exit;
+        return;
     }
     page->root = lv_obj_create(screen);
     lv_obj_remove_style_all(page->root);
@@ -177,9 +171,6 @@ void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
                           LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_set_scroll_dir(page->content, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(page->content, LV_SCROLLBAR_MODE_AUTO);
-
-exit:
-    return;
 }
 
 void app_ui_page_destroy(app_ui_page_t *page)

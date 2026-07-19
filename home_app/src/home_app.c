@@ -53,7 +53,7 @@ static void _home_update_clock(home_page_state_t *state)
         lv_label_set_text(state->time_label, "--:--");
         lv_label_set_text(state->date_label, "Waiting for a valid clock");
         lv_label_set_text(state->quality_label, "Time unavailable");
-        goto exit;
+        return;
     }
 
     char buffer[48];
@@ -67,9 +67,6 @@ static void _home_update_clock(home_page_state_t *state)
     }
     lv_label_set_text(state->quality_label,
                       _home_time_quality_text(time_service_get_quality()));
-
-exit:
-    return;
 }
 
 static void _home_clock_timer(lv_timer_t *timer)
@@ -87,7 +84,7 @@ static void _home_render_power(home_page_state_t *state,
     if (!snapshot->valid)
     {
         lv_label_set_text(state->battery_value, "Unavailable");
-        goto exit;
+        return;
     }
 
     char text[48];
@@ -104,9 +101,6 @@ static void _home_render_power(home_page_state_t *state,
                  snapshot->info.is_vbus_connected ? "USB connected" : "Battery");
     }
     lv_label_set_text(state->battery_value, text);
-
-exit:
-    return;
 }
 
 static void _home_power_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
@@ -119,15 +113,12 @@ static void _home_power_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
             payload_size != sizeof(power_service_snapshot_t) ||
             state->page.root == NULL)
     {
-        goto exit;
+        return;
     }
 
     power_service_snapshot_t snapshot;
     memcpy(&snapshot, payload, sizeof(snapshot));
     _home_render_power(state, &snapshot);
-
-exit:
-    return;
 }
 
 static void _home_open_app(lv_event_t *event)
