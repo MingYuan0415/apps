@@ -4,6 +4,7 @@
 
 #include "app_manager.h"
 #include "app_ui.h"
+#include "menu_page_definitions.h"
 
 #include <string.h>
 
@@ -86,7 +87,40 @@ static void _menu_page_handler(app_manager_msg_type_t message, void *param)
     }
 }
 
+static const app_manager_page_definition_t s_menu_root_definition =
+{
+    .handler = _menu_page_handler,
+    .memory_size = sizeof(menu_page_state_t),
+};
+
+static const app_manager_page_route_t s_menu_routes[] =
+{
+    {
+        .page_id = "root",
+        .definition = &s_menu_root_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = MENU_PAGE_MOTION,
+        .definition = &menu_motion_page_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = MENU_PAGE_AUDIO,
+        .definition = &menu_audio_page_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = MENU_PAGE_STORAGE,
+        .definition = &menu_storage_page_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = MENU_PAGE_CLOCK,
+        .definition = &menu_clock_page_definition,
+        .user_data = NULL,
+    },
+};
+
 APP_MANAGER_APP_EXPORT(menu, NULL, APP_MANAGER_ID_MENU, "root",
-                       APP_MANAGER_APP_FLAG_NONE);
-APP_MANAGER_PAGE_EXPORT(menu_root, APP_MANAGER_ID_MENU, "root",
-                        _menu_page_handler, NULL, sizeof(menu_page_state_t));
+                       APP_MANAGER_APP_FLAG_NONE, s_menu_routes);

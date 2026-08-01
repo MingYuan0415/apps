@@ -442,7 +442,20 @@ static void _home_page_handler(app_manager_msg_type_t message, void *param)
     }
 }
 
+static const app_manager_page_definition_t s_home_root_definition =
+{
+    .handler = _home_page_handler,
+    .memory_size = sizeof(home_page_state_t),
+};
+
+static const app_manager_page_route_t s_home_routes[] =
+{
+    {
+        .page_id = "root",
+        .definition = &s_home_root_definition,
+        .user_data = NULL,
+    },
+};
+
 APP_MANAGER_APP_EXPORT(home, NULL, APP_MANAGER_ID_HOME, "root",
-                       APP_MANAGER_APP_FLAG_PINNED);
-APP_MANAGER_PAGE_EXPORT(home_root, APP_MANAGER_ID_HOME, "root",
-                        _home_page_handler, NULL, sizeof(home_page_state_t));
+                       APP_MANAGER_APP_FLAG_PINNED, s_home_routes);

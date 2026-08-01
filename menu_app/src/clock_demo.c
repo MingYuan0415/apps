@@ -6,6 +6,7 @@
 #include "app_ui.h"
 #include "clock_demo_adapter.h"
 #include "event_bus.h"
+#include "menu_page_definitions.h"
 #include "time_service.h"
 
 #include <stdio.h>
@@ -514,6 +515,8 @@ static void _clock_page_handler(app_manager_msg_type_t message, void *param)
     }
 }
 
-APP_MANAGER_PAGE_EXPORT(menu_clock, APP_MANAGER_ID_MENU, "clock",
-                        _clock_page_handler, NULL,
-                        sizeof(clock_page_state_t));
+const app_manager_page_definition_t menu_clock_page_definition =
+{
+    .handler = _clock_page_handler,
+    .memory_size = sizeof(clock_page_state_t),
+};

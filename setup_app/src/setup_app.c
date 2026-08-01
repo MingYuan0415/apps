@@ -797,8 +797,20 @@ static void _setup_page_handler(app_manager_msg_type_t message, void *param)
     }
 }
 
+static const app_manager_page_definition_t s_setup_root_definition =
+{
+    .handler = _setup_page_handler,
+    .memory_size = sizeof(setup_page_state_t),
+};
+
+static const app_manager_page_route_t s_setup_routes[] =
+{
+    {
+        .page_id = "root",
+        .definition = &s_setup_root_definition,
+        .user_data = NULL,
+    },
+};
+
 APP_MANAGER_APP_EXPORT(setup, NULL, APP_MANAGER_ID_SETUP, "root",
-                       APP_MANAGER_APP_FLAG_NONE);
-APP_MANAGER_PAGE_EXPORT(setup_root, APP_MANAGER_ID_SETUP, "root",
-                        _setup_page_handler, NULL,
-                        sizeof(setup_page_state_t));
+                       APP_MANAGER_APP_FLAG_NONE, s_setup_routes);

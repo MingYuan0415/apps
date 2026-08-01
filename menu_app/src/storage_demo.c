@@ -4,6 +4,7 @@
 
 #include "app_manager.h"
 #include "app_ui.h"
+#include "menu_page_definitions.h"
 #include "storage_demo_adapter.h"
 
 #include <stdbool.h>
@@ -350,6 +351,8 @@ static void _storage_demo_page_handler(app_manager_msg_type_t message,
     }
 }
 
-APP_MANAGER_PAGE_EXPORT(menu_storage, APP_MANAGER_ID_MENU,
-                        STORAGE_DEMO_PAGE_ID, _storage_demo_page_handler,
-                        NULL, sizeof(storage_demo_page_state_t));
+const app_manager_page_definition_t menu_storage_page_definition =
+{
+    .handler = _storage_demo_page_handler,
+    .memory_size = sizeof(storage_demo_page_state_t),
+};

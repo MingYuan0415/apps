@@ -5,6 +5,7 @@
 #include "app_manager.h"
 #include "app_ui.h"
 #include "imu_service.h"
+#include "menu_page_definitions.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -262,6 +263,8 @@ static void _motion_page_handler(app_manager_msg_type_t message, void *param)
     }
 }
 
-APP_MANAGER_PAGE_EXPORT(menu_motion, APP_MANAGER_ID_MENU, "motion",
-                        _motion_page_handler, NULL,
-                        sizeof(motion_page_state_t));
+const app_manager_page_definition_t menu_motion_page_definition =
+{
+    .handler = _motion_page_handler,
+    .memory_size = sizeof(motion_page_state_t),
+};

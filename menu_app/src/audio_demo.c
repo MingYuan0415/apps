@@ -5,6 +5,7 @@
 #include "app_manager.h"
 #include "app_ui.h"
 #include "audio_demo_adapter.h"
+#include "menu_page_definitions.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -513,6 +514,8 @@ static void _audio_demo_handler(app_manager_msg_type_t message, void *param)
     }
 }
 
-APP_MANAGER_PAGE_EXPORT(menu_audio, APP_MANAGER_ID_MENU, "audio",
-                        _audio_demo_handler, NULL,
-                        sizeof(audio_demo_page_state_t));
+const app_manager_page_definition_t menu_audio_page_definition =
+{
+    .handler = _audio_demo_handler,
+    .memory_size = sizeof(audio_demo_page_state_t),
+};

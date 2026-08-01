@@ -589,14 +589,42 @@ static void _settings_about_handler(app_manager_msg_type_t message, void *param)
     }
 }
 
+static const app_manager_page_definition_t s_settings_root_definition =
+{
+    .handler = _settings_root_handler,
+    .memory_size = sizeof(settings_root_state_t),
+};
+
+static const app_manager_page_definition_t s_settings_power_definition =
+{
+    .handler = _settings_power_handler,
+    .memory_size = sizeof(settings_power_state_t),
+};
+
+static const app_manager_page_definition_t s_settings_about_definition =
+{
+    .handler = _settings_about_handler,
+    .memory_size = sizeof(settings_about_state_t),
+};
+
+static const app_manager_page_route_t s_settings_routes[] =
+{
+    {
+        .page_id = "root",
+        .definition = &s_settings_root_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = SETTINGS_PAGE_POWER,
+        .definition = &s_settings_power_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = SETTINGS_PAGE_ABOUT,
+        .definition = &s_settings_about_definition,
+        .user_data = NULL,
+    },
+};
+
 APP_MANAGER_APP_EXPORT(settings, NULL, APP_MANAGER_ID_SETTINGS, "root",
-                       APP_MANAGER_APP_FLAG_NONE);
-APP_MANAGER_PAGE_EXPORT(settings_root, APP_MANAGER_ID_SETTINGS, "root",
-                        _settings_root_handler, NULL,
-                        sizeof(settings_root_state_t));
-APP_MANAGER_PAGE_EXPORT(settings_power, APP_MANAGER_ID_SETTINGS,
-                        SETTINGS_PAGE_POWER, _settings_power_handler, NULL,
-                        sizeof(settings_power_state_t));
-APP_MANAGER_PAGE_EXPORT(settings_about, APP_MANAGER_ID_SETTINGS,
-                        SETTINGS_PAGE_ABOUT, _settings_about_handler, NULL,
-                        sizeof(settings_about_state_t));
+                       APP_MANAGER_APP_FLAG_NONE, s_settings_routes);

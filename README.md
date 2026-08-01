@@ -11,7 +11,7 @@
 - `setup_app/`：通过页面自有 Wi-Fi session 完成扫描、连接、取消和断开，过滤非本次操作的事件快照，并在使用后清零密码。
 - `tests/host/`：共用导航和 Setup Wi-Fi adapter 的宿主测试及最小依赖 fake。
 
-每个应用以 `APP_MANAGER_APP_EXPORT` 导出应用描述符，并以 `APP_MANAGER_PAGE_EXPORT` 导出根页面和其他静态页面；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现两个描述符段。新增应用时应在独立目录中实现生命周期 handler，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，不要使用递归 glob。
+每个应用以普通 `const` Page definition 描述 handler 和私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。只有 `APP_MANAGER_APP_EXPORT` 产生的 App descriptor 进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。公共 Page definition 可被多个 App route 引用，但未显式绑定的 App 不能导航到它，也不支持运行时自由挂载。新增应用时应在独立目录中实现生命周期 handler，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，不要使用递归 glob。
 
 页面 UI 只在 `ONMOUNT/ONUNMOUNT` 中创建和销毁，根对象必须挂到 `app_manager_this_page_screen()`。Timer、事件订阅、worker 和服务会话只在 `ONRESUME/ONPAUSE` 中启停；清理失败须保留资源 handle，从 `ONPAUSE` 或 `ONSTOP` 上报并允许后续生命周期重试。音频、存储和时钟 worker 的 task stack 必须从 PSRAM 分配，并由页面所有者同步删除，避免占用 LCD 与 I2S 共用的内部 DMA heap。每个页面私有状态都以静态断言约束在 2728 B 以内。
 
