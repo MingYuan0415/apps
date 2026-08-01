@@ -86,7 +86,14 @@ static esp_err_t _audio_demo_start_stream(
         return ESP_ERR_NOT_FOUND;
     }
 
-    *config = audio_service_get_default_config();
+    esp_err_t result = audio_service_get_config(config);
+    if (result != ESP_OK)
+    {
+        snapshot->state = AUDIO_DEMO_ADAPTER_ERROR;
+        snapshot->last_error = result;
+        _audio_demo_publish(adapter, snapshot);
+        return result;
+    }
     if (!_audio_demo_format_supported(config))
     {
         snapshot->state = AUDIO_DEMO_ADAPTER_ERROR;
@@ -119,7 +126,7 @@ static esp_err_t _audio_demo_start_stream(
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t result = audio_service_get_volume(&snapshot->volume_percent);
+    result = audio_service_get_volume(&snapshot->volume_percent);
     if (result == ESP_OK)
     {
         result = audio_service_get_mute(&snapshot->muted);

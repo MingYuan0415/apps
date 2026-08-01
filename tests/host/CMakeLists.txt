@@ -11,6 +11,7 @@ find_program(APPS_SETARCH setarch)
 function(configure_apps_host_target target)
     target_compile_features(${target} PRIVATE c_std_11)
     target_compile_options(${target} PRIVATE
+        -include "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.h"
         -Wall
         -Wextra
         -Werror
