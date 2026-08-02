@@ -35,6 +35,7 @@ idf_component_register(
         imu_service
         sd_storage_service
         connectivity_manager
+        provisioning_service
         time_service
         power_service
         esp_app_format

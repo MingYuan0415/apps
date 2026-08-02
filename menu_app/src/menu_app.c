@@ -53,7 +53,7 @@ static void _menu_page_build(menu_page_state_t *state)
 
     app_ui_add_section(state->page.content, "设备管理");
     app_ui_add_action(state->page.content, LV_SYMBOL_WIFI, "网络设置",
-                      "扫描并连接 Wi-Fi", _menu_open_app,
+                      "手机配网与保存网络管理", _menu_open_app,
                       (void *)APP_MANAGER_ID_SETUP);
     app_ui_add_action(state->page.content, LV_SYMBOL_SETTINGS, "系统设置",
                       "显示、电源与设备信息", _menu_open_app,
