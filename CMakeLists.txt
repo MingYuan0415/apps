@@ -34,7 +34,7 @@ idf_component_register(
         event_bus
         imu_service
         sd_storage_service
-        wifi_service
+        connectivity_manager
         time_service
         power_service
         esp_app_format

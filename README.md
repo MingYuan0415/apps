@@ -8,7 +8,7 @@
 - `home_app/`：显示本地时间与质量、电量/供电、Wi-Fi 和 SD 挂载状态，提供演示中心、配网和设置入口。
 - `menu_app/`：作为演示中心，包含运动传感、音频、SD 存储和时间/RTC 四个静态页；音频、文件和 RTC 操作均由页面自有 worker 执行。
 - `settings_app/`：提供亮度、固定熄屏/待机延迟选项、电源详情及运行时固件描述。
-- `setup_app/`：通过页面自有 Wi-Fi session 完成扫描、连接、取消和断开，过滤非本次操作的事件快照，并在使用后清零密码。
+- `setup_app/`：订阅全局 `connectivity_manager` 快照，完成扫描、连接、取消、断开、重连、自动连接开关和忘记网络；页面不拥有 Wi-Fi session，并在提交后清零密码。
 - `tests/host/`：共用导航和 Setup Wi-Fi adapter 的宿主测试及最小依赖 fake。
 
 每个应用以普通 `const` Page definition 描述 handler 和私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。只有 `APP_MANAGER_APP_EXPORT` 产生的 App descriptor 进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。公共 Page definition 可被多个 App route 引用，但未显式绑定的 App 不能导航到它，也不支持运行时自由挂载。新增应用时应在独立目录中实现生命周期 handler，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，不要使用递归 glob。
@@ -29,7 +29,7 @@ set(EXTRA_COMPONENT_DIRS
 )
 ```
 
-在固件入口组件中声明 `PRIV_REQUIRES apps`，确保内置应用归档参与最终链接。工程还需提供 `app_core`、`app_theme`、`event_bus`、`wifi_service`、`time_service`、`power_service`、`imu_service`、`audio_service`、`sd_storage_service`、`freertos`、`heap`、`fatfs`、`esp_app_format`、`esp_hw_support`、`mt_log` 和 LVGL；具体依赖以根 `CMakeLists.txt` 为准。组件要求 ESP-IDF 5.1 或更高版本，并启用外部 RAM task stack 支持。
+在固件入口组件中声明 `PRIV_REQUIRES apps`，确保内置应用归档参与最终链接。工程还需提供 `app_core`、`app_theme`、`event_bus`、`connectivity_manager`、`time_service`、`power_service`、`imu_service`、`audio_service`、`sd_storage_service`、`freertos`、`heap`、`fatfs`、`esp_app_format`、`esp_hw_support`、`mt_log` 和 LVGL；具体依赖以根 `CMakeLists.txt` 为准。组件要求 ESP-IDF 5.1 或更高版本，并启用外部 RAM task stack 支持。
 
 ## 宿主测试
 
@@ -40,13 +40,13 @@ cmake --build /tmp/mt-apps-host
 ctest --test-dir /tmp/mt-apps-host --output-on-failure
 ```
 
-`APPS_SANITIZER` 还支持 `address`（ASan/UBSan）和 `thread`（TSan）。当前宿主测试验证 RUN/BACK/OPEN_PAGE 请求、统一命令池准入失败、ID 值复制、completion 恰好一次，以及 Wi-Fi session、操作过滤、回调和可重试清理；不替代 ESP32-S3 上的界面、动画、无线和内存验证。
+`APPS_SANITIZER` 还支持 `address`（ASan/UBSan）和 `thread`（TSan）。当前宿主测试验证 RUN/BACK/OPEN_PAGE 请求、统一命令池准入失败、ID 值复制、completion 恰好一次，以及 manager 操作过滤、快照回调、密码清零和可重试清理；不替代 ESP32-S3 上的界面、动画、无线和内存验证。
 
 音频、存储和时钟 worker adapter 的故障恢复测试，以及四个演示页的跨层生命周期测试位于主工程 `tests/integration/`，通过 `CROSS_LAYER_SANITIZER` 分别运行普通、ASan/UBSan 和 TSan 配置。
 
 ## 设计与修改边界
 
-页面资源必须与 App Manager 生命周期对应，稳定后台页不得保留 LVGL 对象、timer、事件订阅、worker 或活动 session；释放失败应上报并保留可重试状态。UI worker 只投递音频、文件和 RTC 命令并读取线程安全快照，不直接执行 PCM、文件 I/O 或 RTC I2C。遵循主工程 `doc/code-style.md`，不得修改 ESP-IDF、`managed_components/` 或中间件实现来规避本层问题。
+页面资源必须与 App Manager 生命周期对应，稳定后台页不得保留 LVGL 对象、timer、事件订阅或页面 worker；释放失败应上报并保留可重试状态。Wi-Fi 连接和系统 SNTP 可跨页面存在，分别由 `connectivity_manager` 和 `time_service` 所有。UI worker 只投递音频、文件和 RTC 命令并读取线程安全快照，不直接执行 PCM、文件 I/O 或 RTC I2C。遵循主工程 `doc/code-style.md`，不得修改 ESP-IDF、`managed_components/` 或中间件实现来规避本层问题。
 
 ## 许可证
 

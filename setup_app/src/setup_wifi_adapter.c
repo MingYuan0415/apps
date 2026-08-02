@@ -4,14 +4,25 @@
 #include <string.h>
 
 _Static_assert(sizeof(bool) == 1U, "snapshot boolean validation requires bytes");
-_Static_assert(sizeof(wifi_service_status_snapshot_t) <=
+_Static_assert(sizeof(connectivity_manager_status_snapshot_t) <=
                EVENT_BUS_MAX_UI_PAYLOAD_SIZE,
-               "WiFi status snapshot exceeds the event-bus envelope");
-_Static_assert(sizeof(wifi_service_scan_snapshot_t) <=
+               "connectivity status exceeds the event-bus envelope");
+_Static_assert(sizeof(connectivity_manager_scan_snapshot_t) <=
                EVENT_BUS_MAX_UI_PAYLOAD_SIZE,
-               "WiFi scan snapshot exceeds the event-bus envelope");
+               "connectivity scan exceeds the event-bus envelope");
 
-static bool _setup_wifi_adapter_terminal_teardown_result(esp_err_t result)
+static void _setup_wifi_adapter_secure_zero(void *data, size_t size)
+{
+    volatile uint8_t *bytes = data;
+    while (size > 0U)
+    {
+        *bytes = 0U;
+        ++bytes;
+        --size;
+    }
+}
+
+static bool _setup_wifi_adapter_terminal_result(esp_err_t result)
 {
     return result == ESP_OK || result == ESP_ERR_NOT_FOUND ||
            result == ESP_ERR_INVALID_STATE || result == ESP_ERR_INVALID_ARG;
@@ -21,7 +32,7 @@ static void _setup_wifi_adapter_record_error(esp_err_t *first_error,
         esp_err_t result)
 {
     if (*first_error == ESP_OK &&
-            !_setup_wifi_adapter_terminal_teardown_result(result))
+            !_setup_wifi_adapter_terminal_result(result))
     {
         *first_error = result;
     }
@@ -30,7 +41,7 @@ static void _setup_wifi_adapter_record_error(esp_err_t *first_error,
 static bool _setup_wifi_adapter_context_is_free(
     const setup_wifi_adapter_t *adapter)
 {
-    return adapter->session_id == 0 && adapter->operation_id == 0 &&
+    return adapter->operation_id == 0U &&
            adapter->operation_kind == SETUP_WIFI_OPERATION_NONE &&
            adapter->status_subscription == EVENT_BUS_SUB_HANDLE_INVALID &&
            adapter->scan_subscription == EVENT_BUS_SUB_HANDLE_INVALID;
@@ -39,147 +50,107 @@ static bool _setup_wifi_adapter_context_is_free(
 static bool _setup_wifi_adapter_status_bools_valid(const void *payload)
 {
     const uint8_t *bytes = payload;
-    return bytes[offsetof(wifi_service_status_snapshot_t, available)] <= 1U &&
-           bytes[offsetof(wifi_service_status_snapshot_t,
-                          desired_connected)] <= 1U;
+    return bytes[offsetof(connectivity_manager_status_snapshot_t,
+                          available)] <= 1U &&
+           bytes[offsetof(connectivity_manager_status_snapshot_t,
+                          radio_available)] <= 1U &&
+           bytes[offsetof(connectivity_manager_status_snapshot_t,
+                          saved_profile)] <= 1U &&
+           bytes[offsetof(connectivity_manager_status_snapshot_t,
+                          profile_persisted)] <= 1U &&
+           bytes[offsetof(connectivity_manager_status_snapshot_t,
+                          auto_connect)] <= 1U &&
+           bytes[offsetof(connectivity_manager_status_snapshot_t,
+                          manual_hold)] <= 1U &&
+           bytes[offsetof(connectivity_manager_status_snapshot_t,
+                          operation_complete)] <= 1U;
 }
 
 static bool _setup_wifi_adapter_status_valid(
-    const wifi_service_status_snapshot_t *snapshot)
+    const connectivity_manager_status_snapshot_t *snapshot)
 {
-    return snapshot->generation != 0 &&
-           snapshot->state >= WIFI_SERVICE_STATE_OFFLINE &&
-           snapshot->state <= WIFI_SERVICE_STATE_SUSPENDED &&
-           ((snapshot->session_id == 0) ==
-            (snapshot->operation_id == 0)) &&
+    return snapshot->generation != 0U &&
+           (!snapshot->operation_complete || snapshot->operation_id != 0U) &&
+           snapshot->state >= CONNECTIVITY_MANAGER_STATE_OFFLINE &&
+           snapshot->state <= CONNECTIVITY_MANAGER_STATE_SUSPENDED &&
+           snapshot->failure >= CONNECTIVITY_MANAGER_FAILURE_NONE &&
+           snapshot->failure <= CONNECTIVITY_MANAGER_FAILURE_INTERNAL &&
            memchr(snapshot->ssid, '\0', sizeof(snapshot->ssid)) != NULL;
 }
 
-static bool _setup_wifi_adapter_scan_bools_valid(const void *payload)
-{
-    const uint8_t *bytes = payload;
-    return bytes[offsetof(wifi_service_scan_snapshot_t, truncated)] <= 1U;
-}
-
 static bool _setup_wifi_adapter_scan_valid(
-    const wifi_service_scan_snapshot_t *snapshot)
+    const connectivity_manager_scan_snapshot_t *snapshot)
 {
-    if (snapshot->generation == 0 ||
-            snapshot->state < WIFI_SERVICE_SCAN_IDLE ||
-            snapshot->state > WIFI_SERVICE_SCAN_FAILED ||
-            snapshot->record_count > WIFI_SERVICE_MAX_SCAN_RECORDS ||
-            ((snapshot->session_id == 0) !=
-             (snapshot->operation_id == 0)))
+    if (snapshot->generation == 0U ||
+            snapshot->record_count > CONNECTIVITY_MANAGER_MAX_SCAN_RECORDS)
     {
         return false;
     }
-
-    for (size_t index = 0; index < snapshot->record_count; ++index)
+    for (size_t index = 0U; index < snapshot->record_count; ++index)
     {
-        const wifi_service_scan_record_t *record = &snapshot->records[index];
-        if (record->security < WIFI_SERVICE_SECURITY_OPEN ||
-                record->security > WIFI_SERVICE_SECURITY_UNSUPPORTED ||
+        const connectivity_manager_scan_record_t *record =
+            &snapshot->records[index];
+        if (record->security < CONNECTIVITY_MANAGER_SECURITY_OPEN ||
+                record->security > CONNECTIVITY_MANAGER_SECURITY_UNSUPPORTED ||
                 memchr(record->ssid, '\0', sizeof(record->ssid)) == NULL ||
                 record->ssid[0] == '\0')
         {
             return false;
         }
     }
-
     return true;
 }
 
-static bool _setup_wifi_adapter_global_state(wifi_service_state_t state)
-{
-    return state == WIFI_SERVICE_STATE_OFFLINE ||
-           state == WIFI_SERVICE_STATE_IDLE ||
-           state == WIFI_SERVICE_STATE_SUSPENDED ||
-           state == WIFI_SERVICE_STATE_IP_READY;
-}
-
 static bool _setup_wifi_adapter_status_terminal(
-    setup_wifi_operation_kind_t kind, wifi_service_state_t state)
+    const connectivity_manager_status_snapshot_t *snapshot)
 {
-    bool terminal = false;
-    if (kind == SETUP_WIFI_OPERATION_CONNECT)
-    {
-        terminal = state == WIFI_SERVICE_STATE_IP_READY ||
-                   state == WIFI_SERVICE_STATE_IDLE ||
-                   state == WIFI_SERVICE_STATE_OFFLINE;
-    }
-    else if (kind == SETUP_WIFI_OPERATION_DISCONNECT)
-    {
-        terminal = state == WIFI_SERVICE_STATE_IDLE ||
-                   state == WIFI_SERVICE_STATE_OFFLINE ||
-                   state == WIFI_SERVICE_STATE_IP_READY;
-    }
-    return terminal;
-}
-
-static bool _setup_wifi_adapter_scan_terminal(wifi_service_scan_state_t state)
-{
-    return state == WIFI_SERVICE_SCAN_RESULTS ||
-           state == WIFI_SERVICE_SCAN_CANCELED ||
-           state == WIFI_SERVICE_SCAN_FAILED;
+    return snapshot->operation_complete;
 }
 
 static void _setup_wifi_adapter_accept_status(
     setup_wifi_adapter_t *adapter,
-    const wifi_service_status_snapshot_t *snapshot)
+    const connectivity_manager_status_snapshot_t *snapshot)
 {
     if (snapshot->generation <= adapter->last_status_generation)
     {
         return;
     }
-
-    bool exact_operation = adapter->session_id != 0 &&
-                           adapter->operation_id != 0 &&
-                           (adapter->operation_kind ==
-                            SETUP_WIFI_OPERATION_CONNECT ||
-                            adapter->operation_kind ==
-                            SETUP_WIFI_OPERATION_DISCONNECT) &&
-                           snapshot->session_id == adapter->session_id &&
-                           snapshot->operation_id == adapter->operation_id;
-    if (!exact_operation && !_setup_wifi_adapter_global_state(snapshot->state))
+    adapter->last_status_generation = snapshot->generation;
+    const bool exact_operation = adapter->operation_id != 0U &&
+                                 snapshot->operation_id ==
+                                 adapter->operation_id;
+    if (snapshot->operation_complete && snapshot->operation_id != 0U &&
+            !exact_operation)
     {
         return;
     }
-
-    adapter->last_status_generation = snapshot->generation;
-    setup_wifi_operation_kind_t kind = exact_operation ?
-                                       adapter->operation_kind :
-                                       SETUP_WIFI_OPERATION_NONE;
-    if (exact_operation &&
-            _setup_wifi_adapter_status_terminal(kind, snapshot->state))
+    const setup_wifi_operation_kind_t kind = exact_operation ?
+        adapter->operation_kind : SETUP_WIFI_OPERATION_NONE;
+    if (exact_operation && _setup_wifi_adapter_status_terminal(snapshot))
     {
-        adapter->operation_id = 0;
+        adapter->operation_id = 0U;
         adapter->operation_kind = SETUP_WIFI_OPERATION_NONE;
     }
-
     adapter->callbacks.status(
-        snapshot,
-        exact_operation ? SETUP_WIFI_STATUS_OPERATION :
-        SETUP_WIFI_STATUS_GLOBAL,
-        kind, adapter->user_data);
+        snapshot, exact_operation ? SETUP_WIFI_STATUS_OPERATION :
+        SETUP_WIFI_STATUS_GLOBAL, kind, adapter->user_data);
 }
 
 static void _setup_wifi_adapter_accept_scan(
     setup_wifi_adapter_t *adapter,
-    const wifi_service_scan_snapshot_t *snapshot)
+    const connectivity_manager_scan_snapshot_t *snapshot)
 {
     if (snapshot->generation <= adapter->last_scan_generation ||
-            adapter->session_id == 0 || adapter->operation_id == 0 ||
+            adapter->operation_id == 0U ||
             adapter->operation_kind != SETUP_WIFI_OPERATION_SCAN ||
-            snapshot->session_id != adapter->session_id ||
             snapshot->operation_id != adapter->operation_id)
     {
         return;
     }
-
     adapter->last_scan_generation = snapshot->generation;
-    if (_setup_wifi_adapter_scan_terminal(snapshot->state))
+    if (!snapshot->running)
     {
-        adapter->operation_id = 0;
+        adapter->operation_id = 0U;
         adapter->operation_kind = SETUP_WIFI_OPERATION_NONE;
     }
     adapter->callbacks.scan(snapshot, adapter->user_data);
@@ -190,16 +161,16 @@ static void _setup_wifi_adapter_status_event(
     const void *payload, size_t payload_size, void *user_data)
 {
     setup_wifi_adapter_t *adapter = user_data;
-    if (adapter == NULL || msg_id != WIFI_SERVICE_MSG ||
-            sub_type != WIFI_SERVICE_MSG_SUB_TYPE_STATUS_SNAPSHOT ||
+    if (adapter == NULL || msg_id != CONNECTIVITY_MANAGER_MSG ||
+            sub_type !=
+            CONNECTIVITY_MANAGER_MSG_SUB_TYPE_STATUS_SNAPSHOT ||
             payload == NULL ||
-            payload_size != sizeof(wifi_service_status_snapshot_t) ||
+            payload_size != sizeof(connectivity_manager_status_snapshot_t) ||
             !_setup_wifi_adapter_status_bools_valid(payload))
     {
         return;
     }
-
-    wifi_service_status_snapshot_t snapshot;
+    connectivity_manager_status_snapshot_t snapshot;
     memcpy(&snapshot, payload, sizeof(snapshot));
     if (_setup_wifi_adapter_status_valid(&snapshot))
     {
@@ -212,16 +183,14 @@ static void _setup_wifi_adapter_scan_event(
     const void *payload, size_t payload_size, void *user_data)
 {
     setup_wifi_adapter_t *adapter = user_data;
-    if (adapter == NULL || msg_id != WIFI_SERVICE_MSG ||
-            sub_type != WIFI_SERVICE_MSG_SUB_TYPE_SCAN_SNAPSHOT ||
+    if (adapter == NULL || msg_id != CONNECTIVITY_MANAGER_MSG ||
+            sub_type != CONNECTIVITY_MANAGER_MSG_SUB_TYPE_SCAN_SNAPSHOT ||
             payload == NULL ||
-            payload_size != sizeof(wifi_service_scan_snapshot_t) ||
-            !_setup_wifi_adapter_scan_bools_valid(payload))
+            payload_size != sizeof(connectivity_manager_scan_snapshot_t))
     {
         return;
     }
-
-    wifi_service_scan_snapshot_t snapshot;
+    connectivity_manager_scan_snapshot_t snapshot;
     memcpy(&snapshot, payload, sizeof(snapshot));
     if (_setup_wifi_adapter_scan_valid(&snapshot))
     {
@@ -231,70 +200,60 @@ static void _setup_wifi_adapter_scan_event(
 
 static esp_err_t _setup_wifi_adapter_begin_operation(
     setup_wifi_adapter_t *adapter, setup_wifi_operation_kind_t kind,
-    wifi_service_operation_id_t operation_id)
+    connectivity_manager_operation_id_t operation_id)
 {
-    if (operation_id == 0)
+    if (operation_id == 0U)
     {
         return ESP_ERR_INVALID_STATE;
     }
     adapter->operation_id = operation_id;
     adapter->operation_kind = kind;
-
     return ESP_OK;
 }
 
 static esp_err_t _setup_wifi_adapter_subscribe(setup_wifi_adapter_t *adapter)
 {
     esp_err_t result = event_bus_subscribe(
-                           WIFI_SERVICE_MSG,
-                           WIFI_SERVICE_MSG_SUB_TYPE_STATUS_SNAPSHOT,
+                           CONNECTIVITY_MANAGER_MSG,
+                           CONNECTIVITY_MANAGER_MSG_SUB_TYPE_STATUS_SNAPSHOT,
                            _setup_wifi_adapter_status_event, adapter,
                            EVENT_BUS_DISPATCH_UI,
                            &adapter->status_subscription);
-    if (result != ESP_OK)
+    if (result == ESP_OK)
     {
-        return result;
+        result = event_bus_subscribe(
+                     CONNECTIVITY_MANAGER_MSG,
+                     CONNECTIVITY_MANAGER_MSG_SUB_TYPE_SCAN_SNAPSHOT,
+                     _setup_wifi_adapter_scan_event, adapter,
+                     EVENT_BUS_DISPATCH_UI,
+                     &adapter->scan_subscription);
     }
-    result = event_bus_subscribe(
-                 WIFI_SERVICE_MSG,
-                 WIFI_SERVICE_MSG_SUB_TYPE_SCAN_SNAPSHOT,
-                 _setup_wifi_adapter_scan_event, adapter,
-                 EVENT_BUS_DISPATCH_UI,
-                 &adapter->scan_subscription);
     return result;
 }
 
 static esp_err_t _setup_wifi_adapter_load_initial(
     setup_wifi_adapter_t *adapter)
 {
-    wifi_service_status_snapshot_t status;
-    esp_err_t result = wifi_service_get_status(&status);
+    connectivity_manager_status_snapshot_t status;
+    esp_err_t result = connectivity_manager_get_status(&status);
     if (result != ESP_OK ||
             !_setup_wifi_adapter_status_bools_valid(&status) ||
             !_setup_wifi_adapter_status_valid(&status))
     {
-        result = result != ESP_OK ? result : ESP_ERR_INVALID_RESPONSE;
-        return result;
+        return result != ESP_OK ? result : ESP_ERR_INVALID_RESPONSE;
     }
-    wifi_service_scan_snapshot_t scan;
-    result = wifi_service_get_scan_snapshot(&scan);
-    if (result != ESP_OK ||
-            !_setup_wifi_adapter_scan_bools_valid(&scan) ||
-            !_setup_wifi_adapter_scan_valid(&scan))
+    connectivity_manager_scan_snapshot_t scan;
+    result = connectivity_manager_get_scan_snapshot(&scan);
+    if (result != ESP_OK || !_setup_wifi_adapter_scan_valid(&scan))
     {
-        result = result != ESP_OK ? result : ESP_ERR_INVALID_RESPONSE;
-        return result;
+        return result != ESP_OK ? result : ESP_ERR_INVALID_RESPONSE;
     }
-
     adapter->last_status_generation = status.generation;
     adapter->last_scan_generation = scan.generation;
-    if (_setup_wifi_adapter_global_state(status.state))
-    {
-        adapter->callbacks.status(&status, SETUP_WIFI_STATUS_GLOBAL,
-                                  SETUP_WIFI_OPERATION_NONE,
-                                  adapter->user_data);
-    }
-    return result;
+    adapter->callbacks.status(&status, SETUP_WIFI_STATUS_GLOBAL,
+                              SETUP_WIFI_OPERATION_NONE,
+                              adapter->user_data);
+    return ESP_OK;
 }
 
 esp_err_t setup_wifi_adapter_open(
@@ -302,83 +261,56 @@ esp_err_t setup_wifi_adapter_open(
     const setup_wifi_adapter_callbacks_t *callbacks,
     void *user_data)
 {
-    esp_err_t result = ESP_ERR_INVALID_ARG;
     if (adapter == NULL || callbacks == NULL || callbacks->status == NULL ||
             callbacks->scan == NULL)
     {
-        return result;
+        return ESP_ERR_INVALID_ARG;
     }
     if (!_setup_wifi_adapter_context_is_free(adapter))
     {
-        result = ESP_ERR_INVALID_STATE;
-        return result;
+        return ESP_ERR_INVALID_STATE;
     }
-
     memset(adapter, 0, sizeof(*adapter));
     adapter->callbacks = *callbacks;
     adapter->user_data = user_data;
-
-    result = _setup_wifi_adapter_subscribe(adapter);
+    esp_err_t result = _setup_wifi_adapter_subscribe(adapter);
+    if (result == ESP_OK)
+    {
+        result = _setup_wifi_adapter_load_initial(adapter);
+    }
     if (result != ESP_OK)
     {
-        goto cleanup;
+        (void)setup_wifi_adapter_close(adapter);
     }
-
-    result = wifi_service_session_open(&adapter->session_id);
-    if (result != ESP_OK)
-    {
-        goto cleanup;
-    }
-
-    result = _setup_wifi_adapter_load_initial(adapter);
-    if (result != ESP_OK)
-    {
-        goto cleanup;
-    }
-    return result;
-
-cleanup:
-    (void)setup_wifi_adapter_close(adapter);
     return result;
 }
 
 esp_err_t setup_wifi_adapter_scan(setup_wifi_adapter_t *adapter)
 {
-    esp_err_t result = ESP_ERR_INVALID_STATE;
-    if (adapter == NULL || adapter->session_id == 0 ||
-            adapter->operation_id != 0)
+    if (!setup_wifi_adapter_is_open(adapter) || adapter->operation_id != 0U)
     {
-        return result;
+        return ESP_ERR_INVALID_STATE;
     }
-    wifi_service_operation_id_t operation_id = 0;
-    result = wifi_service_request_scan(adapter->session_id, &operation_id);
-    if (result == ESP_OK)
-    {
-        result = _setup_wifi_adapter_begin_operation(
-                     adapter, SETUP_WIFI_OPERATION_SCAN, operation_id);
-    }
-    return result;
+    connectivity_manager_operation_id_t operation_id = 0U;
+    esp_err_t result = connectivity_manager_request_scan(&operation_id);
+    return result == ESP_OK ? _setup_wifi_adapter_begin_operation(
+               adapter, SETUP_WIFI_OPERATION_SCAN, operation_id) : result;
 }
 
 esp_err_t setup_wifi_adapter_connect(
-    setup_wifi_adapter_t *adapter,
-    const char *ssid,
-    size_t ssid_length,
-    wifi_service_security_t security,
-    uint8_t password[WIFI_SERVICE_PASSWORD_MAX_BYTES],
+    setup_wifi_adapter_t *adapter, const char *ssid, size_t ssid_length,
+    connectivity_manager_security_t security,
+    uint8_t password[CONNECTIVITY_MANAGER_PASSWORD_MAX_BYTES],
     size_t password_length)
 {
-    esp_err_t result = ESP_ERR_INVALID_ARG;
     if (password == NULL)
     {
-        return result;
+        return ESP_ERR_INVALID_ARG;
     }
-
-    result = ESP_ERR_INVALID_STATE;
-    if (adapter != NULL && adapter->session_id != 0 &&
-            adapter->operation_id == 0)
+    esp_err_t result = ESP_ERR_INVALID_STATE;
+    if (setup_wifi_adapter_is_open(adapter) && adapter->operation_id == 0U)
     {
-        const wifi_service_credentials_t credentials =
+        const connectivity_manager_credentials_t credentials =
         {
             .ssid = ssid,
             .ssid_length = ssid_length,
@@ -386,54 +318,80 @@ esp_err_t setup_wifi_adapter_connect(
             .password_length = password_length,
             .security = security,
         };
-        wifi_service_operation_id_t operation_id = 0;
-        result = wifi_service_request_connect(adapter->session_id,
-                                              &credentials, &operation_id);
+        connectivity_manager_operation_id_t operation_id = 0U;
+        result = connectivity_manager_request_connect(&credentials,
+                 &operation_id);
         if (result == ESP_OK)
         {
             result = _setup_wifi_adapter_begin_operation(
                          adapter, SETUP_WIFI_OPERATION_CONNECT, operation_id);
         }
     }
-    wifi_service_secure_zero(password, WIFI_SERVICE_PASSWORD_MAX_BYTES);
+    _setup_wifi_adapter_secure_zero(
+        password, CONNECTIVITY_MANAGER_PASSWORD_MAX_BYTES);
     return result;
+}
+
+static esp_err_t _setup_wifi_adapter_simple_operation(
+    setup_wifi_adapter_t *adapter, setup_wifi_operation_kind_t kind,
+    esp_err_t (*request)(connectivity_manager_operation_id_t *))
+{
+    if (!setup_wifi_adapter_is_open(adapter) || adapter->operation_id != 0U)
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+    connectivity_manager_operation_id_t operation_id = 0U;
+    esp_err_t result = request(&operation_id);
+    return result == ESP_OK ? _setup_wifi_adapter_begin_operation(
+               adapter, kind, operation_id) : result;
 }
 
 esp_err_t setup_wifi_adapter_disconnect(setup_wifi_adapter_t *adapter)
 {
-    esp_err_t result = ESP_ERR_INVALID_STATE;
-    if (adapter == NULL || adapter->session_id == 0 ||
-            adapter->operation_id != 0)
+    return _setup_wifi_adapter_simple_operation(
+               adapter, SETUP_WIFI_OPERATION_DISCONNECT,
+               connectivity_manager_request_disconnect);
+}
+
+esp_err_t setup_wifi_adapter_reconnect_saved(setup_wifi_adapter_t *adapter)
+{
+    return _setup_wifi_adapter_simple_operation(
+               adapter, SETUP_WIFI_OPERATION_CONNECT,
+               connectivity_manager_request_reconnect_saved);
+}
+
+esp_err_t setup_wifi_adapter_forget(setup_wifi_adapter_t *adapter)
+{
+    return _setup_wifi_adapter_simple_operation(
+               adapter, SETUP_WIFI_OPERATION_DISCONNECT,
+               connectivity_manager_request_forget);
+}
+
+esp_err_t setup_wifi_adapter_set_auto_connect(setup_wifi_adapter_t *adapter,
+        bool enabled)
+{
+    if (!setup_wifi_adapter_is_open(adapter) || adapter->operation_id != 0U)
     {
-        return result;
+        return ESP_ERR_INVALID_STATE;
     }
-    wifi_service_operation_id_t operation_id = 0;
-    result = wifi_service_request_disconnect(adapter->session_id,
-             &operation_id);
-    if (result == ESP_OK)
-    {
-        result = _setup_wifi_adapter_begin_operation(
-                     adapter, SETUP_WIFI_OPERATION_DISCONNECT, operation_id);
-    }
-    return result;
+    connectivity_manager_operation_id_t operation_id = 0U;
+    esp_err_t result = connectivity_manager_set_auto_connect(
+                           enabled, &operation_id);
+    return result == ESP_OK ? _setup_wifi_adapter_begin_operation(
+               adapter, SETUP_WIFI_OPERATION_POLICY, operation_id) : result;
 }
 
 esp_err_t setup_wifi_adapter_cancel(setup_wifi_adapter_t *adapter)
 {
-    esp_err_t result = ESP_ERR_INVALID_STATE;
-    if (adapter == NULL || adapter->session_id == 0 ||
-            adapter->operation_id == 0 ||
-            adapter->operation_kind == SETUP_WIFI_OPERATION_NONE)
+    if (!setup_wifi_adapter_is_open(adapter))
     {
-        return result;
+        return ESP_ERR_INVALID_STATE;
     }
-    result = wifi_service_cancel(adapter->session_id, adapter->operation_id);
-    if (result == ESP_ERR_NOT_FOUND)
+    if (!setup_wifi_adapter_has_operation(adapter))
     {
-        adapter->operation_id = 0;
-        adapter->operation_kind = SETUP_WIFI_OPERATION_NONE;
+        return ESP_ERR_NOT_FOUND;
     }
-    return result;
+    return connectivity_manager_cancel(adapter->operation_id);
 }
 
 esp_err_t setup_wifi_adapter_close(setup_wifi_adapter_t *adapter)
@@ -442,14 +400,13 @@ esp_err_t setup_wifi_adapter_close(setup_wifi_adapter_t *adapter)
     {
         return ESP_ERR_INVALID_ARG;
     }
-
     esp_err_t first_error = ESP_OK;
     if (adapter->status_subscription != EVENT_BUS_SUB_HANDLE_INVALID)
     {
         const esp_err_t result = event_bus_unsubscribe(
                                      adapter->status_subscription);
         _setup_wifi_adapter_record_error(&first_error, result);
-        if (_setup_wifi_adapter_terminal_teardown_result(result))
+        if (_setup_wifi_adapter_terminal_result(result))
         {
             adapter->status_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
         }
@@ -459,37 +416,22 @@ esp_err_t setup_wifi_adapter_close(setup_wifi_adapter_t *adapter)
         const esp_err_t result = event_bus_unsubscribe(
                                      adapter->scan_subscription);
         _setup_wifi_adapter_record_error(&first_error, result);
-        if (_setup_wifi_adapter_terminal_teardown_result(result))
+        if (_setup_wifi_adapter_terminal_result(result))
         {
             adapter->scan_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
         }
     }
-    if (adapter->session_id != 0 && adapter->operation_id != 0 &&
-            adapter->operation_kind != SETUP_WIFI_OPERATION_NONE)
+    if (adapter->operation_id != 0U)
     {
-        const esp_err_t result = wifi_service_cancel(
-                                     adapter->session_id,
+        const esp_err_t result = connectivity_manager_cancel(
                                      adapter->operation_id);
         _setup_wifi_adapter_record_error(&first_error, result);
-        if (_setup_wifi_adapter_terminal_teardown_result(result))
+        if (_setup_wifi_adapter_terminal_result(result))
         {
-            adapter->operation_id = 0;
+            adapter->operation_id = 0U;
             adapter->operation_kind = SETUP_WIFI_OPERATION_NONE;
         }
     }
-    if (adapter->session_id != 0)
-    {
-        const esp_err_t result = wifi_service_session_close(
-                                     adapter->session_id);
-        _setup_wifi_adapter_record_error(&first_error, result);
-        if (_setup_wifi_adapter_terminal_teardown_result(result))
-        {
-            adapter->session_id = 0;
-            adapter->operation_id = 0;
-            adapter->operation_kind = SETUP_WIFI_OPERATION_NONE;
-        }
-    }
-
     if (_setup_wifi_adapter_context_is_free(adapter))
     {
         memset(adapter, 0, sizeof(*adapter));
@@ -499,12 +441,14 @@ esp_err_t setup_wifi_adapter_close(setup_wifi_adapter_t *adapter)
 
 bool setup_wifi_adapter_is_open(const setup_wifi_adapter_t *adapter)
 {
-    return adapter != NULL && adapter->session_id != 0;
+    return adapter != NULL &&
+           adapter->status_subscription != EVENT_BUS_SUB_HANDLE_INVALID &&
+           adapter->scan_subscription != EVENT_BUS_SUB_HANDLE_INVALID;
 }
 
 bool setup_wifi_adapter_has_operation(const setup_wifi_adapter_t *adapter)
 {
-    return adapter != NULL && adapter->session_id != 0 &&
-           adapter->operation_id != 0 &&
+    return setup_wifi_adapter_is_open(adapter) &&
+           adapter->operation_id != 0U &&
            adapter->operation_kind != SETUP_WIFI_OPERATION_NONE;
 }

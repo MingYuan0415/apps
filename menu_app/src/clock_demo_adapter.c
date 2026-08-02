@@ -64,10 +64,6 @@ static void _clock_demo_complete_sync(clock_demo_adapter_t *adapter,
     adapter->snapshot.sync_state = result == ESP_OK ?
                                    CLOCK_DEMO_OPERATION_DONE :
                                    CLOCK_DEMO_OPERATION_FAILED;
-    if (result == ESP_OK)
-    {
-        adapter->snapshot.sync_owned = true;
-    }
     adapter->command_pending = false;
     _clock_demo_revision_next(&adapter->snapshot);
     xSemaphoreGive(adapter->lock);
@@ -221,37 +217,15 @@ static esp_err_t _clock_demo_cleanup_owned(clock_demo_adapter_t *adapter)
         first_error = result;
     }
 
-    bool sync_owned;
-    xSemaphoreTake(adapter->lock, portMAX_DELAY);
-    sync_owned = adapter->snapshot.sync_owned;
-    xSemaphoreGive(adapter->lock);
-    if (sync_owned)
-    {
-        result = time_service_cancel_sync();
-        xSemaphoreTake(adapter->lock, portMAX_DELAY);
-        if (result == ESP_OK)
-        {
-            adapter->snapshot.sync_owned = false;
-        }
-        xSemaphoreGive(adapter->lock);
-        if (first_error == ESP_OK && result != ESP_OK)
-        {
-            first_error = result;
-        }
-    }
-
     xSemaphoreTake(adapter->lock, portMAX_DELAY);
     adapter->snapshot.cleanup_result = first_error;
     adapter->snapshot.alarm_state = adapter->snapshot.alarm_owned ?
                                     CLOCK_DEMO_OPERATION_FAILED :
                                     CLOCK_DEMO_OPERATION_IDLE;
-    adapter->snapshot.sync_state = adapter->snapshot.sync_owned ?
-                                   CLOCK_DEMO_OPERATION_FAILED :
-                                   CLOCK_DEMO_OPERATION_IDLE;
+    adapter->snapshot.sync_state = CLOCK_DEMO_OPERATION_IDLE;
     adapter->snapshot.alarm_result = adapter->snapshot.alarm_owned ?
                                      first_error : ESP_OK;
-    adapter->snapshot.sync_result = adapter->snapshot.sync_owned ?
-                                    first_error : ESP_OK;
+    adapter->snapshot.sync_result = ESP_OK;
     adapter->command_pending = false;
     _clock_demo_revision_next(&adapter->snapshot);
     xSemaphoreGive(adapter->lock);

@@ -4,11 +4,11 @@
 
 #include "app_manager.h"
 #include "app_ui.h"
+#include "connectivity_manager.h"
 #include "event_bus.h"
 #include "power_service.h"
 #include "sd_storage_service.h"
 #include "time_service.h"
-#include "wifi_service.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -122,7 +122,7 @@ static void _home_render_power(home_page_state_t *state,
 }
 
 static void _home_render_wifi(home_page_state_t *state,
-                              const wifi_service_status_snapshot_t *snapshot)
+                              const connectivity_manager_status_snapshot_t *snapshot)
 {
     const char *text = "初始化中";
     app_ui_status_t status = APP_UI_STATUS_ACCENT;
@@ -138,32 +138,32 @@ static void _home_render_wifi(home_page_state_t *state,
         state->wifi_initialization_elapsed = false;
         switch (snapshot->state)
         {
-        case WIFI_SERVICE_STATE_IP_READY:
+        case CONNECTIVITY_MANAGER_STATE_IP_READY:
             text = snapshot->ssid[0] != '\0' ? snapshot->ssid : "已连接";
             status = APP_UI_STATUS_SUCCESS;
             break;
-        case WIFI_SERVICE_STATE_SCANNING:
+        case CONNECTIVITY_MANAGER_STATE_SCANNING:
             text = "正在扫描";
             break;
-        case WIFI_SERVICE_STATE_CONNECTING:
+        case CONNECTIVITY_MANAGER_STATE_CONNECTING:
             text = "正在连接";
             break;
-        case WIFI_SERVICE_STATE_WAITING_IP:
+        case CONNECTIVITY_MANAGER_STATE_WAITING_IP:
             text = "正在获取地址";
             break;
-        case WIFI_SERVICE_STATE_RETRY_WAIT:
+        case CONNECTIVITY_MANAGER_STATE_RETRY_WAIT:
             text = "等待重试";
             status = APP_UI_STATUS_WARNING;
             break;
-        case WIFI_SERVICE_STATE_SUSPENDED:
+        case CONNECTIVITY_MANAGER_STATE_SUSPENDED:
             text = "已暂停";
             status = APP_UI_STATUS_WARNING;
             break;
-        case WIFI_SERVICE_STATE_OFFLINE:
+        case CONNECTIVITY_MANAGER_STATE_OFFLINE:
             text = "不可用";
             status = APP_UI_STATUS_ERROR;
             break;
-        case WIFI_SERVICE_STATE_IDLE:
+        case CONNECTIVITY_MANAGER_STATE_IDLE:
         default:
             text = "未连接";
             status = APP_UI_STATUS_NEUTRAL;
@@ -186,8 +186,8 @@ static void _home_update_cached_status(home_page_state_t *state)
                                APP_UI_STATUS_ERROR);
     }
 
-    wifi_service_status_snapshot_t wifi;
-    if (wifi_service_get_status(&wifi) == ESP_OK)
+    connectivity_manager_status_snapshot_t wifi;
+    if (connectivity_manager_get_status(&wifi) == ESP_OK)
     {
         _home_render_wifi(state, &wifi);
     }
@@ -239,16 +239,17 @@ static void _home_wifi_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
                              void *user_data)
 {
     home_page_state_t *state = user_data;
-    if (msg_id != WIFI_SERVICE_MSG ||
-            sub_type != WIFI_SERVICE_MSG_SUB_TYPE_STATUS_SNAPSHOT ||
+    if (msg_id != CONNECTIVITY_MANAGER_MSG ||
+            sub_type !=
+            CONNECTIVITY_MANAGER_MSG_SUB_TYPE_STATUS_SNAPSHOT ||
             payload == NULL ||
-            payload_size != sizeof(wifi_service_status_snapshot_t) ||
+            payload_size != sizeof(connectivity_manager_status_snapshot_t) ||
             state->page.root == NULL)
     {
         return;
     }
 
-    wifi_service_status_snapshot_t snapshot;
+    connectivity_manager_status_snapshot_t snapshot;
     memcpy(&snapshot, payload, sizeof(snapshot));
     _home_render_wifi(state, &snapshot);
 }
@@ -342,8 +343,8 @@ static void _home_page_resume(home_page_state_t *state)
     if (state->wifi_subscription == EVENT_BUS_SUB_HANDLE_INVALID)
     {
         result = event_bus_subscribe(
-                     WIFI_SERVICE_MSG,
-                     WIFI_SERVICE_MSG_SUB_TYPE_STATUS_SNAPSHOT,
+                     CONNECTIVITY_MANAGER_MSG,
+                     CONNECTIVITY_MANAGER_MSG_SUB_TYPE_STATUS_SNAPSHOT,
                      _home_wifi_event, state, EVENT_BUS_DISPATCH_UI,
                      &state->wifi_subscription);
         if (result != ESP_OK)

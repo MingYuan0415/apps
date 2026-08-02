@@ -49,18 +49,25 @@ struct setup_page_state
     lv_obj_t *controls;
     lv_obj_t *password_mask;
     setup_wifi_adapter_t adapter;
-    wifi_service_scan_record_t records[WIFI_SERVICE_MAX_SCAN_RECORDS];
-    setup_network_action_t network_actions[WIFI_SERVICE_MAX_SCAN_RECORDS];
+    connectivity_manager_scan_record_t
+    records[CONNECTIVITY_MANAGER_MAX_SCAN_RECORDS];
+    setup_network_action_t
+    network_actions[CONNECTIVITY_MANAGER_MAX_SCAN_RECORDS];
     setup_key_action_t key_actions[SETUP_KEY_DESCRIPTOR_COUNT];
-    wifi_service_scan_record_t selected;
-    uint8_t password[WIFI_SERVICE_PASSWORD_MAX_BYTES];
+    connectivity_manager_scan_record_t selected;
+    uint8_t password[CONNECTIVITY_MANAGER_PASSWORD_MAX_BYTES];
     uint64_t scan_generation;
     size_t password_length;
     uint8_t record_count;
     uint8_t key_action_count;
     setup_key_mode_t key_mode;
+    connectivity_manager_state_t manager_state;
     bool editing_password;
     bool globally_connected;
+    bool saved_profile;
+    bool profile_persisted;
+    bool auto_connect;
+    bool manual_hold;
     bool scan_results_visible;
     bool scan_outcome_visible;
 };
@@ -74,33 +81,89 @@ static void _setup_render_keypad(setup_page_state_t *state);
 static void _setup_cancel_operation_event(lv_event_t *event);
 static esp_err_t _setup_start_adapter(setup_page_state_t *state);
 
+static void _setup_secure_zero(void *data, size_t size)
+{
+    volatile uint8_t *bytes = data;
+    while (size > 0U)
+    {
+        *bytes = 0U;
+        ++bytes;
+        --size;
+    }
+}
+
 static void _setup_scrub_credentials(setup_page_state_t *state)
 {
-    wifi_service_secure_zero(state->password, sizeof(state->password));
-    wifi_service_secure_zero(&state->selected, sizeof(state->selected));
+    _setup_secure_zero(state->password, sizeof(state->password));
+    _setup_secure_zero(&state->selected, sizeof(state->selected));
     state->password_length = 0;
     state->editing_password = false;
     state->password_mask = NULL;
 }
 
-static const char *_setup_security_name(wifi_service_security_t security)
+static const char *_setup_security_name(
+    connectivity_manager_security_t security)
 {
     const char *name = "未知";
     switch (security)
     {
-    case WIFI_SERVICE_SECURITY_OPEN:
+    case CONNECTIVITY_MANAGER_SECURITY_OPEN:
         name = "无密码";
         break;
-    case WIFI_SERVICE_SECURITY_PERSONAL:
+    case CONNECTIVITY_MANAGER_SECURITY_PERSONAL:
         name = "需密码";
         break;
-    case WIFI_SERVICE_SECURITY_UNSUPPORTED:
+    case CONNECTIVITY_MANAGER_SECURITY_UNSUPPORTED:
         name = "不支持";
         break;
     default:
         break;
     }
     return name;
+}
+
+static const char *_setup_failure_detail(
+    connectivity_manager_failure_t failure)
+{
+    switch (failure)
+    {
+    case CONNECTIVITY_MANAGER_FAILURE_AUTHENTICATION:
+        return "密码错误或认证失败";
+    case CONNECTIVITY_MANAGER_FAILURE_AP_NOT_FOUND:
+        return "未找到接入点";
+    case CONNECTIVITY_MANAGER_FAILURE_ASSOCIATION_TIMEOUT:
+        return "连接接入点超时";
+    case CONNECTIVITY_MANAGER_FAILURE_DHCP_TIMEOUT:
+        return "获取网络地址超时";
+    case CONNECTIVITY_MANAGER_FAILURE_LINK_LOST:
+        return "网络连接已断开";
+    case CONNECTIVITY_MANAGER_FAILURE_RADIO_UNAVAILABLE:
+        return "Wi-Fi 射频不可用";
+    case CONNECTIVITY_MANAGER_FAILURE_STORAGE:
+        return "保存网络配置失败";
+    case CONNECTIVITY_MANAGER_FAILURE_INTERNAL:
+        return "Wi-Fi 内部错误";
+    case CONNECTIVITY_MANAGER_FAILURE_NONE:
+    default:
+        return "未报告具体原因";
+    }
+}
+
+static const char *_setup_command_error(esp_err_t result)
+{
+    switch (result)
+    {
+    case ESP_ERR_INVALID_STATE:
+        return "当前操作尚未完成";
+    case ESP_ERR_NO_MEM:
+        return "Wi-Fi 请求队列已满";
+    case ESP_ERR_INVALID_ARG:
+        return "Wi-Fi 请求参数无效";
+    case ESP_ERR_NOT_FOUND:
+        return "没有可用的保存网络";
+    default:
+        return "Wi-Fi 请求未能提交";
+    }
 }
 
 static void _setup_set_status(setup_page_state_t *state, const char *status,
@@ -163,7 +226,7 @@ static void _setup_update_password_mask(setup_page_state_t *state)
     {
         return;
     }
-    char mask[WIFI_SERVICE_PASSWORD_MAX_BYTES + 16U];
+    char mask[CONNECTIVITY_MANAGER_PASSWORD_MAX_BYTES + 16U];
     memset(mask, '*', state->password_length);
     (void)snprintf(&mask[state->password_length],
                    sizeof(mask) - state->password_length,
@@ -255,10 +318,10 @@ static void _setup_editor_cancel_event(lv_event_t *event)
 
 static void _setup_submit_connect(setup_page_state_t *state)
 {
-    if (state->selected.security == WIFI_SERVICE_SECURITY_PERSONAL &&
+    if (state->selected.security == CONNECTIVITY_MANAGER_SECURITY_PERSONAL &&
             state->password_length < 8U)
     {
-        wifi_service_secure_zero(state->password, sizeof(state->password));
+        _setup_secure_zero(state->password, sizeof(state->password));
         state->password_length = 0;
         _setup_update_password_mask(state);
         _setup_set_status(state, "密码过短", "请输入 8 至 63 个字符");
@@ -268,7 +331,7 @@ static void _setup_submit_connect(setup_page_state_t *state)
     const size_t ssid_length = strnlen(
                                    state->selected.ssid,
                                    sizeof(state->selected.ssid));
-    const wifi_service_security_t security = state->selected.security;
+    const connectivity_manager_security_t security = state->selected.security;
     state->scan_results_visible = false;
     state->scan_outcome_visible = false;
     esp_err_t result = setup_wifi_adapter_connect(
@@ -276,7 +339,7 @@ static void _setup_submit_connect(setup_page_state_t *state)
                            security, state->password, state->password_length);
     state->password_length = 0;
     state->editing_password = false;
-    wifi_service_secure_zero(&state->selected, sizeof(state->selected));
+    _setup_secure_zero(&state->selected, sizeof(state->selected));
     state->password_mask = NULL;
 
     if (result != ESP_OK)
@@ -284,7 +347,7 @@ static void _setup_submit_connect(setup_page_state_t *state)
         state->scan_results_visible = true;
         state->scan_outcome_visible = false;
         _setup_set_status(state, "连接未开始",
-                          esp_err_to_name(result));
+                          _setup_command_error(result));
         _setup_render_networks(state);
         return;
     }
@@ -368,7 +431,7 @@ static void _setup_cancel_operation_event(lv_event_t *event)
     }
     else
     {
-        _setup_set_status(state, "取消失败", esp_err_to_name(result));
+        _setup_set_status(state, "取消失败", _setup_command_error(result));
     }
 }
 
@@ -386,7 +449,7 @@ static void _setup_scan_event(lv_event_t *event)
     esp_err_t result = setup_wifi_adapter_scan(&state->adapter);
     if (result != ESP_OK)
     {
-        _setup_set_status(state, "扫描未开始", esp_err_to_name(result));
+        _setup_set_status(state, "扫描未开始", _setup_command_error(result));
         return;
     }
     _setup_set_status(state, "正在扫描", "搜索附近的网络");
@@ -406,7 +469,7 @@ static void _setup_disconnect_event(lv_event_t *event)
     if (result != ESP_OK)
     {
         _setup_set_status(state, "断开未开始",
-                          esp_err_to_name(result));
+                          _setup_command_error(result));
         return;
     }
     _setup_set_status(state, "正在断开", "清理当前连接");
@@ -414,6 +477,83 @@ static void _setup_disconnect_event(lv_event_t *event)
     (void)app_ui_add_command(state->controls, LV_SYMBOL_CLOSE,
                              "取消", "停止本次断开请求",
                              _setup_cancel_operation_event, state);
+}
+
+static void _setup_reconnect_event(lv_event_t *event)
+{
+    setup_page_state_t *state = lv_event_get_user_data(event);
+    esp_err_t result = setup_wifi_adapter_reconnect_saved(&state->adapter);
+    if (result != ESP_OK)
+    {
+        _setup_set_status(state, "重新连接未开始",
+                          _setup_command_error(result));
+        return;
+    }
+    _setup_set_status(state, "正在连接", "使用已保存的网络配置");
+    lv_obj_clean(state->controls);
+    (void)app_ui_add_command(state->controls, LV_SYMBOL_CLOSE,
+                             "取消", "停止本次连接",
+                             _setup_cancel_operation_event, state);
+}
+
+static void _setup_forget_event(lv_event_t *event)
+{
+    setup_page_state_t *state = lv_event_get_user_data(event);
+    esp_err_t result = setup_wifi_adapter_forget(&state->adapter);
+    if (result != ESP_OK)
+    {
+        _setup_set_status(state, "忘记网络未开始",
+                          _setup_command_error(result));
+        return;
+    }
+    _setup_set_status(state, "正在忘记网络", "删除保存配置并断开连接");
+    lv_obj_clean(state->controls);
+}
+
+static void _setup_auto_connect_event(lv_event_t *event)
+{
+    setup_page_state_t *state = lv_event_get_user_data(event);
+    lv_obj_t *toggle = lv_event_get_target_obj(event);
+    const bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
+    esp_err_t result = setup_wifi_adapter_set_auto_connect(&state->adapter,
+                       enabled);
+    if (result != ESP_OK)
+    {
+        if (state->auto_connect)
+        {
+            lv_obj_add_state(toggle, LV_STATE_CHECKED);
+        }
+        else
+        {
+            lv_obj_remove_state(toggle, LV_STATE_CHECKED);
+        }
+        _setup_set_status(state, "自动连接未更新",
+                          _setup_command_error(result));
+        return;
+    }
+    _setup_set_status(state, enabled ? "正在启用自动连接" :
+                      "正在关闭自动连接", "正在保存网络策略");
+}
+
+static void _setup_render_auto_connect(setup_page_state_t *state)
+{
+    if (!state->saved_profile)
+    {
+        return;
+    }
+    lv_obj_t *row = _setup_create_row(state->controls);
+    lv_obj_t *label = lv_label_create(row);
+    lv_label_set_text(label, "自动连接");
+    lv_obj_set_flex_grow(label, 1);
+    lv_obj_set_style_text_color(label, lv_color_hex(SETUP_COLOR_TEXT), 0);
+    lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_obj_t *toggle = lv_switch_create(row);
+    if (state->auto_connect)
+    {
+        lv_obj_add_state(toggle, LV_STATE_CHECKED);
+    }
+    lv_obj_add_event_cb(toggle, _setup_auto_connect_event,
+                        LV_EVENT_VALUE_CHANGED, state);
 }
 
 static void _setup_render_scan_action(setup_page_state_t *state)
@@ -424,12 +564,30 @@ static void _setup_render_scan_action(setup_page_state_t *state)
                              _setup_scan_event, state);
 }
 
+static void _setup_render_saved_actions(setup_page_state_t *state)
+{
+    if (!state->globally_connected)
+    {
+        (void)app_ui_add_command(state->controls, LV_SYMBOL_LOOP,
+                                 "重新连接", "连接已保存的网络",
+                                 _setup_reconnect_event, state);
+    }
+    _setup_render_auto_connect(state);
+    (void)app_ui_add_command(state->controls, LV_SYMBOL_TRASH,
+                             "忘记网络", "删除保存的网络配置",
+                             _setup_forget_event, state);
+}
+
 static void _setup_render_connection_actions(setup_page_state_t *state)
 {
     lv_obj_clean(state->controls);
     (void)app_ui_add_command(state->controls, LV_SYMBOL_CLOSE,
                              "断开连接", "结束当前 Wi-Fi 连接",
                              _setup_disconnect_event, state);
+    if (state->saved_profile)
+    {
+        _setup_render_saved_actions(state);
+    }
     (void)app_ui_add_command(state->controls, LV_SYMBOL_REFRESH,
                              "扫描网络", "查找其他接入点",
                              _setup_scan_event, state);
@@ -467,16 +625,16 @@ static void _setup_network_event(lv_event_t *event)
     state->selected = state->records[action->index];
     switch (state->selected.security)
     {
-    case WIFI_SERVICE_SECURITY_OPEN:
+    case CONNECTIVITY_MANAGER_SECURITY_OPEN:
         _setup_submit_connect(state);
         break;
-    case WIFI_SERVICE_SECURITY_PERSONAL:
+    case CONNECTIVITY_MANAGER_SECURITY_PERSONAL:
         state->editing_password = true;
         state->key_mode = SETUP_KEY_MODE_LOWER;
         _setup_set_status(state, "输入密码", state->selected.ssid);
         _setup_render_keypad(state);
         break;
-    case WIFI_SERVICE_SECURITY_UNSUPPORTED:
+    case CONNECTIVITY_MANAGER_SECURITY_UNSUPPORTED:
         state->scan_results_visible = true;
         state->scan_outcome_visible = false;
         _setup_set_status(state, "网络不受支持", "暂不支持该安全类型");
@@ -490,7 +648,8 @@ static void _setup_render_networks(setup_page_state_t *state)
     lv_obj_clean(state->controls);
     for (uint8_t index = 0; index < state->record_count; ++index)
     {
-        const wifi_service_scan_record_t *record = &state->records[index];
+        const connectivity_manager_scan_record_t *record =
+            &state->records[index];
         char detail[48];
         (void)snprintf(detail, sizeof(detail), "%d dBm | %s",
                        record->rssi, _setup_security_name(record->security));
@@ -519,61 +678,98 @@ static void _setup_render_pending_connection(
 
 static void _setup_render_idle_status(
     setup_page_state_t *state,
-    const wifi_service_status_snapshot_t *snapshot,
+    const connectivity_manager_status_snapshot_t *snapshot,
     setup_wifi_status_scope_t scope,
     setup_wifi_operation_kind_t operation_kind)
 {
     _setup_scrub_credentials(state);
     if (scope == SETUP_WIFI_STATUS_OPERATION &&
             operation_kind == SETUP_WIFI_OPERATION_CONNECT &&
-            snapshot->last_error != ESP_OK)
+            snapshot->last_error == ESP_ERR_NOT_FINISHED)
+    {
+        _setup_set_status(state, "连接已取消", snapshot->ssid);
+    }
+    else if (scope == SETUP_WIFI_STATUS_OPERATION &&
+             operation_kind == SETUP_WIFI_OPERATION_CONNECT &&
+             snapshot->last_error != ESP_OK)
     {
         _setup_set_status(state, "连接失败",
-                          esp_err_to_name((esp_err_t)snapshot->last_error));
+                          _setup_failure_detail(snapshot->failure));
+    }
+    else if (snapshot->saved_profile)
+    {
+        _setup_set_status(state, "已保存网络",
+                          snapshot->manual_hold ?
+                          "本次启动保持离线" : snapshot->ssid);
     }
     else
     {
         _setup_set_status(state, "Wi-Fi 已就绪", "当前未连接");
     }
-    _setup_render_scan_action(state);
+    lv_obj_clean(state->controls);
+    if (snapshot->saved_profile)
+    {
+        _setup_render_saved_actions(state);
+    }
+    (void)app_ui_add_command(state->controls, LV_SYMBOL_REFRESH,
+                             "扫描网络", "刷新附近的接入点",
+                             _setup_scan_event, state);
 }
 
 static void _setup_render_status_state(
     setup_page_state_t *state,
-    const wifi_service_status_snapshot_t *snapshot,
+    const connectivity_manager_status_snapshot_t *snapshot,
     setup_wifi_status_scope_t scope,
     setup_wifi_operation_kind_t operation_kind)
 {
     switch (snapshot->state)
     {
-    case WIFI_SERVICE_STATE_OFFLINE:
+    case CONNECTIVITY_MANAGER_STATE_OFFLINE:
         _setup_scrub_credentials(state);
         _setup_set_status(state, "Wi-Fi 不可用",
-                          esp_err_to_name((esp_err_t)snapshot->last_error));
+                          _setup_failure_detail(snapshot->failure));
         _setup_render_scan_action(state);
         break;
-    case WIFI_SERVICE_STATE_IDLE:
+    case CONNECTIVITY_MANAGER_STATE_IDLE:
         _setup_render_idle_status(state, snapshot, scope, operation_kind);
         break;
-    case WIFI_SERVICE_STATE_SCANNING:
+    case CONNECTIVITY_MANAGER_STATE_SCANNING:
         break;
-    case WIFI_SERVICE_STATE_CONNECTING:
+    case CONNECTIVITY_MANAGER_STATE_CONNECTING:
         _setup_render_pending_connection(state, "正在连接", snapshot->ssid);
         break;
-    case WIFI_SERVICE_STATE_WAITING_IP:
+    case CONNECTIVITY_MANAGER_STATE_WAITING_IP:
         _setup_render_pending_connection(state, "正在获取地址",
                                          snapshot->ssid);
         break;
-    case WIFI_SERVICE_STATE_IP_READY:
+    case CONNECTIVITY_MANAGER_STATE_IP_READY:
         _setup_scrub_credentials(state);
-        _setup_set_status(state, "已连接", snapshot->ssid);
+        _setup_set_status(state,
+                          snapshot->failure ==
+                          CONNECTIVITY_MANAGER_FAILURE_STORAGE ?
+                          "已连接，但未保存" : "已连接",
+                          snapshot->failure ==
+                          CONNECTIVITY_MANAGER_FAILURE_STORAGE ?
+                          _setup_failure_detail(snapshot->failure) :
+                          snapshot->ssid);
         _setup_render_connection_actions(state);
         break;
-    case WIFI_SERVICE_STATE_RETRY_WAIT:
-        _setup_render_pending_connection(state, "正在重试连接",
-                                         snapshot->ssid);
+    case CONNECTIVITY_MANAGER_STATE_RETRY_WAIT:
+        if (snapshot->retry_delay_ms == 0U)
+        {
+            _setup_render_pending_connection(state, "正在重试连接",
+                                             snapshot->ssid);
+        }
+        else
+        {
+            _setup_set_status(state, "等待重新连接", snapshot->ssid);
+            lv_obj_clean(state->controls);
+            (void)app_ui_add_command(state->controls, LV_SYMBOL_CLOSE,
+                                     "停止重试", "本次启动保持离线",
+                                     _setup_disconnect_event, state);
+        }
         break;
-    case WIFI_SERVICE_STATE_SUSPENDED:
+    case CONNECTIVITY_MANAGER_STATE_SUSPENDED:
         _setup_scrub_credentials(state);
         _setup_set_status(state, "Wi-Fi 已暂停", "系统正在待机");
         lv_obj_clean(state->controls);
@@ -582,7 +778,7 @@ static void _setup_render_status_state(
 }
 
 static void _setup_status_snapshot(
-    const wifi_service_status_snapshot_t *snapshot,
+    const connectivity_manager_status_snapshot_t *snapshot,
     setup_wifi_status_scope_t scope,
     setup_wifi_operation_kind_t operation_kind,
     void *user_data)
@@ -592,18 +788,24 @@ static void _setup_status_snapshot(
     {
         return;
     }
-    state->globally_connected = snapshot->state == WIFI_SERVICE_STATE_IP_READY;
+    state->manager_state = snapshot->state;
+    state->globally_connected = snapshot->state ==
+                                CONNECTIVITY_MANAGER_STATE_IP_READY;
+    state->saved_profile = snapshot->saved_profile;
+    state->profile_persisted = snapshot->profile_persisted;
+    state->auto_connect = snapshot->auto_connect;
+    state->manual_hold = snapshot->manual_hold;
 
     if (state->scan_outcome_visible &&
-            (snapshot->state == WIFI_SERVICE_STATE_IDLE ||
-             snapshot->state == WIFI_SERVICE_STATE_IP_READY))
+            (snapshot->state == CONNECTIVITY_MANAGER_STATE_IDLE ||
+             snapshot->state == CONNECTIVITY_MANAGER_STATE_IP_READY))
     {
         _setup_render_scan_outcome_actions(state);
         return;
     }
     if (state->scan_results_visible &&
-            (snapshot->state == WIFI_SERVICE_STATE_IDLE ||
-             snapshot->state == WIFI_SERVICE_STATE_IP_READY))
+            (snapshot->state == CONNECTIVITY_MANAGER_STATE_IDLE ||
+             snapshot->state == CONNECTIVITY_MANAGER_STATE_IP_READY))
     {
         return;
     }
@@ -613,7 +815,7 @@ static void _setup_status_snapshot(
 }
 
 static void _setup_scan_snapshot(
-    const wifi_service_scan_snapshot_t *snapshot,
+    const connectivity_manager_scan_snapshot_t *snapshot,
     void *user_data)
 {
     setup_page_state_t *state = user_data;
@@ -621,11 +823,8 @@ static void _setup_scan_snapshot(
     {
         return;
     }
-    switch (snapshot->state)
+    if (snapshot->running)
     {
-    case WIFI_SERVICE_SCAN_IDLE:
-        break;
-    case WIFI_SERVICE_SCAN_RUNNING:
         state->scan_results_visible = false;
         state->scan_outcome_visible = false;
         _setup_set_status(state, "正在扫描", "搜索附近的网络");
@@ -633,8 +832,9 @@ static void _setup_scan_snapshot(
         (void)app_ui_add_command(state->controls, LV_SYMBOL_CLOSE,
                                  "取消", "停止本次网络扫描",
                                  _setup_cancel_operation_event, state);
-        break;
-    case WIFI_SERVICE_SCAN_RESULTS:
+    }
+    else if (snapshot->last_error == ESP_OK)
+    {
         state->scan_generation = snapshot->generation;
         state->record_count = snapshot->record_count;
         memcpy(state->records, snapshot->records,
@@ -646,20 +846,21 @@ static void _setup_scan_snapshot(
                           "仅显示信号最强的网络" :
                           "附近网络已就绪");
         _setup_render_networks(state);
-        break;
-    case WIFI_SERVICE_SCAN_CANCELED:
+    }
+    else if (snapshot->last_error == ESP_ERR_NOT_FINISHED)
+    {
         state->scan_results_visible = false;
         state->scan_outcome_visible = true;
         _setup_set_status(state, "扫描已取消", "可以重新扫描");
         _setup_render_scan_outcome_actions(state);
-        break;
-    case WIFI_SERVICE_SCAN_FAILED:
+    }
+    else
+    {
         state->scan_results_visible = false;
         state->scan_outcome_visible = true;
         _setup_set_status(state, "扫描失败",
-                          esp_err_to_name((esp_err_t)snapshot->last_error));
+                          "请稍后重新扫描");
         _setup_render_scan_outcome_actions(state);
-        break;
     }
 }
 
@@ -674,11 +875,13 @@ static esp_err_t _setup_start_adapter(setup_page_state_t *state)
                        state);
     if (result != ESP_OK)
     {
-        _setup_set_status(state, "Wi-Fi 不可用", esp_err_to_name(result));
+        _setup_set_status(state, "Wi-Fi 不可用",
+                          _setup_command_error(result));
         _setup_render_scan_action(state);
         return result;
     }
-    if (!state->globally_connected)
+    if (!state->globally_connected &&
+            state->manager_state == CONNECTIVITY_MANAGER_STATE_IDLE)
     {
         result = setup_wifi_adapter_scan(&state->adapter);
         if (result == ESP_OK)
@@ -694,7 +897,7 @@ static esp_err_t _setup_start_adapter(setup_page_state_t *state)
         else
         {
             _setup_set_status(state, "扫描未开始",
-                              esp_err_to_name(result));
+                              _setup_command_error(result));
             _setup_render_scan_action(state);
         }
     }
@@ -715,7 +918,7 @@ static void _setup_page_mount(setup_page_state_t *state)
                                app_ui_font(APP_THEME_FONT_BIGL), 0);
 
     state->detail_label = lv_label_create(state->page.content);
-    lv_label_set_text(state->detail_label, "正在建立 Wi-Fi 会话");
+    lv_label_set_text(state->detail_label, "正在加载 Wi-Fi 策略");
     lv_obj_set_width(state->detail_label, LV_PCT(100));
     lv_label_set_long_mode(state->detail_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(state->detail_label,
@@ -742,10 +945,14 @@ static esp_err_t _setup_page_pause(setup_page_state_t *state)
         return result;
     }
     _setup_scrub_credentials(state);
-    wifi_service_secure_zero(state->records, sizeof(state->records));
+    _setup_secure_zero(state->records, sizeof(state->records));
     state->record_count = 0;
     state->scan_generation = 0;
     state->globally_connected = false;
+    state->saved_profile = false;
+    state->profile_persisted = false;
+    state->auto_connect = false;
+    state->manual_hold = false;
     state->scan_results_visible = false;
     state->scan_outcome_visible = false;
     return result;

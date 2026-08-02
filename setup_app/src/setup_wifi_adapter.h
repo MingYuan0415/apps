@@ -5,20 +5,21 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "connectivity_manager.h"
 #include "event_bus.h"
-#include "wifi_service.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** @brief Wi-Fi operation currently owned by the setup page. */
+/** @brief Manager operation currently tracked by the setup page. */
 typedef enum
 {
     SETUP_WIFI_OPERATION_NONE = 0, /**< No operation is owned. */
     SETUP_WIFI_OPERATION_SCAN,     /**< Scan operation is active. */
     SETUP_WIFI_OPERATION_CONNECT,  /**< Connect operation is active. */
     SETUP_WIFI_OPERATION_DISCONNECT, /**< Disconnect operation is active. */
+    SETUP_WIFI_OPERATION_POLICY,   /**< Persistent policy update is active. */
 } setup_wifi_operation_kind_t;
 
 /** @brief Scope of a delivered Wi-Fi status snapshot. */
@@ -39,7 +40,7 @@ typedef enum
  * @param user_data is the adapter callback context.
  */
 typedef void (*setup_wifi_status_cb_t)(
-    const wifi_service_status_snapshot_t *snapshot,
+    const connectivity_manager_status_snapshot_t *snapshot,
     setup_wifi_status_scope_t scope,
     setup_wifi_operation_kind_t operation_kind,
     void *user_data);
@@ -53,7 +54,7 @@ typedef void (*setup_wifi_status_cb_t)(
  * @param user_data is the adapter callback context.
  */
 typedef void (*setup_wifi_scan_cb_t)(
-    const wifi_service_scan_snapshot_t *snapshot,
+    const connectivity_manager_scan_snapshot_t *snapshot,
     void *user_data);
 
 /** @brief Setup-page callbacks invoked on the LVGL worker. */
@@ -64,14 +65,13 @@ typedef struct setup_wifi_adapter_callbacks
 } setup_wifi_adapter_callbacks_t;
 
 /**
- * @brief Page-private ownership state for one Wi-Fi setup session.
+ * @brief Page-private subscriptions and foreground operation state.
  *
  * @note A zeroed context owns no resources. Every API is LVGL-worker-only.
  */
 typedef struct setup_wifi_adapter
 {
-    wifi_service_session_id_t session_id;     /**< Owned service session. */
-    wifi_service_operation_id_t operation_id; /**< Active exact operation. */
+    connectivity_manager_operation_id_t operation_id; /**< Active operation. */
     setup_wifi_operation_kind_t operation_kind; /**< Active operation class. */
     event_bus_sub_handle_t status_subscription; /**< Status subscription. */
     event_bus_sub_handle_t scan_subscription; /**< Scan subscription. */
@@ -82,7 +82,7 @@ typedef struct setup_wifi_adapter
 } setup_wifi_adapter_t;
 
 /**
- * @brief Subscribe to snapshots and open one Wi-Fi service session.
+ * @brief Subscribe to manager snapshots.
  *
  * @param adapter is a zeroed page-private adapter context.
  * @param callbacks contains required LVGL-worker consumers.
@@ -97,13 +97,13 @@ esp_err_t setup_wifi_adapter_open(
 
 /**
  * @brief Request one non-blocking Wi-Fi scan.
- * @param adapter owns the open Wi-Fi session.
+ * @param adapter owns the open manager subscriptions.
  * @return ESP_OK when admitted, otherwise an ESP-IDF error.
  */
 esp_err_t setup_wifi_adapter_scan(setup_wifi_adapter_t *adapter);
 /**
  * @brief Request one connection and scrub the supplied password before return.
- * @param adapter owns the open Wi-Fi session.
+ * @param adapter owns the open manager subscriptions.
  * @param ssid points to the selected SSID bytes.
  * @param ssid_length is the SSID byte count.
  * @param security is the selected network security class.
@@ -115,15 +115,22 @@ esp_err_t setup_wifi_adapter_connect(
     setup_wifi_adapter_t *adapter,
     const char *ssid,
     size_t ssid_length,
-    wifi_service_security_t security,
-    uint8_t password[WIFI_SERVICE_PASSWORD_MAX_BYTES],
+    connectivity_manager_security_t security,
+    uint8_t password[CONNECTIVITY_MANAGER_PASSWORD_MAX_BYTES],
     size_t password_length);
 /**
  * @brief Request disconnection of the current global Wi-Fi link.
- * @param adapter owns the open Wi-Fi session.
+ * @param adapter owns the open manager subscriptions.
  * @return ESP_OK when admitted, otherwise an ESP-IDF error.
  */
 esp_err_t setup_wifi_adapter_disconnect(setup_wifi_adapter_t *adapter);
+/** @brief Reconnect immediately using the saved profile. */
+esp_err_t setup_wifi_adapter_reconnect_saved(setup_wifi_adapter_t *adapter);
+/** @brief Forget the saved profile and disconnect. */
+esp_err_t setup_wifi_adapter_forget(setup_wifi_adapter_t *adapter);
+/** @brief Persistently update the automatic connection switch. */
+esp_err_t setup_wifi_adapter_set_auto_connect(setup_wifi_adapter_t *adapter,
+        bool enabled);
 /**
  * @brief Cancel the exact operation owned by the adapter.
  * @param adapter owns the operation to cancel.
@@ -133,7 +140,7 @@ esp_err_t setup_wifi_adapter_disconnect(setup_wifi_adapter_t *adapter);
 esp_err_t setup_wifi_adapter_cancel(setup_wifi_adapter_t *adapter);
 
 /**
- * @brief Release subscriptions, the exact operation, and the service session.
+ * @brief Release subscriptions and cancel the exact tracked operation.
  *
  * @note Closing never disconnects an established global link. Unresolved
  *       ownership remains in the context so a later close can retry it.
@@ -145,7 +152,7 @@ esp_err_t setup_wifi_adapter_cancel(setup_wifi_adapter_t *adapter);
 esp_err_t setup_wifi_adapter_close(setup_wifi_adapter_t *adapter);
 
 /**
- * @brief Report whether the adapter owns an open service session.
+ * @brief Report whether the adapter owns both manager subscriptions.
  * @param adapter is the page-private adapter context.
  * @return true when open; false otherwise.
  */

@@ -89,7 +89,7 @@ add_executable(setup_wifi_adapter_test
 target_include_directories(setup_wifi_adapter_test PRIVATE
     include
     ../../../middleware/components/event_bus/include
-    ../../../middleware/components/wifi_service/include
+    ../../../middleware/components/connectivity_manager/include
     ../../setup_app/src
 )
 

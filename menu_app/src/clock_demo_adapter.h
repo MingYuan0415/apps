@@ -37,7 +37,6 @@ typedef struct clock_demo_adapter_snapshot
     uint8_t alarm_hour;          /**< Armed UTC target hour. */
     uint8_t alarm_minute;        /**< Armed UTC target minute. */
     uint8_t alarm_second;        /**< Armed UTC target second. */
-    bool sync_owned;             /**< The page started the active SNTP client. */
     bool alarm_owned;            /**< The page configured the active RTC alarm. */
     bool closing;                /**< Resource cleanup has started. */
 } clock_demo_adapter_snapshot_t;
@@ -92,7 +91,7 @@ esp_err_t clock_demo_adapter_get_snapshot(
     clock_demo_adapter_snapshot_t *snapshot);
 
 /**
- * @brief Cancel owned SNTP/alarm work and release worker resources.
+ * @brief Cancel the owned RTC alarm and release worker resources.
  *
  * A failed operation retains its ownership and worker resources so a later
  * lifecycle callback can retry cleanup.
