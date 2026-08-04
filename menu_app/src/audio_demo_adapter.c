@@ -663,14 +663,21 @@ esp_err_t audio_demo_adapter_open(audio_demo_adapter_t *adapter)
         _audio_demo_release_handles(adapter);
         return ESP_ERR_NO_MEM;
     }
-    if (xTaskCreateWithCaps(_audio_demo_worker, "audio_demo",
-                            AUDIO_DEMO_TASK_STACK_BYTES, adapter,
-                            AUDIO_DEMO_TASK_PRIORITY, &adapter->worker,
-                            AUDIO_DEMO_TASK_STACK_CAPS) != pdPASS)
+    if (xTaskCreatePinnedToCoreWithCaps(
+                _audio_demo_worker, "audio_demo",
+                AUDIO_DEMO_TASK_STACK_BYTES, adapter,
+                AUDIO_DEMO_TASK_PRIORITY, &adapter->worker,
+                CONFIG_MAIN_PROJECT_TASK_CORE_ID,
+                AUDIO_DEMO_TASK_STACK_CAPS) != pdPASS)
     {
         _audio_demo_release_handles(adapter);
         return ESP_ERR_NO_MEM;
     }
+#if CONFIG_MAIN_PROJECT_TASK_AFFINITY_CPU0 || \
+    CONFIG_MAIN_PROJECT_TASK_AFFINITY_CPU1
+    LOG_I("task affinity name=audio_demo core=%d",
+          (int)xTaskGetCoreID(adapter->worker));
+#endif
     atomic_store_explicit(&adapter->accepting_commands, true,
                           memory_order_release);
     return ESP_OK;

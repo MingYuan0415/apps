@@ -651,14 +651,20 @@ esp_err_t storage_demo_adapter_open(storage_demo_adapter_t **adapter)
     }
     atomic_init(&current->stop_requested, false);
     atomic_init(&current->worker_done, false);
-    if (xTaskCreateWithCaps(_storage_demo_worker, "storage_demo",
-                            STORAGE_DEMO_WORKER_STACK, current,
-                            STORAGE_DEMO_WORKER_PRIORITY,
-                            &current->worker,
-                            STORAGE_DEMO_WORKER_STACK_CAPS) != pdPASS)
+    if (xTaskCreatePinnedToCoreWithCaps(
+                _storage_demo_worker, "storage_demo",
+                STORAGE_DEMO_WORKER_STACK, current,
+                STORAGE_DEMO_WORKER_PRIORITY, &current->worker,
+                CONFIG_MAIN_PROJECT_TASK_CORE_ID,
+                STORAGE_DEMO_WORKER_STACK_CAPS) != pdPASS)
     {
         goto cleanup;
     }
+#if CONFIG_MAIN_PROJECT_TASK_AFFINITY_CPU0 || \
+    CONFIG_MAIN_PROJECT_TASK_AFFINITY_CPU1
+    LOG_I("task affinity name=storage_demo core=%d",
+          (int)xTaskGetCoreID(current->worker));
+#endif
 
     *adapter = current;
     result = storage_demo_adapter_refresh(current);

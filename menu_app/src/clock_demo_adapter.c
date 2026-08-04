@@ -350,16 +350,22 @@ esp_err_t clock_demo_adapter_open(clock_demo_adapter_t *adapter)
     adapter->snapshot.cleanup_result = ESP_OK;
     adapter->snapshot.revision = 1U;
 
-    if (xTaskCreateWithCaps(_clock_demo_worker, "clock_demo",
-                            CLOCK_DEMO_TASK_STACK, adapter,
-                            CLOCK_DEMO_TASK_PRIORITY, &adapter->worker,
-                            CLOCK_DEMO_TASK_STACK_CAPS) != pdPASS)
+    if (xTaskCreatePinnedToCoreWithCaps(
+                _clock_demo_worker, "clock_demo", CLOCK_DEMO_TASK_STACK,
+                adapter, CLOCK_DEMO_TASK_PRIORITY, &adapter->worker,
+                CONFIG_MAIN_PROJECT_TASK_CORE_ID,
+                CLOCK_DEMO_TASK_STACK_CAPS) != pdPASS)
     {
         vEventGroupDelete(adapter->events);
         vSemaphoreDelete(adapter->lock);
         memset(adapter, 0, sizeof(*adapter));
         return ESP_ERR_NO_MEM;
     }
+#if CONFIG_MAIN_PROJECT_TASK_AFFINITY_CPU0 || \
+    CONFIG_MAIN_PROJECT_TASK_AFFINITY_CPU1
+    LOG_I("task affinity name=clock_demo core=%d",
+          (int)xTaskGetCoreID(adapter->worker));
+#endif
     return ESP_OK;
 }
 
