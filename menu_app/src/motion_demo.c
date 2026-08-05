@@ -12,7 +12,6 @@
 
 #define MOTION_REFRESH_PERIOD_MS 50U
 #define MOTION_TILT_THRESHOLD    2.0F
-#define MOTION_PAGE_STATE_LIMIT  2728U
 
 typedef struct motion_page_state
 {
@@ -25,7 +24,7 @@ typedef struct motion_page_state
     lv_timer_t *refresh_timer;
 } motion_page_state_t;
 
-_Static_assert(sizeof(motion_page_state_t) <= MOTION_PAGE_STATE_LIMIT,
+_Static_assert(sizeof(motion_page_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "motion page state exceeds the retained-page slot");
 
 static const char *_motion_service_state_text(imu_service_state_t service_state)

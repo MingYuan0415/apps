@@ -11,7 +11,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#define AUDIO_DEMO_PAGE_SLOT_BYTES    2728U
 #define AUDIO_DEMO_REFRESH_PERIOD_MS  100U
 #define AUDIO_DEMO_COLOR_SURFACE      0x1A2024
 #define AUDIO_DEMO_COLOR_TRACK        0x30393E
@@ -40,7 +39,7 @@ typedef struct audio_demo_page_state
 } audio_demo_page_state_t;
 
 _Static_assert(sizeof(audio_demo_page_state_t) <=
-               AUDIO_DEMO_PAGE_SLOT_BYTES,
+               APP_MANAGER_PAGE_STATE_BYTES,
                "Audio demo page state exceeds the fixed lifecycle arena slot");
 
 static void _audio_demo_set_controls_enabled(audio_demo_page_state_t *state,

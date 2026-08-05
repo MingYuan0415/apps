@@ -26,7 +26,8 @@ typedef struct weather_forecast_state
     weather_forecast_segment_t segment;
 } weather_forecast_state_t;
 
-_Static_assert(sizeof(weather_forecast_state_t) <= WEATHER_PAGE_SLOT_BYTES,
+_Static_assert(sizeof(weather_forecast_state_t) <=
+               APP_MANAGER_PAGE_STATE_BYTES,
                "Weather forecast state exceeds the lifecycle arena slot");
 
 static void _weather_forecast_render(weather_forecast_state_t *state);
@@ -498,50 +499,58 @@ static esp_err_t _weather_forecast_pause(weather_forecast_state_t *state)
 {
     esp_err_t result = weather_ui_unsubscribe(&state->subscription);
     weather_ui_release_snapshot(&state->snapshot);
-    if (result != ESP_OK)
-    {
-        app_manager_this_page_report_cleanup_error(result);
-    }
     return result;
 }
 
-static void _weather_forecast_handler(app_manager_msg_type_t message,
-                                      void *param)
+static void _weather_forecast_start(
+    const app_manager_page_context_t *context)
 {
-    (void)param;
-    weather_forecast_state_t *state = app_manager_this_page_memory();
-    switch (message)
-    {
-    case APP_MANAGER_MSG_ONSTART:
-        memset(state, 0, sizeof(*state));
-        state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        state->segment = WEATHER_FORECAST_CURRENT;
-        break;
-    case APP_MANAGER_MSG_ONMOUNT:
-        if (state->page.root == NULL)
-        {
-            _weather_forecast_build(state);
-        }
-        break;
-    case APP_MANAGER_MSG_ONRESUME:
-        _weather_forecast_resume(state);
-        break;
-    case APP_MANAGER_MSG_ONPAUSE:
-        (void)_weather_forecast_pause(state);
-        break;
-    case APP_MANAGER_MSG_ONUNMOUNT:
-        app_ui_page_destroy(&state->page);
-        break;
-    case APP_MANAGER_MSG_ONSTOP:
-        (void)_weather_forecast_pause(state);
-        break;
-    default:
-        break;
-    }
+    weather_forecast_state_t *state = context->state;
+    state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+    state->segment = WEATHER_FORECAST_CURRENT;
 }
+
+static void _weather_forecast_mount(
+    const app_manager_page_context_t *context)
+{
+    _weather_forecast_build(context->state);
+}
+
+static void _weather_forecast_resume_op(
+    const app_manager_page_context_t *context)
+{
+    _weather_forecast_resume(context->state);
+}
+
+static esp_err_t _weather_forecast_pause_op(
+    const app_manager_page_context_t *context)
+{
+    return _weather_forecast_pause(context->state);
+}
+
+static void _weather_forecast_unmount(
+    const app_manager_page_context_t *context)
+{
+    weather_forecast_state_t *state = context->state;
+    app_ui_page_destroy(&state->page);
+    for (size_t index = 0U; index < WEATHER_FORECAST_SEGMENT_COUNT; ++index)
+    {
+        state->segment_buttons[index] = NULL;
+    }
+    state->body = NULL;
+}
+
+static const app_manager_page_ops_t s_weather_forecast_ops =
+{
+    .start = _weather_forecast_start,
+    .mount = _weather_forecast_mount,
+    .resume = _weather_forecast_resume_op,
+    .pause = _weather_forecast_pause_op,
+    .unmount = _weather_forecast_unmount,
+};
 
 const app_manager_page_definition_t weather_forecast_page_definition =
 {
-    .handler = _weather_forecast_handler,
+    .ops = &s_weather_forecast_ops,
     .memory_size = sizeof(weather_forecast_state_t),
 };

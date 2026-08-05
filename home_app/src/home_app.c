@@ -16,8 +16,6 @@
 #include <string.h>
 #include <time.h>
 
-#define HOME_PAGE_SLOT_BYTES 2728U
-
 typedef struct home_page_state
 {
     app_ui_page_t page;
@@ -33,7 +31,7 @@ typedef struct home_page_state
     bool wifi_initialization_elapsed;
 } home_page_state_t;
 
-_Static_assert(sizeof(home_page_state_t) <= HOME_PAGE_SLOT_BYTES,
+_Static_assert(sizeof(home_page_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Home page state exceeds the lifecycle arena slot");
 
 static const char *_home_time_quality_text(time_service_quality_t quality)

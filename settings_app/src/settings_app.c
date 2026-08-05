@@ -14,7 +14,6 @@
 
 #define SETTINGS_PAGE_POWER     "power"
 #define SETTINGS_PAGE_ABOUT     "about"
-#define SETTINGS_PAGE_SLOT_BYTES 2728U
 #define SETTINGS_SURFACE_COLOR  0x1A2024
 #define SETTINGS_PRESSED_COLOR  0x252D32
 #define SETTINGS_TEXT_COLOR     0xF2F5F6
@@ -55,11 +54,11 @@ typedef struct settings_about_state
     app_ui_page_t page;
 } settings_about_state_t;
 
-_Static_assert(sizeof(settings_root_state_t) <= SETTINGS_PAGE_SLOT_BYTES,
+_Static_assert(sizeof(settings_root_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Settings root state exceeds the lifecycle arena slot");
-_Static_assert(sizeof(settings_power_state_t) <= SETTINGS_PAGE_SLOT_BYTES,
+_Static_assert(sizeof(settings_power_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Settings power state exceeds the lifecycle arena slot");
-_Static_assert(sizeof(settings_about_state_t) <= SETTINGS_PAGE_SLOT_BYTES,
+_Static_assert(sizeof(settings_about_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Settings about state exceeds the lifecycle arena slot");
 
 static const char *_settings_screen_timeout_text(int32_t timeout_ms)

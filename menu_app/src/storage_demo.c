@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define STORAGE_DEMO_PAGE_SLOT_BYTES 2728U
 #define STORAGE_DEMO_POLL_MS         200U
 
 typedef struct storage_demo_page_state
@@ -31,7 +30,7 @@ typedef struct storage_demo_page_state
 } storage_demo_page_state_t;
 
 _Static_assert(sizeof(storage_demo_page_state_t) <=
-               STORAGE_DEMO_PAGE_SLOT_BYTES,
+               APP_MANAGER_PAGE_STATE_BYTES,
                "Storage demo page exceeds the fixed lifecycle arena slot");
 
 static void _storage_demo_set_enabled(lv_obj_t *object, bool enabled)

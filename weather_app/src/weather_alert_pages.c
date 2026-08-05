@@ -4,7 +4,6 @@
 
 #include "weather_app_internal.h"
 
-#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -32,32 +31,40 @@ typedef struct weather_alert_detail_state
     lv_obj_t *truncated_label;
     const weather_service_snapshot_t *snapshot;
     event_bus_sub_handle_t subscription;
+    uint64_t selected_alert_key;
 } weather_alert_detail_state_t;
 
-_Static_assert(sizeof(weather_alerts_state_t) <= WEATHER_PAGE_SLOT_BYTES,
+_Static_assert(sizeof(weather_alerts_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Weather alerts state exceeds the lifecycle arena slot");
-_Static_assert(sizeof(weather_alert_detail_state_t) <= WEATHER_PAGE_SLOT_BYTES,
+_Static_assert(sizeof(weather_alert_detail_state_t) <=
+               APP_MANAGER_PAGE_STATE_BYTES,
                "Weather alert detail state exceeds the lifecycle arena slot");
 
-static atomic_uint_fast64_t s_selected_alert_key;
-
 static const weather_service_alert_t *_weather_alert_find_selected(
-    const weather_service_snapshot_t *snapshot)
+    const weather_service_snapshot_t *snapshot, uint64_t selected_alert_key)
 {
     if (snapshot == NULL || !snapshot->alerts.meta.available)
     {
         return NULL;
     }
-    uint64_t key = atomic_load_explicit(&s_selected_alert_key,
-                                        memory_order_acquire);
     for (uint8_t index = 0U; index < snapshot->alerts.count; ++index)
     {
-        if (snapshot->alerts.items[index].key == key)
+        if (snapshot->alerts.items[index].key == selected_alert_key)
         {
             return &snapshot->alerts.items[index];
         }
     }
     return NULL;
+}
+
+static void _weather_alert_navigation_complete(esp_err_t result,
+        void *context)
+{
+    (void)context;
+    if (result != ESP_OK)
+    {
+        LOG_W("open alert detail failed: %s", esp_err_to_name(result));
+    }
 }
 
 static void _weather_alert_open(lv_event_t *event)
@@ -74,10 +81,34 @@ static void _weather_alert_open(lv_event_t *event)
     {
         return;
     }
-    atomic_store_explicit(&s_selected_alert_key,
-                          state->snapshot->alerts.items[index - 1U].key,
-                          memory_order_release);
-    app_ui_request_open_page(APP_MANAGER_ID_WEATHER, WEATHER_PAGE_DETAIL);
+    const weather_alert_arguments_t arguments =
+    {
+        .alert_key = state->snapshot->alerts.items[index - 1U].key,
+    };
+    app_manager_nav_request_t request =
+    {
+        .operation = APP_MANAGER_NAV_OP_OPEN_PAGE,
+        .app_id = APP_MANAGER_ID_WEATHER,
+        .page_id = WEATHER_PAGE_DETAIL,
+        .has_arguments = true,
+        .arguments =
+        {
+            .version = APP_MANAGER_TYPED_BLOB_VERSION,
+            .type = WEATHER_ARGUMENT_ALERT_KEY,
+            .size = sizeof(arguments),
+        },
+        .transition =
+        {
+            .effect = APP_MANAGER_TRANSITION_DEFAULT,
+        },
+    };
+    memcpy(request.arguments.payload, &arguments, sizeof(arguments));
+    esp_err_t result = app_manager_navigate_async(
+                           &request, _weather_alert_navigation_complete, NULL);
+    if (result != ESP_OK)
+    {
+        LOG_W("failed to queue alert detail: %s", esp_err_to_name(result));
+    }
 }
 
 static lv_obj_t *_weather_alert_add_action(weather_alerts_state_t *state,
@@ -230,46 +261,51 @@ static esp_err_t _weather_alerts_pause(weather_alerts_state_t *state)
 {
     esp_err_t result = weather_ui_unsubscribe(&state->subscription);
     weather_ui_release_snapshot(&state->snapshot);
-    if (result != ESP_OK)
-    {
-        app_manager_this_page_report_cleanup_error(result);
-    }
     return result;
 }
 
-static void _weather_alerts_handler(app_manager_msg_type_t message,
-                                    void *param)
+static void _weather_alerts_start(
+    const app_manager_page_context_t *context)
 {
-    (void)param;
-    weather_alerts_state_t *state = app_manager_this_page_memory();
-    switch (message)
-    {
-    case APP_MANAGER_MSG_ONSTART:
-        memset(state, 0, sizeof(*state));
-        state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        break;
-    case APP_MANAGER_MSG_ONMOUNT:
-        if (state->page.root == NULL)
-        {
-            _weather_alerts_build(state);
-        }
-        break;
-    case APP_MANAGER_MSG_ONRESUME:
-        _weather_alerts_resume(state);
-        break;
-    case APP_MANAGER_MSG_ONPAUSE:
-        (void)_weather_alerts_pause(state);
-        break;
-    case APP_MANAGER_MSG_ONUNMOUNT:
-        app_ui_page_destroy(&state->page);
-        break;
-    case APP_MANAGER_MSG_ONSTOP:
-        (void)_weather_alerts_pause(state);
-        break;
-    default:
-        break;
-    }
+    weather_alerts_state_t *state = context->state;
+    state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
 }
+
+static void _weather_alerts_mount(
+    const app_manager_page_context_t *context)
+{
+    _weather_alerts_build(context->state);
+}
+
+static void _weather_alerts_resume_op(
+    const app_manager_page_context_t *context)
+{
+    _weather_alerts_resume(context->state);
+}
+
+static esp_err_t _weather_alerts_pause_op(
+    const app_manager_page_context_t *context)
+{
+    return _weather_alerts_pause(context->state);
+}
+
+static void _weather_alerts_unmount(
+    const app_manager_page_context_t *context)
+{
+    weather_alerts_state_t *state = context->state;
+    app_ui_page_destroy(&state->page);
+    state->status_label = NULL;
+    state->list = NULL;
+}
+
+static const app_manager_page_ops_t s_weather_alerts_ops =
+{
+    .start = _weather_alerts_start,
+    .mount = _weather_alerts_mount,
+    .resume = _weather_alerts_resume_op,
+    .pause = _weather_alerts_pause_op,
+    .unmount = _weather_alerts_unmount,
+};
 
 static lv_obj_t *_weather_alert_detail_section(lv_obj_t *parent,
         const char *title)
@@ -296,7 +332,8 @@ static lv_obj_t *_weather_alert_detail_value(lv_obj_t *parent,
 static void _weather_alert_detail_render(weather_alert_detail_state_t *state)
 {
     const weather_service_alert_t *alert =
-        _weather_alert_find_selected(state->snapshot);
+        _weather_alert_find_selected(state->snapshot,
+                                     state->selected_alert_key);
     if (alert == NULL)
     {
         app_ui_set_status_text(state->status_label, "该预警已失效或被撤销",
@@ -435,55 +472,95 @@ static esp_err_t _weather_alert_detail_pause(
 {
     esp_err_t result = weather_ui_unsubscribe(&state->subscription);
     weather_ui_release_snapshot(&state->snapshot);
-    if (result != ESP_OK)
-    {
-        app_manager_this_page_report_cleanup_error(result);
-    }
     return result;
 }
 
-static void _weather_alert_detail_handler(app_manager_msg_type_t message,
-        void *param)
+static void _weather_alert_detail_apply_arguments(
+    weather_alert_detail_state_t *state,
+    const app_manager_typed_blob_t *arguments)
 {
-    (void)param;
-    weather_alert_detail_state_t *state = app_manager_this_page_memory();
-    switch (message)
+    weather_alert_arguments_t decoded = {0};
+    if (arguments != NULL &&
+            arguments->type == WEATHER_ARGUMENT_ALERT_KEY &&
+            arguments->size == sizeof(decoded))
     {
-    case APP_MANAGER_MSG_ONSTART:
-        memset(state, 0, sizeof(*state));
-        state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        break;
-    case APP_MANAGER_MSG_ONMOUNT:
-        if (state->page.root == NULL)
-        {
-            _weather_alert_detail_build(state);
-        }
-        break;
-    case APP_MANAGER_MSG_ONRESUME:
-        _weather_alert_detail_resume(state);
-        break;
-    case APP_MANAGER_MSG_ONPAUSE:
-        (void)_weather_alert_detail_pause(state);
-        break;
-    case APP_MANAGER_MSG_ONUNMOUNT:
-        app_ui_page_destroy(&state->page);
-        break;
-    case APP_MANAGER_MSG_ONSTOP:
-        (void)_weather_alert_detail_pause(state);
-        break;
-    default:
-        break;
+        memcpy(&decoded, arguments->payload, sizeof(decoded));
+    }
+    state->selected_alert_key = decoded.alert_key;
+}
+
+static void _weather_alert_detail_start(
+    const app_manager_page_context_t *context)
+{
+    weather_alert_detail_state_t *state = context->state;
+    state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+    _weather_alert_detail_apply_arguments(state, context->arguments);
+}
+
+static void _weather_alert_detail_mount(
+    const app_manager_page_context_t *context)
+{
+    _weather_alert_detail_build(context->state);
+}
+
+static void _weather_alert_detail_resume_op(
+    const app_manager_page_context_t *context)
+{
+    _weather_alert_detail_resume(context->state);
+}
+
+static esp_err_t _weather_alert_detail_pause_op(
+    const app_manager_page_context_t *context)
+{
+    return _weather_alert_detail_pause(context->state);
+}
+
+static void _weather_alert_detail_unmount(
+    const app_manager_page_context_t *context)
+{
+    weather_alert_detail_state_t *state = context->state;
+    app_ui_page_destroy(&state->page);
+    state->status_label = NULL;
+    state->title_label = NULL;
+    state->type_value = NULL;
+    state->severity_value = NULL;
+    state->state_value = NULL;
+    state->period_value = NULL;
+    state->description_value = NULL;
+    state->instruction_section = NULL;
+    state->instruction_value = NULL;
+    state->truncated_label = NULL;
+}
+
+static void _weather_alert_detail_new_intent(
+    const app_manager_page_context_t *context)
+{
+    weather_alert_detail_state_t *state = context->state;
+    _weather_alert_detail_apply_arguments(state, context->arguments);
+    if (state->page.root != NULL)
+    {
+        _weather_alert_detail_render(state);
     }
 }
 
+static const app_manager_page_ops_t s_weather_alert_detail_ops =
+{
+    .start = _weather_alert_detail_start,
+    .mount = _weather_alert_detail_mount,
+    .resume = _weather_alert_detail_resume_op,
+    .pause = _weather_alert_detail_pause_op,
+    .unmount = _weather_alert_detail_unmount,
+    .new_intent = _weather_alert_detail_new_intent,
+};
+
 const app_manager_page_definition_t weather_alerts_page_definition =
 {
-    .handler = _weather_alerts_handler,
+    .ops = &s_weather_alerts_ops,
     .memory_size = sizeof(weather_alerts_state_t),
 };
 
 const app_manager_page_definition_t weather_alert_detail_page_definition =
 {
-    .handler = _weather_alert_detail_handler,
+    .ops = &s_weather_alert_detail_ops,
     .memory_size = sizeof(weather_alert_detail_state_t),
 };

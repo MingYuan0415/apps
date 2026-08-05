@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define SETUP_PAGE_SLOT_BYTES 2728U
 #define SETUP_PAGE_PROVISIONING "provisioning"
 #define SETUP_QR_SIZE 280
 #define SETUP_COLOR_TEXT  0xF2F5F6
@@ -46,9 +45,10 @@ typedef struct setup_provisioning_state
     size_t qr_length;
 } setup_provisioning_state_t;
 
-_Static_assert(sizeof(setup_root_state_t) <= SETUP_PAGE_SLOT_BYTES,
+_Static_assert(sizeof(setup_root_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Setup root state exceeds the lifecycle arena slot");
-_Static_assert(sizeof(setup_provisioning_state_t) <= SETUP_PAGE_SLOT_BYTES,
+_Static_assert(sizeof(setup_provisioning_state_t) <=
+               APP_MANAGER_PAGE_STATE_BYTES,
                "Setup provisioning state exceeds the lifecycle arena slot");
 
 static void _setup_root_render(setup_root_state_t *state);

@@ -15,7 +15,6 @@
 
 #define CLOCK_REFRESH_PERIOD_MS 1000U
 #define CLOCK_UTC8_OFFSET_SEC   (8 * 60 * 60)
-#define CLOCK_PAGE_STATE_LIMIT  2728U
 
 typedef struct clock_page_state
 {
@@ -33,7 +32,7 @@ typedef struct clock_page_state
     bool alarm_disarm_pending;
 } clock_page_state_t;
 
-_Static_assert(sizeof(clock_page_state_t) <= CLOCK_PAGE_STATE_LIMIT,
+_Static_assert(sizeof(clock_page_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "clock page state exceeds the retained-page slot");
 _Static_assert(sizeof(time_service_alarm_event_t) <=
                EVENT_BUS_MAX_UI_PAYLOAD_SIZE,

@@ -11,10 +11,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define WEATHER_PAGE_SLOT_BYTES 2728U
 #define WEATHER_PAGE_FORECAST   "forecast"
 #define WEATHER_PAGE_ALERTS     "alerts"
 #define WEATHER_PAGE_DETAIL     "alert-detail"
+#define WEATHER_ARGUMENT_ALERT_KEY 1U
 
 #define WEATHER_COLOR_BACKGROUND 0x090D0F
 #define WEATHER_COLOR_SURFACE    0x151B1F
@@ -25,6 +25,15 @@
 #define WEATHER_COLOR_RAIN       0x4FC4D8
 #define WEATHER_COLOR_WARNING    0xFF756C
 #define WEATHER_COLOR_WARNING_BG 0x3B2021
+
+typedef struct weather_alert_arguments
+{
+    uint64_t alert_key;
+} weather_alert_arguments_t;
+
+_Static_assert(sizeof(weather_alert_arguments_t) <=
+               APP_MANAGER_TYPED_BLOB_PAYLOAD_BYTES,
+               "Weather alert arguments exceed the Typed Blob payload");
 
 extern const app_manager_page_definition_t weather_root_page_definition;
 extern const app_manager_page_definition_t weather_forecast_page_definition;

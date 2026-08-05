@@ -8,7 +8,6 @@
 
 #include <string.h>
 
-#define MENU_PAGE_SLOT_BYTES 2728U
 #define MENU_PAGE_MOTION     "motion"
 #define MENU_PAGE_AUDIO      "audio"
 #define MENU_PAGE_STORAGE    "storage"
@@ -19,7 +18,7 @@ typedef struct menu_page_state
     app_ui_page_t page;
 } menu_page_state_t;
 
-_Static_assert(sizeof(menu_page_state_t) <= MENU_PAGE_SLOT_BYTES,
+_Static_assert(sizeof(menu_page_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Menu page state exceeds the lifecycle arena slot");
 
 static void _menu_open_page(lv_event_t *event)
