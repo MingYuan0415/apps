@@ -9,11 +9,17 @@
 - `menu_app/`：作为演示中心，包含运动传感、音频、SD 存储和时间/RTC 四个静态页；音频、文件和 RTC 操作均由页面自有 worker 执行。
 - `settings_app/`：提供亮度、固定熄屏/待机延迟选项、电源详情及运行时固件描述。
 - `setup_app/`：通过二维码开启限时 BLE 手机配网，并管理已保存网络的断开、重连、自动连接和忘记操作；不再在设备侧扫描、选择网络或输入密码。
+- `weather_app/`：展示当前天气、预警、24 小时和 7 日预报，包含预警列表与详情页；只消费 `weather_service` 快照，不执行网络、JSON 或缓存 I/O。
 - `tests/host/`：共用导航和 Setup Wi-Fi adapter 的宿主测试及最小依赖 fake。
 
 每个应用以普通 `const` Page definition 描述 handler 和私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。只有 `APP_MANAGER_APP_EXPORT` 产生的 App descriptor 进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。公共 Page definition 可被多个 App route 引用，但未显式绑定的 App 不能导航到它，也不支持运行时自由挂载。新增应用时应在独立目录中实现生命周期 handler，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，不要使用递归 glob。
 
 页面 UI 只在 `ONMOUNT/ONUNMOUNT` 中创建和销毁，根对象必须挂到 `app_manager_this_page_screen()`。Timer、事件订阅、worker 和服务会话只在 `ONRESUME/ONPAUSE` 中启停；清理失败须保留资源 handle，从 `ONPAUSE` 或 `ONSTOP` 上报并允许后续生命周期重试。音频、存储和时钟 worker 的 task stack 必须从 PSRAM 分配，并由页面所有者同步删除，避免占用 LCD 与 I2S 共用的内部 DMA heap。每个页面私有状态都以静态断言约束在 2728 B 以内。
+
+Weather 页面恢复前台时订阅 `WEATHER_SERVICE_MSG` 并 acquire 当前不可变快照，暂停时
+先退订再 release；事件只触发按 generation 重取，不复制小时、逐日或预警数组。预警详情
+的临时格式化缓冲使用 PSRAM。图片按语义 ID 查询 mmap 描述符，资源缺失时使用 LVGL
+symbol，不在页面状态中保存文件路径或可变图片 payload。
 
 SD 自检仅在已挂载的 `/sdcard` 下以 `O_EXCL` 创建本次独占的 4 KiB 临时文件，分块写入、读回校验并删除；不枚举、覆盖或格式化用户文件。未挂载时应用只提示插卡后重启，不调用存储服务的 init/deinit。
 

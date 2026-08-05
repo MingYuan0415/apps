@@ -3,6 +3,7 @@
 set(APP_SRCS
     "common/src/app_ui.c"
     "home_app/src/home_app.c"
+    "weather_app/src/weather_app.c"
     "menu_app/src/menu_app.c"
     "menu_app/src/motion_demo.c"
     "menu_app/src/audio_demo.c"
@@ -37,6 +38,7 @@ idf_component_register(
         connectivity_manager
         provisioning_service
         time_service
+        weather_service
         power_service
         esp_app_format
         esp_hw_support

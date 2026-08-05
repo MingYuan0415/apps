@@ -299,6 +299,9 @@ static void _home_page_build(home_page_state_t *state)
                          &state->storage_value);
 
     app_ui_add_section(state->page.content, "快捷入口");
+    app_ui_add_action(state->page.content, LV_SYMBOL_GPS, "天气",
+                      "当前、24 小时、7 日与气象预警", _home_open_app,
+                      (void *)APP_MANAGER_ID_WEATHER);
     app_ui_add_action(state->page.content, LV_SYMBOL_LIST, "演示中心",
                       "传感器、音频、存储与时间实验", _home_open_app,
                       (void *)APP_MANAGER_ID_MENU);
