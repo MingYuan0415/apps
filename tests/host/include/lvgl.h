@@ -56,6 +56,9 @@ void lv_obj_add_event_cb(lv_obj_t *object, lv_event_cb_t callback,
 lv_event_code_t lv_event_get_code(lv_event_t *event);
 /** @brief Set fake label text. */
 void lv_label_set_text(lv_obj_t *label, const char *text);
+/** @brief Record an explicitly assigned fake text font. */
+void lv_obj_set_style_text_font(lv_obj_t *object, const lv_font_t *font,
+                                int selector);
 
 /**
  * @brief Generate no-op LVGL compatibility functions for layout-only tests.
@@ -108,7 +111,6 @@ APPS_HOST_LV_NOOP_3(lv_obj_set_style_radius, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_shadow_width, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_align, lv_obj_t *, int, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_color, lv_obj_t *, lv_color_t, int)
-APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_font, lv_obj_t *, const lv_font_t *, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_line_space, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_4(lv_obj_align, lv_obj_t *, int, int32_t, int32_t)
 APPS_HOST_LV_NOOP_4(lv_obj_set_flex_align, lv_obj_t *, int, int, int)

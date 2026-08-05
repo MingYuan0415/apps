@@ -6,6 +6,22 @@
 #include <string.h>
 
 #define TEST_QUEUE_CAPACITY 24U
+#define TEST_OBJECT_CAPACITY 32U
+
+struct lv_obj_t
+{
+    bool live;
+    bool label;
+    bool explicit_font;
+    lv_obj_t *parent;
+    const lv_font_t *font;
+    char text[32];
+};
+
+struct lv_event_t
+{
+    lv_event_code_t code;
+};
 
 typedef struct test_command
 {
@@ -25,6 +41,109 @@ static char s_last_page_id[APP_MANAGER_ID_BYTES];
 static unsigned s_execute_count;
 static unsigned s_completion_count;
 static esp_err_t s_completion_result;
+static lv_obj_t s_screen;
+static lv_obj_t s_objects[TEST_OBJECT_CAPACITY];
+
+static lv_obj_t *_test_object_create(lv_obj_t *parent, bool label)
+{
+    for (size_t index = 0U; index < TEST_OBJECT_CAPACITY; ++index)
+    {
+        if (!s_objects[index].live)
+        {
+            s_objects[index] = (lv_obj_t)
+            {
+                .live = true,
+                .label = label,
+                .parent = parent,
+            };
+            return &s_objects[index];
+        }
+    }
+    assert(false);
+    return NULL;
+}
+
+static size_t _test_explicit_font_count(const char *text,
+                                        const lv_font_t *font)
+{
+    size_t count = 0U;
+    for (size_t index = 0U; index < TEST_OBJECT_CAPACITY; ++index)
+    {
+        if (s_objects[index].live && s_objects[index].label &&
+                s_objects[index].explicit_font &&
+                s_objects[index].font == font &&
+                strcmp(s_objects[index].text, text) == 0)
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+lv_obj_t *lv_obj_create(lv_obj_t *parent)
+{
+    return _test_object_create(parent, false);
+}
+
+lv_obj_t *lv_button_create(lv_obj_t *parent)
+{
+    return _test_object_create(parent, false);
+}
+
+lv_obj_t *lv_label_create(lv_obj_t *parent)
+{
+    return _test_object_create(parent, true);
+}
+
+void lv_obj_delete(lv_obj_t *object)
+{
+    if (object == NULL)
+    {
+        return;
+    }
+    for (size_t index = 0U; index < TEST_OBJECT_CAPACITY; ++index)
+    {
+        if (s_objects[index].live && s_objects[index].parent == object)
+        {
+            lv_obj_delete(&s_objects[index]);
+        }
+    }
+    object->live = false;
+}
+
+void lv_obj_add_event_cb(lv_obj_t *object, lv_event_cb_t callback,
+                         lv_event_code_t code, void *user_data)
+{
+    (void)object;
+    (void)callback;
+    (void)code;
+    (void)user_data;
+}
+
+lv_event_code_t lv_event_get_code(lv_event_t *event)
+{
+    return event->code;
+}
+
+void lv_label_set_text(lv_obj_t *label, const char *text)
+{
+    assert(label != NULL);
+    (void)snprintf(label->text, sizeof(label->text), "%s", text);
+}
+
+void lv_obj_set_style_text_font(lv_obj_t *object, const lv_font_t *font,
+                                int selector)
+{
+    (void)selector;
+    assert(object != NULL);
+    object->font = font;
+    object->explicit_font = true;
+}
+
+lv_obj_t *app_manager_this_page_screen(void)
+{
+    return &s_screen;
+}
 
 static void _test_reset_queue(void)
 {
@@ -115,6 +234,16 @@ const lv_font_t *app_manager_get_font(app_theme_font_id_t id)
 
 int main(void)
 {
+    memset(&s_screen, 0, sizeof(s_screen));
+    s_screen.live = true;
+    memset(s_objects, 0, sizeof(s_objects));
+    app_ui_page_t page;
+    app_ui_page_create(&page, "符号字体", true);
+    (void)app_ui_add_action(page.content, NULL, "导航", NULL, NULL, NULL);
+    assert(_test_explicit_font_count(LV_SYMBOL_LEFT, LV_FONT_DEFAULT) == 1U);
+    assert(_test_explicit_font_count(LV_SYMBOL_RIGHT, LV_FONT_DEFAULT) == 2U);
+    app_ui_page_destroy(&page);
+
     _test_reset_queue();
     char dynamic_id[APP_MANAGER_ID_BYTES] = "temporary-dynamic-app";
     app_ui_request_run(dynamic_id);

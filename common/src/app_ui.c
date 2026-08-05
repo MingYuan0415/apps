@@ -148,6 +148,7 @@ void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
         lv_obj_t *icon = lv_label_create(back);
         lv_label_set_text(icon, LV_SYMBOL_LEFT);
         lv_obj_set_style_text_color(icon, lv_color_hex(COLOR_TEXT), 0);
+        lv_obj_set_style_text_font(icon, LV_FONT_DEFAULT, 0);
         lv_obj_center(icon);
     }
 
@@ -255,6 +256,7 @@ static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, const char *symbol,
         lv_obj_t *chevron = lv_label_create(button);
         lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
         lv_obj_set_style_text_color(chevron, lv_color_hex(COLOR_MUTED), 0);
+        lv_obj_set_style_text_font(chevron, LV_FONT_DEFAULT, 0);
     }
 
     if (callback != NULL)
