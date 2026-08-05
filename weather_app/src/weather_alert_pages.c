@@ -117,7 +117,7 @@ static lv_obj_t *_weather_alert_add_action(weather_alerts_state_t *state,
     const weather_service_alert_t *alert =
         &state->snapshot->alerts.items[index];
     lv_obj_t *button = lv_button_create(state->list);
-    lv_obj_set_size(button, LV_PCT(100), 82);
+    lv_obj_set_size(button, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_radius(button, 6, 0);
     lv_obj_set_style_bg_color(button, lv_color_hex(WEATHER_COLOR_SURFACE), 0);
     lv_obj_set_style_bg_color(button, lv_color_hex(WEATHER_COLOR_SURFACE_HI),
@@ -141,7 +141,7 @@ static lv_obj_t *_weather_alert_add_action(weather_alerts_state_t *state,
     lv_obj_t *title = weather_ui_text_label(
                           content, alert->title, APP_THEME_FONT_SMALL);
     lv_obj_set_width(title, LV_PCT(100));
-    lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(title, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(title, lv_color_hex(WEATHER_COLOR_TEXT), 0);
     char start[24];
     char end[24];

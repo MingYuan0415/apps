@@ -167,17 +167,48 @@ static void _weather_forecast_render_chart(weather_forecast_state_t *state)
         minimum -= 10;
         maximum += 10;
     }
-    lv_obj_t *chart = lv_chart_create(state->body);
-    lv_obj_set_size(chart, LV_PCT(100), 116);
+    const int32_t axis_minimum = minimum - 10;
+    const int32_t axis_maximum = maximum + 10;
+    lv_obj_t *chart_row = weather_ui_container(
+                              state->body, 116, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(chart_row, 6, 0);
+    lv_obj_t *chart = lv_chart_create(chart_row);
+    lv_obj_set_size(chart, 0, 116);
+    lv_obj_set_flex_grow(chart, 1);
     lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
     lv_chart_set_point_count(chart, count);
     lv_chart_set_axis_range(chart, LV_CHART_AXIS_PRIMARY_Y,
-                            minimum - 10, maximum + 10);
+                            axis_minimum, axis_maximum);
     lv_chart_set_div_line_count(chart, 3, 0);
     lv_obj_set_style_bg_color(chart, lv_color_hex(WEATHER_COLOR_SURFACE), 0);
     lv_obj_set_style_bg_opa(chart, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(chart, 0, 0);
     lv_obj_set_style_radius(chart, 6, 0);
+    lv_obj_t *scale = weather_ui_container(
+                          chart_row, 116, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_width(scale, 56);
+    lv_obj_set_flex_align(scale, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    const int32_t scale_values[] =
+    {
+        axis_maximum,
+        axis_minimum + (axis_maximum - axis_minimum) / 2,
+        axis_minimum,
+    };
+    for (size_t index = 0U;
+            index < sizeof(scale_values) / sizeof(scale_values[0]); ++index)
+    {
+        char text[16];
+        (void)snprintf(text, sizeof(text), "%.0f°C",
+                       scale_values[index] / 10.0);
+        lv_obj_t *label = weather_ui_text_label(
+                              scale, text, APP_THEME_FONT_BODY);
+        lv_obj_set_size(label, 56, 21);
+        lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_style_text_color(label,
+                                    lv_color_hex(WEATHER_COLOR_MUTED), 0);
+    }
     lv_chart_series_t *series = lv_chart_add_series(
                                     chart, lv_color_hex(WEATHER_COLOR_SUN),
                                     LV_CHART_AXIS_PRIMARY_Y);
@@ -210,35 +241,57 @@ static void _weather_forecast_render_hourly(weather_forecast_state_t *state)
     for (uint8_t index = 0U; index < hourly->count; ++index)
     {
         const weather_service_hour_t *hour = &hourly->items[index];
-        lv_obj_t *row = weather_ui_surface(state->body, 64);
+        lv_obj_t *row = weather_ui_surface(state->body, 70);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_column(row, 8, 0);
+        lv_obj_set_style_pad_all(row, 8, 0);
+        lv_obj_set_style_pad_column(row, 6, 0);
         char text[48];
-        weather_ui_format_time(&hour->forecast_at, "%m-%d %H:%M", text,
+        weather_ui_format_time(&hour->forecast_at, "%m-%d\n%H:%M", text,
                                sizeof(text));
         lv_obj_t *time = weather_ui_text_label(
                              row, text[0] != '\0' ? text : "--:--",
                              APP_THEME_FONT_BODY);
-        lv_obj_set_width(time, 76);
+        lv_obj_set_size(time, 58, 42);
+        lv_label_set_long_mode(time, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_color(time, lv_color_hex(WEATHER_COLOR_MUTED),
                                     0);
         (void)weather_ui_small_icon(row, hour->condition_code);
+        lv_obj_t *info = weather_ui_container(
+                             row, 50, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_width(info, 0);
+        lv_obj_set_flex_grow(info, 1);
+        lv_obj_set_style_pad_row(info, 2, 0);
+        lv_obj_t *top = weather_ui_container(
+                            info, 26, LV_FLEX_FLOW_ROW);
+        lv_obj_set_style_pad_column(top, 6, 0);
+        lv_obj_set_flex_align(top, LV_FLEX_ALIGN_START,
+                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         (void)snprintf(text, sizeof(text), "%.0f°",
                        hour->temperature_tenths_c / 10.0);
         lv_obj_t *temperature = weather_ui_text_label(
-                                    row, text, APP_THEME_FONT_SMALL);
-        lv_obj_set_width(temperature, 42);
+                                    top, text, APP_THEME_FONT_SMALL);
+        lv_obj_set_size(temperature, 54, 26);
+        lv_label_set_long_mode(temperature, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_color(temperature,
                                     lv_color_hex(WEATHER_COLOR_TEXT), 0);
-        (void)snprintf(text, sizeof(text), "降水 %u%%\n湿度 %u%% · %.0f km/h",
-                       (unsigned)hour->precipitation_chance_percent,
+        (void)snprintf(text, sizeof(text), "降水 %u%%",
+                       (unsigned)hour->precipitation_chance_percent);
+        lv_obj_t *precipitation = weather_ui_text_label(
+                                      top, text, APP_THEME_FONT_BODY);
+        lv_obj_set_size(precipitation, 0, 21);
+        lv_obj_set_flex_grow(precipitation, 1);
+        lv_label_set_long_mode(precipitation, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_color(precipitation,
+                                    lv_color_hex(WEATHER_COLOR_MUTED), 0);
+        (void)snprintf(text, sizeof(text), "湿度 %u%% · %.0f km/h",
                        (unsigned)hour->humidity_percent,
                        hour->wind_speed_tenths_kmh / 10.0);
         lv_obj_t *details = weather_ui_text_label(
-                                row, text, APP_THEME_FONT_BODY);
-        lv_obj_set_flex_grow(details, 1);
+                                info, text, APP_THEME_FONT_BODY);
+        lv_obj_set_size(details, LV_PCT(100), 21);
+        lv_label_set_long_mode(details, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_color(details,
                                     lv_color_hex(WEATHER_COLOR_MUTED), 0);
     }
