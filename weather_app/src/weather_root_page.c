@@ -33,9 +33,10 @@ _Static_assert(sizeof(weather_service_event_t) <= 256U,
 static lv_obj_t *_weather_root_metric(lv_obj_t *parent, const char *name,
                                       const char *value)
 {
-    lv_obj_t *cell = weather_ui_surface(parent, 64);
-    lv_obj_set_width(cell, LV_PCT(48));
+    lv_obj_t *cell = weather_ui_surface(parent, 52);
+    lv_obj_set_width(cell, LV_PCT(23));
     lv_obj_set_flex_flow(cell, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(cell, 4, 0);
     lv_obj_set_style_pad_row(cell, 2, 0);
     lv_obj_t *name_label = weather_ui_text_label(
                                cell, name, APP_THEME_FONT_BODY);
@@ -50,18 +51,16 @@ static lv_obj_t *_weather_root_metric(lv_obj_t *parent, const char *name,
     return cell;
 }
 
-static void _weather_root_metric_pair(lv_obj_t *parent,
-                                      const char *left_name,
-                                      const char *left_value,
-                                      const char *right_name,
-                                      const char *right_value)
+static void _weather_root_append_status(char *text, size_t text_size,
+                                        const char *fragment)
 {
-    lv_obj_t *row = weather_ui_container(parent, 64, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_pad_column(row, 8, 0);
-    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-    (void)_weather_root_metric(row, left_name, left_value);
-    (void)_weather_root_metric(row, right_name, right_value);
+    size_t used = strlen(text);
+    if (fragment[0] == '\0' || used >= text_size)
+    {
+        return;
+    }
+    (void)snprintf(text + used, text_size - used, "%s%s",
+                   used > 0U ? " · " : "", fragment);
 }
 
 static const weather_service_day_t *_weather_root_today(
@@ -101,21 +100,22 @@ static void _weather_root_render_metrics(weather_root_state_t *state)
         return;
     }
     const weather_service_current_t *current = &state->snapshot->current;
-    char text[48];
-    (void)snprintf(text, sizeof(text), "%u%%",
+    char humidity[32];
+    char precipitation[32];
+    char wind[32];
+    char visibility[32];
+    (void)snprintf(humidity, sizeof(humidity), "%u%%",
                    (unsigned)current->humidity_percent);
-    char left[48];
-    (void)snprintf(left, sizeof(left), "%s", text);
-    (void)snprintf(text, sizeof(text), "%.1f mm",
+    (void)snprintf(precipitation, sizeof(precipitation), "%.1f mm",
                    current->precipitation_tenths_mm / 10.0);
-    _weather_root_metric_pair(state->metrics, "湿度", left, "降水", text);
-    (void)snprintf(text, sizeof(text), "%.16s %.0f km/h",
-                   current->wind_direction,
+    (void)snprintf(wind, sizeof(wind), "%.0f km/h",
                    current->wind_speed_tenths_kmh / 10.0);
-    (void)snprintf(left, sizeof(left), "%s", text);
-    (void)snprintf(text, sizeof(text), "%.1f km",
+    (void)snprintf(visibility, sizeof(visibility), "%.1f km",
                    current->visibility_tenths_km / 10.0);
-    _weather_root_metric_pair(state->metrics, "风", left, "能见度", text);
+    (void)_weather_root_metric(state->metrics, "湿度", humidity);
+    (void)_weather_root_metric(state->metrics, "降水", precipitation);
+    (void)_weather_root_metric(state->metrics, "风速", wind);
+    (void)_weather_root_metric(state->metrics, "能见度", visibility);
 }
 
 static void _weather_root_render_hourly(weather_root_state_t *state)
@@ -140,7 +140,7 @@ static void _weather_root_render_hourly(weather_root_state_t *state)
     {
         const weather_service_hour_t *hour =
             &state->snapshot->hourly.items[index];
-        lv_obj_t *item = weather_ui_container(state->hourly_row, 72,
+        lv_obj_t *item = weather_ui_container(state->hourly_row, 82,
                                               LV_FLEX_FLOW_COLUMN);
         lv_obj_set_width(item, LV_PCT(24));
         lv_obj_set_flex_align(item, LV_FLEX_ALIGN_CENTER,
@@ -172,34 +172,24 @@ static void _weather_root_render_status(weather_root_state_t *state)
                                APP_UI_STATUS_ERROR);
         return;
     }
-    const char *text = weather_ui_state_text(status.state);
     app_ui_status_t color = weather_ui_state_color(status.state);
-    if (state->snapshot != NULL && state->snapshot->current.meta.expired)
+    const weather_service_dataset_meta_t *meta = NULL;
+    bool location_reused = false;
+    if (state->snapshot != NULL)
     {
-        text = "实况已过期";
-        color = APP_UI_STATUS_WARNING;
+        if (state->snapshot->current.meta.available)
+        {
+            meta = &state->snapshot->current.meta;
+        }
+        location_reused = state->snapshot->location.available &&
+                          state->snapshot->location.reused;
     }
-    else if (state->snapshot != NULL && state->snapshot->current.meta.stale)
-    {
-        text = "显示缓存实况";
-        color = APP_UI_STATUS_WARNING;
-    }
-    else if (state->snapshot != NULL && state->snapshot->location.reused)
-    {
-        text = "沿用上次位置";
-        color = APP_UI_STATUS_WARNING;
-    }
-    if (status.state == WEATHER_SERVICE_STATE_READY &&
-            state->snapshot != NULL &&
-            state->snapshot->current.meta.available &&
-            !state->snapshot->current.meta.stale &&
-            !state->snapshot->current.meta.expired &&
-            !state->snapshot->location.reused)
+    if (status.state == WEATHER_SERVICE_STATE_READY && meta != NULL &&
+            !meta->stale && !meta->expired && !location_reused)
     {
         char updated[32];
         char status_text[48];
-        weather_ui_format_dataset_time(&state->snapshot->current.meta,
-                                       updated, sizeof(updated));
+        weather_ui_format_dataset_time(meta, updated, sizeof(updated));
         if (updated[0] != '\0')
         {
             (void)snprintf(status_text, sizeof(status_text), "%s 更新",
@@ -207,6 +197,38 @@ static void _weather_root_render_status(weather_root_state_t *state)
             app_ui_set_status_text(state->status_label, status_text, color);
             return;
         }
+    }
+    char text[96] = "";
+    _weather_root_append_status(text, sizeof(text),
+                                weather_ui_state_short_text(status.state));
+    if (meta != NULL && meta->expired)
+    {
+        _weather_root_append_status(text, sizeof(text), "实况过期");
+        if (status.state == WEATHER_SERVICE_STATE_READY)
+        {
+            color = APP_UI_STATUS_WARNING;
+        }
+    }
+    else if (meta != NULL && meta->stale)
+    {
+        _weather_root_append_status(text, sizeof(text), "缓存实况");
+        if (status.state == WEATHER_SERVICE_STATE_READY)
+        {
+            color = APP_UI_STATUS_WARNING;
+        }
+    }
+    if (location_reused)
+    {
+        _weather_root_append_status(text, sizeof(text), "沿用位置");
+        if (status.state == WEATHER_SERVICE_STATE_READY)
+        {
+            color = APP_UI_STATUS_WARNING;
+        }
+    }
+    if (text[0] == '\0')
+    {
+        (void)snprintf(text, sizeof(text), "%s",
+                       meta == NULL ? "暂无实况数据" : "已更新");
     }
     app_ui_set_status_text(state->status_label, text, color);
 }
@@ -379,16 +401,20 @@ static void _weather_root_build(weather_root_state_t *state)
 {
     app_ui_page_create(&state->page, "天气", true);
     state->city_label = state->page.title;
+    lv_obj_set_height(state->city_label, 32);
+    lv_label_set_long_mode(state->city_label, LV_LABEL_LONG_DOT);
     (void)_weather_root_header_button(state);
 
     lv_obj_t *hero = weather_ui_container(state->page.content, 112,
                                           LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(hero, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_t *summary = weather_ui_container(hero, LV_SIZE_CONTENT,
+    lv_obj_t *summary = weather_ui_container(hero, 112,
                         LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(summary, 190);
     lv_obj_set_style_pad_row(summary, 1, 0);
+    lv_obj_set_flex_align(summary, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     state->temperature_label = weather_ui_text_label(
                                    summary, "--°", APP_THEME_FONT_TITLE);
     lv_obj_set_style_text_color(state->temperature_label,
@@ -403,10 +429,10 @@ static void _weather_root_build(weather_root_state_t *state)
     state->range_label = weather_ui_text_label(
                              summary, "体感 --°  ·  --° / --°",
                              APP_THEME_FONT_BODY);
+    lv_obj_set_width(state->range_label, LV_PCT(100));
+    lv_label_set_long_mode(state->range_label, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_color(state->range_label,
                                 lv_color_hex(WEATHER_COLOR_MUTED), 0);
-    state->status_label = weather_ui_text_label(
-                              summary, "读取天气", APP_THEME_FONT_BODY);
 
     lv_obj_t *visual = weather_ui_container(hero, 112, LV_FLEX_FLOW_ROW);
     lv_obj_set_width(visual, 112);
@@ -416,6 +442,12 @@ static void _weather_root_build(weather_root_state_t *state)
     lv_obj_set_style_text_color(state->image_fallback,
                                 lv_color_hex(WEATHER_COLOR_SUN), 0);
     lv_obj_center(state->image_fallback);
+
+    state->status_label = weather_ui_text_label(
+                              state->page.content, "读取天气",
+                              APP_THEME_FONT_BODY);
+    lv_obj_set_size(state->status_label, LV_PCT(100), 22);
+    lv_label_set_long_mode(state->status_label, LV_LABEL_LONG_DOT);
 
     state->alert_button = lv_button_create(state->page.content);
     lv_obj_set_size(state->alert_button, LV_PCT(100), 46);
@@ -434,14 +466,13 @@ static void _weather_root_build(weather_root_state_t *state)
                                 lv_color_hex(WEATHER_COLOR_WARNING), 0);
     lv_obj_center(state->alert_label);
 
-    state->metrics = weather_ui_container(state->page.content, 136,
-                                          LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(state->metrics, 8, 0);
-    lv_obj_set_style_pad_column(state->metrics, 8, 0);
+    state->metrics = weather_ui_container(state->page.content, 52,
+                                          LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(state->metrics, 6, 0);
     lv_obj_set_flex_align(state->metrics, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    state->hourly_row = weather_ui_container(state->page.content, 72,
+    state->hourly_row = weather_ui_container(state->page.content, 82,
                         LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(state->hourly_row, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);

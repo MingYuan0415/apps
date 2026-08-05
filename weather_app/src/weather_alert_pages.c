@@ -138,8 +138,19 @@ static void _weather_alerts_render(weather_alerts_state_t *state)
     lv_obj_clean(state->list);
     if (state->snapshot == NULL || !state->snapshot->alerts.meta.available)
     {
-        app_ui_set_status_text(state->status_label, "预警数据不可用",
-                               APP_UI_STATUS_WARNING);
+        weather_service_status_snapshot_t status = {0};
+        if (weather_service_get_status(&status) == ESP_OK &&
+                status.state != WEATHER_SERVICE_STATE_READY)
+        {
+            app_ui_set_status_text(state->status_label,
+                                   weather_ui_state_text(status.state),
+                                   weather_ui_state_color(status.state));
+        }
+        else
+        {
+            app_ui_set_status_text(state->status_label, "预警数据不可用",
+                                   APP_UI_STATUS_WARNING);
+        }
         return;
     }
     if (state->snapshot->alerts.count == 0U)

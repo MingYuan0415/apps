@@ -31,6 +31,23 @@ _Static_assert(sizeof(weather_forecast_state_t) <= WEATHER_PAGE_SLOT_BYTES,
 
 static void _weather_forecast_render(weather_forecast_state_t *state);
 
+static void _weather_forecast_add_service_status(lv_obj_t *parent)
+{
+    weather_service_status_snapshot_t status = {0};
+    if (weather_service_get_status(&status) != ESP_OK ||
+            status.state == WEATHER_SERVICE_STATE_READY)
+    {
+        return;
+    }
+    char text[96];
+    (void)snprintf(text, sizeof(text), "服务状态：%s",
+                   weather_ui_state_text(status.state));
+    lv_obj_t *service = weather_ui_text_label(
+                            parent, text, APP_THEME_FONT_BODY);
+    lv_obj_set_style_text_color(service,
+                                lv_color_hex(WEATHER_COLOR_WARNING), 0);
+}
+
 static lv_obj_t *_weather_forecast_metric(lv_obj_t *parent, const char *name,
         const char *value)
 {
@@ -85,17 +102,7 @@ static void _weather_forecast_add_meta(
                              parent, text, APP_THEME_FONT_BODY);
     lv_obj_set_style_text_color(provider, lv_color_hex(WEATHER_COLOR_MUTED),
                                 0);
-    weather_service_status_snapshot_t status = {0};
-    if (weather_service_get_status(&status) == ESP_OK &&
-            status.state != WEATHER_SERVICE_STATE_READY)
-    {
-        (void)snprintf(text, sizeof(text), "服务状态：%s",
-                       weather_ui_state_text(status.state));
-        lv_obj_t *service = weather_ui_text_label(
-                                parent, text, APP_THEME_FONT_BODY);
-        lv_obj_set_style_text_color(service,
-                                    lv_color_hex(WEATHER_COLOR_WARNING), 0);
-    }
+    _weather_forecast_add_service_status(parent);
 }
 
 static void _weather_forecast_render_current(weather_forecast_state_t *state)
@@ -107,6 +114,7 @@ static void _weather_forecast_render_current(weather_forecast_state_t *state)
                               APP_THEME_FONT_BODY);
         lv_obj_set_style_text_color(empty, lv_color_hex(WEATHER_COLOR_MUTED),
                                     0);
+        _weather_forecast_add_service_status(state->body);
         return;
     }
     const weather_service_current_t *current = &state->snapshot->current;
@@ -193,6 +201,7 @@ static void _weather_forecast_render_hourly(weather_forecast_state_t *state)
                               APP_THEME_FONT_BODY);
         lv_obj_set_style_text_color(empty, lv_color_hex(WEATHER_COLOR_MUTED),
                                     0);
+        _weather_forecast_add_service_status(state->body);
         return;
     }
     _weather_forecast_render_chart(state);
@@ -279,6 +288,7 @@ static void _weather_forecast_render_daily(weather_forecast_state_t *state)
                               APP_THEME_FONT_BODY);
         lv_obj_set_style_text_color(empty, lv_color_hex(WEATHER_COLOR_MUTED),
                                     0);
+        _weather_forecast_add_service_status(state->body);
         return;
     }
     const weather_service_daily_t *daily = &state->snapshot->daily;

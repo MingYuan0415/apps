@@ -213,6 +213,34 @@ const char *weather_ui_state_text(weather_service_state_t state)
     }
 }
 
+const char *weather_ui_state_short_text(weather_service_state_t state)
+{
+    switch (state)
+    {
+    case WEATHER_SERVICE_STATE_UNCONFIGURED:
+        return "服务未配置";
+    case WEATHER_SERVICE_STATE_WAITING_NETWORK:
+        return "等待网络";
+    case WEATHER_SERVICE_STATE_LOCATING:
+        return "正在定位";
+    case WEATHER_SERVICE_STATE_UPDATING:
+        return "正在更新";
+    case WEATHER_SERVICE_STATE_READY:
+        return "";
+    case WEATHER_SERVICE_STATE_DEGRADED:
+        return "服务降级";
+    case WEATHER_SERVICE_STATE_AUTH_ERROR:
+        return "认证失败";
+    case WEATHER_SERVICE_STATE_RATE_LIMITED:
+        return "请求受限";
+    case WEATHER_SERVICE_STATE_SUSPENDED:
+        return "服务已暂停";
+    case WEATHER_SERVICE_STATE_ERROR:
+    default:
+        return "天气不可用";
+    }
+}
+
 app_ui_status_t weather_ui_state_color(weather_service_state_t state)
 {
     if (state == WEATHER_SERVICE_STATE_READY)

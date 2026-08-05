@@ -46,6 +46,7 @@ void weather_ui_format_dataset_time(
     const weather_service_dataset_meta_t *meta, char *output,
     size_t output_size);
 const char *weather_ui_state_text(weather_service_state_t state);
+const char *weather_ui_state_short_text(weather_service_state_t state);
 app_ui_status_t weather_ui_state_color(weather_service_state_t state);
 const char *weather_ui_dataset_state(
     const weather_service_dataset_meta_t *meta);
