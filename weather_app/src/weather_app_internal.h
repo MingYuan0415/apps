@@ -40,9 +40,9 @@ extern const app_manager_page_definition_t weather_forecast_page_definition;
 extern const app_manager_page_definition_t weather_alerts_page_definition;
 extern const app_manager_page_definition_t weather_alert_detail_page_definition;
 
-lv_obj_t *weather_ui_text_label(lv_obj_t *parent, const char *text,
+lv_obj_t *weather_ui_text_label(lv_obj_t *parent,
                                 app_theme_font_id_t font_id);
-lv_obj_t *weather_ui_symbol_label(lv_obj_t *parent, const char *symbol);
+lv_obj_t *weather_ui_symbol_label(lv_obj_t *parent);
 lv_obj_t *weather_ui_surface(lv_obj_t *parent, int32_t height);
 lv_obj_t *weather_ui_container(lv_obj_t *parent, int32_t height,
                                int flex_flow);

@@ -83,19 +83,17 @@ static uint32_t _weather_ui_image_id(uint16_t code, bool small)
             APP_IMAGE_WEATHER_CLEAR_DAY_MAIN) + offset;
 }
 
-lv_obj_t *weather_ui_text_label(lv_obj_t *parent, const char *text,
+lv_obj_t *weather_ui_text_label(lv_obj_t *parent,
                                 app_theme_font_id_t font_id)
 {
     lv_obj_t *label = lv_label_create(parent);
-    lv_label_set_text(label, text);
     lv_obj_set_style_text_font(label, app_ui_font(font_id), 0);
     return label;
 }
 
-lv_obj_t *weather_ui_symbol_label(lv_obj_t *parent, const char *symbol)
+lv_obj_t *weather_ui_symbol_label(lv_obj_t *parent)
 {
     lv_obj_t *label = lv_label_create(parent);
-    lv_label_set_text(label, symbol);
     lv_obj_set_style_text_font(label, LV_FONT_DEFAULT, 0);
     return label;
 }
@@ -110,7 +108,8 @@ lv_obj_t *weather_ui_surface(lv_obj_t *parent, int32_t height)
     lv_obj_set_style_bg_opa(surface, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(surface, 6, 0);
     lv_obj_set_style_pad_all(surface, 10, 0);
-    lv_obj_remove_flag(surface, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(surface,
+                       LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     return surface;
 }
 
@@ -122,7 +121,8 @@ lv_obj_t *weather_ui_container(lv_obj_t *parent, int32_t height,
     lv_obj_set_width(container, LV_PCT(100));
     lv_obj_set_height(container, height);
     lv_obj_set_flex_flow(container, flex_flow);
-    lv_obj_remove_flag(container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(container,
+                       LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     return container;
 }
 
@@ -149,10 +149,11 @@ lv_obj_t *weather_ui_small_icon(lv_obj_t *parent, uint16_t code)
         return image;
     }
     lv_obj_delete(image);
-    lv_obj_t *fallback = weather_ui_symbol_label(parent, LV_SYMBOL_IMAGE);
+    lv_obj_t *fallback = weather_ui_symbol_label(parent);
     lv_obj_set_size(fallback, 40, 40);
     lv_obj_set_style_text_align(fallback, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(fallback, lv_color_hex(WEATHER_COLOR_RAIN), 0);
+    lv_label_set_text(fallback, LV_SYMBOL_IMAGE);
     return fallback;
 }
 

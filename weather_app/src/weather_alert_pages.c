@@ -130,19 +130,21 @@ static lv_obj_t *_weather_alert_add_action(weather_alerts_state_t *state,
                           LV_FLEX_ALIGN_CENTER);
     lv_obj_set_user_data(button, (void *)(uintptr_t)(index + 1U));
     lv_obj_add_event_cb(button, _weather_alert_open, LV_EVENT_CLICKED, state);
-    lv_obj_t *warning = weather_ui_symbol_label(button, LV_SYMBOL_WARNING);
+    lv_obj_t *warning = weather_ui_symbol_label(button);
     lv_obj_set_width(warning, 24);
     lv_obj_set_style_text_color(warning,
                                 lv_color_hex(WEATHER_COLOR_WARNING), 0);
+    lv_label_set_text(warning, LV_SYMBOL_WARNING);
     lv_obj_t *content = weather_ui_container(button, LV_SIZE_CONTENT,
                         LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_width(content, 0);
     lv_obj_set_flex_grow(content, 1);
     lv_obj_set_style_pad_row(content, 3, 0);
-    lv_obj_t *title = weather_ui_text_label(
-                          content, alert->title, APP_THEME_FONT_SMALL);
+    lv_obj_t *title = weather_ui_text_label(content, APP_THEME_FONT_SMALL);
     lv_obj_set_width(title, LV_PCT(100));
     lv_label_set_long_mode(title, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(title, lv_color_hex(WEATHER_COLOR_TEXT), 0);
+    lv_label_set_text(title, alert->title);
     char start[24];
     char end[24];
     char text[128];
@@ -154,13 +156,15 @@ static lv_obj_t *_weather_alert_add_action(weather_alerts_state_t *state,
                    alert->status[0] != '\0' ? alert->status : "状态未知",
                    start[0] != '\0' ? start : "未提供",
                    end[0] != '\0' ? end : "未提供");
-    lv_obj_t *subtitle = weather_ui_text_label(
-                             content, text, APP_THEME_FONT_BODY);
+    lv_obj_t *subtitle = weather_ui_text_label(content, APP_THEME_FONT_BODY);
     lv_obj_set_width(subtitle, LV_PCT(100));
+    lv_label_set_long_mode(subtitle, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(subtitle, lv_color_hex(WEATHER_COLOR_MUTED),
                                 0);
-    lv_obj_t *chevron = weather_ui_symbol_label(button, LV_SYMBOL_RIGHT);
+    lv_label_set_text(subtitle, text);
+    lv_obj_t *chevron = weather_ui_symbol_label(button);
     lv_obj_set_style_text_color(chevron, lv_color_hex(WEATHER_COLOR_MUTED), 0);
+    lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
     return button;
 }
 
@@ -229,10 +233,10 @@ static void _weather_alerts_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
 static void _weather_alerts_build(weather_alerts_state_t *state)
 {
     app_ui_page_create(&state->page, "气象预警", true);
-    state->status_label = weather_ui_text_label(
-                              state->page.content, "读取预警",
-                              APP_THEME_FONT_BODY);
+    state->status_label = weather_ui_text_label(state->page.content,
+                          APP_THEME_FONT_BODY);
     lv_obj_set_width(state->status_label, LV_PCT(100));
+    lv_label_set_long_mode(state->status_label, LV_LABEL_LONG_WRAP);
     state->list = weather_ui_container(state->page.content, LV_SIZE_CONTENT,
                                        LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(state->list, 8, 0);
@@ -310,22 +314,22 @@ static const app_manager_page_ops_t s_weather_alerts_ops =
 static lv_obj_t *_weather_alert_detail_section(lv_obj_t *parent,
         const char *title)
 {
-    lv_obj_t *label = weather_ui_text_label(parent, title,
-                                            APP_THEME_FONT_SMALL);
+    lv_obj_t *label = weather_ui_text_label(parent, APP_THEME_FONT_SMALL);
     lv_obj_set_width(label, LV_PCT(100));
     lv_obj_set_style_text_color(label, lv_color_hex(WEATHER_COLOR_WARNING), 0);
+    lv_label_set_text(label, title);
     return label;
 }
 
 static lv_obj_t *_weather_alert_detail_value(lv_obj_t *parent,
         const char *text)
 {
-    lv_obj_t *label = weather_ui_text_label(parent, text,
-                                            APP_THEME_FONT_BODY);
+    lv_obj_t *label = weather_ui_text_label(parent, APP_THEME_FONT_BODY);
     lv_obj_set_width(label, LV_PCT(100));
     lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(label, lv_color_hex(WEATHER_COLOR_TEXT), 0);
     lv_obj_set_style_text_line_space(label, 5, 0);
+    lv_label_set_text(label, text);
     return label;
 }
 
@@ -412,12 +416,12 @@ static void _weather_alert_detail_event(event_bus_msg_id_t msg_id,
 static void _weather_alert_detail_build(weather_alert_detail_state_t *state)
 {
     app_ui_page_create(&state->page, "预警详情", true);
-    state->status_label = weather_ui_text_label(
-                              state->page.content, "读取预警详情",
-                              APP_THEME_FONT_BODY);
-    state->title_label = weather_ui_text_label(
-                             state->page.content, "预警不可用",
-                             APP_THEME_FONT_SMALL);
+    state->status_label = weather_ui_text_label(state->page.content,
+                          APP_THEME_FONT_BODY);
+    lv_obj_set_width(state->status_label, LV_PCT(100));
+    lv_label_set_long_mode(state->status_label, LV_LABEL_LONG_WRAP);
+    state->title_label = weather_ui_text_label(state->page.content,
+                         APP_THEME_FONT_SMALL);
     lv_obj_set_width(state->title_label, LV_PCT(100));
     lv_label_set_long_mode(state->title_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(state->title_label,
@@ -441,11 +445,11 @@ static void _weather_alert_detail_build(weather_alert_detail_state_t *state)
                                      state->page.content, "建议");
     state->instruction_value = _weather_alert_detail_value(
                                    state->page.content, "暂无建议");
-    state->truncated_label = weather_ui_text_label(
-                                 state->page.content, "内容已截断",
-                                 APP_THEME_FONT_BODY);
+    state->truncated_label = weather_ui_text_label(state->page.content,
+                             APP_THEME_FONT_BODY);
     lv_obj_set_style_text_color(state->truncated_label,
                                 lv_color_hex(WEATHER_COLOR_WARNING), 0);
+    lv_label_set_text(state->truncated_label, "内容已截断");
 }
 
 static void _weather_alert_detail_resume(weather_alert_detail_state_t *state)
