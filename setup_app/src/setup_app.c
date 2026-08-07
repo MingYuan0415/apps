@@ -203,7 +203,7 @@ static void _setup_open_provisioning_event(lv_event_t *event)
     else
     {
         setup_root_state_t *state = lv_event_get_user_data(event);
-        _setup_set_status(state, "手机配网未启动",
+        _setup_set_status(state, "手机绑定未启动",
                           _setup_command_error(result));
     }
 }
@@ -359,13 +359,13 @@ static void _setup_root_render(setup_root_state_t *state)
                                  state->device_link.state ==
                                  DEVICE_LINK_SERVICE_STATE_ERROR;
     (void)app_ui_add_action(state->controls, LV_SYMBOL_BLUETOOTH,
-                            "手机配网",
+                            "手机绑定",
                             transport_fault ?
                             "蓝牙关闭失败，需要重启" :
                             state->device_link_valid &&
                             state->device_link.active ?
-                            "配网窗口正在运行" :
-                            "显示二维码并开启 10 分钟 BLE 窗口",
+                            "绑定窗口正在运行" :
+                            "显示二维码并开启 10 分钟绑定窗口",
                             _setup_open_provisioning_event, state);
     if (transport_fault)
     {
@@ -375,7 +375,7 @@ static void _setup_root_render(setup_root_state_t *state)
     else if (state->device_link_valid && state->device_link.active)
     {
         lv_label_set_text(state->detail_label,
-                          "手机配网进行中，本机网络管理已锁定");
+                          "手机绑定进行中，本机网络管理已锁定");
     }
 }
 
@@ -575,19 +575,19 @@ static void _setup_provisioning_render(
         _setup_provisioning_scrub(state);
         lv_label_set_text(state->status_label,
                           status->active ? "蓝牙关闭失败，需要重启" :
-                          "配网服务发生错误");
+                          "绑定服务发生错误");
         lv_label_set_text(state->remaining_label, "");
         return;
     }
     if (!status->active)
     {
         _setup_provisioning_scrub(state);
-        lv_label_set_text(state->status_label, "配网窗口已关闭");
+        lv_label_set_text(state->status_label, "绑定窗口已关闭");
         lv_label_set_text(state->remaining_label, "");
         return;
     }
     lv_label_set_text(state->status_label,
-                      status->client_connected ? "手机已连接" :
+                      status->client_connected ? "手机已连接，等待绑定" :
                       "等待手机连接");
     char remaining[48];
     const uint32_t seconds = status->window_remaining_ms / 1000U;
@@ -639,7 +639,7 @@ static void _setup_provisioning_event(
 
 static void _setup_provisioning_mount(setup_provisioning_state_t *state)
 {
-    app_ui_page_create(&state->page, "手机配网", true);
+    app_ui_page_create(&state->page, "手机绑定", true);
     state->device_label = lv_label_create(state->page.content);
     lv_obj_set_width(state->device_label, LV_PCT(100));
     lv_obj_set_style_text_align(state->device_label, LV_TEXT_ALIGN_CENTER, 0);
@@ -678,7 +678,7 @@ static esp_err_t _setup_provisioning_resume(
     }
     else
     {
-        lv_label_set_text(state->status_label, "配网服务不可用");
+        lv_label_set_text(state->status_label, "绑定服务不可用");
     }
     return result;
 }
