@@ -29,6 +29,7 @@ typedef struct setup_root_state
     device_link_service_status_t device_link;
     setup_wifi_operation_kind_t completed_operation;
     esp_err_t completed_result;
+    uint64_t device_link_generation;
     bool connectivity_valid;
     bool device_link_valid;
 } setup_root_state_t;
@@ -43,6 +44,7 @@ typedef struct setup_provisioning_state
     event_bus_sub_handle_t subscription;
     char qr_text[DEVICE_LINK_SERVICE_QR_MAX_BYTES];
     size_t qr_length;
+    uint64_t device_link_generation;
 } setup_provisioning_state_t;
 
 _Static_assert(sizeof(setup_root_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -406,6 +408,13 @@ static void _setup_root_provisioning_event(
     {
         return;
     }
+    const device_link_service_status_t *status = payload;
+
+    if (status->generation <= state->device_link_generation)
+    {
+        return;
+    }
+    state->device_link_generation = status->generation;
     memcpy(&state->device_link, payload, sizeof(state->device_link));
     state->device_link_valid = true;
     _setup_root_render(state);
@@ -613,9 +622,14 @@ static void _setup_provisioning_event(
             payload != NULL &&
             payload_size == sizeof(device_link_service_status_t))
     {
-        device_link_service_status_t status;
-        memcpy(&status, payload, sizeof(status));
-        _setup_provisioning_render(state, &status);
+        const device_link_service_status_t *status = payload;
+
+        if (status->generation <= state->device_link_generation)
+        {
+            return;
+        }
+        state->device_link_generation = status->generation;
+        _setup_provisioning_render(state, status);
     }
 }
 
@@ -673,6 +687,14 @@ static esp_err_t _setup_provisioning_pause(
     esp_err_t result = device_link_service_close_window();
     if (result != ESP_OK && result != ESP_ERR_INVALID_STATE)
     {
+        /* The subscription is still unsubscribed below so a later event
+         * cannot target an unmounted page; the close failure is reported. */
+        result = event_bus_unsubscribe(state->subscription);
+        if (result == ESP_OK || result == ESP_ERR_NOT_FOUND)
+        {
+            state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+        }
+        app_manager_this_page_report_cleanup_error(result);
         return result;
     }
     result = ESP_OK;
