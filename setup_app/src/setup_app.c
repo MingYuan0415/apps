@@ -16,6 +16,8 @@
 #define SETUP_QR_SIZE 280
 #define SETUP_COLOR_TEXT  0xF2F5F6
 #define SETUP_COLOR_MUTED 0x91A0A8
+#define SETUP_ACCEPT_COLOR 0x2E7D32
+#define SETUP_DENY_COLOR  0xB71C1C
 
 typedef struct setup_root_state
 {
@@ -41,6 +43,9 @@ typedef struct setup_provisioning_state
     lv_obj_t *device_label;
     lv_obj_t *status_label;
     lv_obj_t *remaining_label;
+    lv_obj_t *confirm_row;
+    lv_obj_t *confirm_button;
+    lv_obj_t *deny_button;
     event_bus_sub_handle_t subscription;
     char qr_text[DEVICE_LINK_SERVICE_QR_MAX_BYTES];
     size_t qr_length;
@@ -563,6 +568,10 @@ static void _setup_provisioning_scrub(setup_provisioning_state_t *state)
     }
     _setup_secure_zero(state->qr_text, sizeof(state->qr_text));
     state->qr_length = 0U;
+    if (state->confirm_row != NULL)
+    {
+        lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 static void _setup_provisioning_render(
@@ -586,9 +595,18 @@ static void _setup_provisioning_render(
         lv_label_set_text(state->remaining_label, "");
         return;
     }
-    lv_label_set_text(state->status_label,
-                      status->client_connected ? "手机已连接，等待绑定" :
-                      "等待手机连接");
+    if (status->pending_confirmation)
+    {
+        lv_obj_remove_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text(state->status_label, "手机请求绑定");
+    }
+    else
+    {
+        lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text(state->status_label,
+                          status->client_connected ? "手机已连接，等待绑定" :
+                          "等待手机连接");
+    }
     char remaining[48];
     const uint32_t seconds = status->window_remaining_ms / 1000U;
     (void)snprintf(remaining, sizeof(remaining), "剩余 %u:%02u",
@@ -637,6 +655,21 @@ static void _setup_provisioning_event(
     }
 }
 
+static void _setup_provisioning_confirm_event(
+    lv_event_t *event)
+{
+    const bool accept = (bool)(uintptr_t)lv_event_get_user_data(event);
+
+    if (accept)
+    {
+        (void)device_link_service_confirm_binding(true);
+    }
+    else
+    {
+        (void)device_link_service_confirm_binding(false);
+    }
+}
+
 static void _setup_provisioning_mount(setup_provisioning_state_t *state)
 {
     app_ui_page_create(&state->page, "手机绑定", true);
@@ -652,6 +685,51 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
     lv_obj_set_width(state->remaining_label, LV_PCT(100));
     lv_obj_set_style_text_align(state->remaining_label,
                                 LV_TEXT_ALIGN_CENTER, 0);
+    /* Binding confirmation row: hidden until a commit is pending. */
+    state->confirm_row = lv_obj_create(state->page.content);
+    lv_obj_remove_style_all(state->confirm_row);
+    lv_obj_set_width(state->confirm_row, LV_PCT(100));
+    lv_obj_set_height(state->confirm_row, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(state->confirm_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_row(state->confirm_row, 8, 0);
+    lv_obj_set_style_pad_column(state->confirm_row, 8, 0);
+    lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+    state->confirm_button = lv_button_create(state->confirm_row);
+    lv_obj_set_height(state->confirm_button, 44);
+    lv_obj_set_flex_grow(state->confirm_button, 1);
+    lv_obj_set_style_radius(state->confirm_button, 5, 0);
+    lv_obj_set_style_bg_color(state->confirm_button,
+                              lv_color_hex(SETUP_ACCEPT_COLOR), 0);
+    lv_obj_set_style_shadow_width(state->confirm_button, 0, 0);
+    lv_obj_add_event_cb(state->confirm_button,
+                        _setup_provisioning_confirm_event,
+                        LV_EVENT_CLICKED, (void *)(uintptr_t)true);
+    lv_obj_t *confirm_label = lv_label_create(state->confirm_button);
+
+    lv_label_set_text(confirm_label, "确认绑定");
+    lv_obj_set_style_text_color(confirm_label,
+                                lv_color_hex(SETUP_COLOR_TEXT), 0);
+    lv_obj_set_style_text_font(confirm_label,
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_obj_center(confirm_label);
+    state->deny_button = lv_button_create(state->confirm_row);
+    lv_obj_set_height(state->deny_button, 44);
+    lv_obj_set_flex_grow(state->deny_button, 1);
+    lv_obj_set_style_radius(state->deny_button, 5, 0);
+    lv_obj_set_style_bg_color(state->deny_button,
+                              lv_color_hex(SETUP_DENY_COLOR), 0);
+    lv_obj_set_style_shadow_width(state->deny_button, 0, 0);
+    lv_obj_add_event_cb(state->deny_button,
+                        _setup_provisioning_confirm_event,
+                        LV_EVENT_CLICKED, (void *)(uintptr_t)false);
+    lv_obj_t *deny_label = lv_label_create(state->deny_button);
+
+    lv_label_set_text(deny_label, "拒绝");
+    lv_obj_set_style_text_color(deny_label,
+                                lv_color_hex(SETUP_COLOR_TEXT), 0);
+    lv_obj_set_style_text_font(deny_label,
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_obj_center(deny_label);
 }
 
 static esp_err_t _setup_provisioning_resume(
