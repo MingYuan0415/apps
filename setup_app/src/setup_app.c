@@ -4,7 +4,7 @@
 
 #include "app_manager.h"
 #include "app_ui.h"
-#include "provisioning_service.h"
+#include "device_link_service.h"
 #include "setup_wifi_adapter.h"
 
 #include <stdbool.h>
@@ -24,13 +24,13 @@ typedef struct setup_root_state
     lv_obj_t *detail_label;
     lv_obj_t *controls;
     setup_wifi_adapter_t wifi;
-    event_bus_sub_handle_t provisioning_subscription;
+    event_bus_sub_handle_t device_link_subscription;
     connectivity_manager_status_snapshot_t connectivity;
-    provisioning_service_status_t provisioning;
+    device_link_service_status_t device_link;
     setup_wifi_operation_kind_t completed_operation;
     esp_err_t completed_result;
     bool connectivity_valid;
-    bool provisioning_valid;
+    bool device_link_valid;
 } setup_root_state_t;
 
 typedef struct setup_provisioning_state
@@ -41,7 +41,7 @@ typedef struct setup_provisioning_state
     lv_obj_t *status_label;
     lv_obj_t *remaining_label;
     event_bus_sub_handle_t subscription;
-    char qr_text[PROVISIONING_SERVICE_QR_MAX_BYTES];
+    char qr_text[DEVICE_LINK_SERVICE_QR_MAX_BYTES];
     size_t qr_length;
 } setup_provisioning_state_t;
 
@@ -120,7 +120,7 @@ static lv_obj_t *_setup_add_command(setup_root_state_t *state,
     lv_obj_t *command = app_ui_add_command(
                             state->controls, symbol, title, subtitle,
                             callback, state);
-    if (state->provisioning_valid && state->provisioning.active)
+    if (state->device_link_valid && state->device_link.active)
     {
         lv_obj_add_state(command, LV_STATE_DISABLED);
     }
@@ -192,7 +192,7 @@ static void _setup_auto_connect_event(lv_event_t *event)
 
 static void _setup_open_provisioning_event(lv_event_t *event)
 {
-    const esp_err_t result = provisioning_service_open_window();
+    const esp_err_t result = device_link_service_open_window();
     if (result == ESP_OK)
     {
         app_ui_request_open_page(APP_MANAGER_ID_SETUP,
@@ -224,7 +224,7 @@ static void _setup_render_auto_connect(setup_root_state_t *state)
     {
         lv_obj_add_state(toggle, LV_STATE_CHECKED);
     }
-    if (state->provisioning_valid && state->provisioning.active)
+    if (state->device_link_valid && state->device_link.active)
     {
         lv_obj_add_state(toggle, LV_STATE_DISABLED);
     }
@@ -352,16 +352,16 @@ static void _setup_root_render(setup_root_state_t *state)
         _setup_render_management(state);
     }
 
-    const bool transport_fault = state->provisioning_valid &&
-                                 state->provisioning.active &&
-                                 state->provisioning.state ==
-                                 PROVISIONING_SERVICE_STATE_ERROR;
+    const bool transport_fault = state->device_link_valid &&
+                                 state->device_link.active &&
+                                 state->device_link.state ==
+                                 DEVICE_LINK_SERVICE_STATE_ERROR;
     (void)app_ui_add_action(state->controls, LV_SYMBOL_BLUETOOTH,
                             "手机配网",
                             transport_fault ?
                             "蓝牙关闭失败，需要重启" :
-                            state->provisioning_valid &&
-                            state->provisioning.active ?
+                            state->device_link_valid &&
+                            state->device_link.active ?
                             "配网窗口正在运行" :
                             "显示二维码并开启 10 分钟 BLE 窗口",
                             _setup_open_provisioning_event, state);
@@ -370,7 +370,7 @@ static void _setup_root_render(setup_root_state_t *state)
         lv_label_set_text(state->detail_label,
                           "蓝牙关闭失败，需要重启");
     }
-    else if (state->provisioning_valid && state->provisioning.active)
+    else if (state->device_link_valid && state->device_link.active)
     {
         lv_label_set_text(state->detail_label,
                           "手机配网进行中，本机网络管理已锁定");
@@ -399,15 +399,15 @@ static void _setup_root_provisioning_event(
     const void *payload, size_t payload_size, void *user_data)
 {
     setup_root_state_t *state = user_data;
-    if (message_id != PROVISIONING_SERVICE_MSG ||
-            subtype != PROVISIONING_SERVICE_MSG_SUB_TYPE_STATUS ||
+    if (message_id != DEVICE_LINK_SERVICE_MSG ||
+            subtype != DEVICE_LINK_SERVICE_MSG_SUB_TYPE_STATUS ||
             payload == NULL ||
-            payload_size != sizeof(provisioning_service_status_t))
+            payload_size != sizeof(device_link_service_status_t))
     {
         return;
     }
-    memcpy(&state->provisioning, payload, sizeof(state->provisioning));
-    state->provisioning_valid = true;
+    memcpy(&state->device_link, payload, sizeof(state->device_link));
+    state->device_link_valid = true;
     _setup_root_render(state);
 }
 
@@ -448,16 +448,16 @@ static esp_err_t _setup_root_resume(setup_root_state_t *state)
     if (result == ESP_OK)
     {
         result = event_bus_subscribe(
-                     PROVISIONING_SERVICE_MSG,
-                     PROVISIONING_SERVICE_MSG_SUB_TYPE_STATUS,
+                     DEVICE_LINK_SERVICE_MSG,
+                     DEVICE_LINK_SERVICE_MSG_SUB_TYPE_STATUS,
                      _setup_root_provisioning_event, state,
                      EVENT_BUS_DISPATCH_UI,
-                     &state->provisioning_subscription);
+                     &state->device_link_subscription);
     }
     if (result == ESP_OK)
     {
-        result = provisioning_service_get_status(&state->provisioning);
-        state->provisioning_valid = result == ESP_OK;
+        result = device_link_service_get_status(&state->device_link);
+        state->device_link_valid = result == ESP_OK;
     }
     if (result != ESP_OK)
     {
@@ -474,12 +474,12 @@ static esp_err_t _setup_root_resume(setup_root_state_t *state)
 static esp_err_t _setup_root_pause(setup_root_state_t *state)
 {
     esp_err_t result = ESP_OK;
-    if (state->provisioning_subscription != EVENT_BUS_SUB_HANDLE_INVALID)
+    if (state->device_link_subscription != EVENT_BUS_SUB_HANDLE_INVALID)
     {
-        result = event_bus_unsubscribe(state->provisioning_subscription);
+        result = event_bus_unsubscribe(state->device_link_subscription);
         if (result == ESP_OK || result == ESP_ERR_NOT_FOUND)
         {
-            state->provisioning_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+            state->device_link_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
             result = ESP_OK;
         }
     }
@@ -502,7 +502,7 @@ static void _setup_root_handler(app_manager_msg_type_t message, void *param)
     {
     case APP_MANAGER_MSG_ONSTART:
         memset(state, 0, sizeof(*state));
-        state->provisioning_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+        state->device_link_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
         LOG_I("started");
         break;
     case APP_MANAGER_MSG_ONMOUNT:
@@ -523,7 +523,7 @@ static void _setup_root_handler(app_manager_msg_type_t message, void *param)
     case APP_MANAGER_MSG_ONSTOP:
     {
         const esp_err_t pause_result = _setup_root_pause(state);
-        const esp_err_t close_result = provisioning_service_close_window();
+        const esp_err_t close_result = device_link_service_close_window();
         if (pause_result == ESP_OK && close_result == ESP_OK)
         {
             LOG_I("stopped");
@@ -554,10 +554,10 @@ static void _setup_provisioning_scrub(setup_provisioning_state_t *state)
 
 static void _setup_provisioning_render(
     setup_provisioning_state_t *state,
-    const provisioning_service_status_t *status)
+    const device_link_service_status_t *status)
 {
-    lv_label_set_text(state->device_label, status->device_name);
-    if (status->state == PROVISIONING_SERVICE_STATE_ERROR)
+    lv_label_set_text(state->device_label, "MT");
+    if (status->state == DEVICE_LINK_SERVICE_STATE_ERROR)
     {
         _setup_provisioning_scrub(state);
         lv_label_set_text(state->status_label,
@@ -574,7 +574,6 @@ static void _setup_provisioning_render(
         return;
     }
     lv_label_set_text(state->status_label,
-                      status->wifi_operation_active ? "正在配置 Wi-Fi" :
                       status->client_connected ? "手机已连接" :
                       "等待手机连接");
     char remaining[48];
@@ -585,7 +584,7 @@ static void _setup_provisioning_render(
     if (status->qr_ready && state->qr == NULL)
     {
         size_t length = 0U;
-        if (provisioning_service_copy_qr(
+        if (device_link_service_copy_qr(
                     state->qr_text, sizeof(state->qr_text), &length) == ESP_OK)
         {
             state->qr_length = length;
@@ -609,12 +608,12 @@ static void _setup_provisioning_event(
     const void *payload, size_t payload_size, void *user_data)
 {
     setup_provisioning_state_t *state = user_data;
-    if (message_id == PROVISIONING_SERVICE_MSG &&
-            subtype == PROVISIONING_SERVICE_MSG_SUB_TYPE_STATUS &&
+    if (message_id == DEVICE_LINK_SERVICE_MSG &&
+            subtype == DEVICE_LINK_SERVICE_MSG_SUB_TYPE_STATUS &&
             payload != NULL &&
-            payload_size == sizeof(provisioning_service_status_t))
+            payload_size == sizeof(device_link_service_status_t))
     {
-        provisioning_service_status_t status;
+        device_link_service_status_t status;
         memcpy(&status, payload, sizeof(status));
         _setup_provisioning_render(state, &status);
     }
@@ -640,19 +639,19 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
 static esp_err_t _setup_provisioning_resume(
     setup_provisioning_state_t *state)
 {
-    esp_err_t result = provisioning_service_open_window();
+    esp_err_t result = device_link_service_open_window();
     if (result == ESP_OK)
     {
         result = event_bus_subscribe(
-                     PROVISIONING_SERVICE_MSG,
-                     PROVISIONING_SERVICE_MSG_SUB_TYPE_STATUS,
+                     DEVICE_LINK_SERVICE_MSG,
+                     DEVICE_LINK_SERVICE_MSG_SUB_TYPE_STATUS,
                      _setup_provisioning_event, state,
                      EVENT_BUS_DISPATCH_UI, &state->subscription);
     }
-    provisioning_service_status_t status;
+    device_link_service_status_t status;
     if (result == ESP_OK)
     {
-        result = provisioning_service_get_status(&status);
+        result = device_link_service_get_status(&status);
     }
     if (result == ESP_OK)
     {
@@ -716,7 +715,7 @@ static void _setup_provisioning_handler(app_manager_msg_type_t message,
     case APP_MANAGER_MSG_ONSTOP:
     {
         const esp_err_t pause_result = _setup_provisioning_pause(state);
-        const esp_err_t close_result = provisioning_service_close_window();
+        const esp_err_t close_result = device_link_service_close_window();
         if (pause_result != ESP_OK || close_result != ESP_OK)
         {
             app_manager_this_page_report_cleanup_error(
