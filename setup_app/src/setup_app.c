@@ -467,6 +467,10 @@ static esp_err_t _setup_root_resume(setup_root_state_t *state)
     {
         result = device_link_service_get_status(&state->device_link);
         state->device_link_valid = result == ESP_OK;
+        if (result == ESP_OK)
+        {
+            state->device_link_generation = state->device_link.generation;
+        }
     }
     if (result != ESP_OK)
     {
@@ -669,6 +673,7 @@ static esp_err_t _setup_provisioning_resume(
     }
     if (result == ESP_OK)
     {
+        state->device_link_generation = status.generation;
         _setup_provisioning_render(state, &status);
     }
     else
@@ -685,34 +690,39 @@ static esp_err_t _setup_provisioning_pause(
     /* The binding window is a foreground resource owned between RESUME and
      * PAUSE: leaving the page closes it so no window outlives its page. */
     esp_err_t result = device_link_service_close_window();
-    if (result != ESP_OK && result != ESP_ERR_INVALID_STATE)
+    esp_err_t unsubscribe_result = ESP_OK;
+
+    if (state->subscription != EVENT_BUS_SUB_HANDLE_INVALID)
     {
-        /* The subscription is still unsubscribed below so a later event
-         * cannot target an unmounted page; the close failure is reported. */
-        result = event_bus_unsubscribe(state->subscription);
-        if (result == ESP_OK || result == ESP_ERR_NOT_FOUND)
+        /* The subscription is unsubscribed even when the close failed, so a
+         * later event cannot target an unmounted page. */
+        unsubscribe_result = event_bus_unsubscribe(state->subscription);
+        if (unsubscribe_result == ESP_OK ||
+                unsubscribe_result == ESP_ERR_NOT_FOUND)
         {
             state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+            unsubscribe_result = ESP_OK;
         }
-        app_manager_this_page_report_cleanup_error(result);
+    }
+    if (result != ESP_OK && result != ESP_ERR_INVALID_STATE)
+    {
+        /* Preserve the close failure; report it for retry. */
+        if (unsubscribe_result != ESP_OK)
+        {
+            app_manager_this_page_report_cleanup_error(unsubscribe_result);
+        }
+        else
+        {
+            app_manager_this_page_report_cleanup_error(result);
+        }
         return result;
     }
-    result = ESP_OK;
-    if (state->subscription == EVENT_BUS_SUB_HANDLE_INVALID)
+    if (unsubscribe_result != ESP_OK)
     {
-        return result;
+        app_manager_this_page_report_cleanup_error(unsubscribe_result);
+        return unsubscribe_result;
     }
-    result = event_bus_unsubscribe(state->subscription);
-    if (result == ESP_OK || result == ESP_ERR_NOT_FOUND)
-    {
-        state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        result = ESP_OK;
-    }
-    if (result != ESP_OK)
-    {
-        app_manager_this_page_report_cleanup_error(result);
-    }
-    return result;
+    return ESP_OK;
 }
 
 static void _setup_provisioning_handler(app_manager_msg_type_t message,
