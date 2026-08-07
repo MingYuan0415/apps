@@ -121,5 +121,5 @@ static const app_manager_page_route_t s_menu_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT(menu, NULL, APP_MANAGER_ID_MENU, "root",
+APP_MANAGER_APP_EXPORT(menu, NULL, "演示中心", APP_MANAGER_ID_MENU, "root",
                        APP_MANAGER_APP_FLAG_NONE, s_menu_routes);

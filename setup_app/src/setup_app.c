@@ -871,5 +871,5 @@ static const app_manager_page_route_t s_setup_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT(setup, NULL, APP_MANAGER_ID_SETUP, "root",
+APP_MANAGER_APP_EXPORT(setup, NULL, "网络设置", APP_MANAGER_ID_SETUP, "root",
                        APP_MANAGER_APP_FLAG_NONE, s_setup_routes);

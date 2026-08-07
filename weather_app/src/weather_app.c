@@ -24,5 +24,5 @@ static const app_manager_page_route_t s_weather_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT(weather, NULL, APP_MANAGER_ID_WEATHER, "root",
+APP_MANAGER_APP_EXPORT(weather, NULL, "天气", APP_MANAGER_ID_WEATHER, "root",
                        APP_MANAGER_APP_FLAG_NONE, s_weather_routes);

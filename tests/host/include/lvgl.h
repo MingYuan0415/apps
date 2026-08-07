@@ -19,6 +19,24 @@ typedef int32_t lv_event_code_t;
 /** @brief Fake LVGL event callback. */
 typedef void (*lv_event_cb_t)(lv_event_t *event);
 
+/** @brief Minimal LVGL result values used by draw-buffer declarations. */
+typedef enum
+{
+    LV_RESULT_OK = 0,
+    LV_RESULT_INVALID,
+} lv_result_t;
+
+/** @brief Minimal fake LVGL draw buffer exposed by recent tasks. */
+typedef struct lv_draw_buf
+{
+    uint32_t width;
+    uint32_t height;
+    uint32_t stride;
+    uint32_t color_format;
+    uint32_t data_size;
+    const void *data;
+} lv_draw_buf_t;
+
 #define LV_ALIGN_TOP_LEFT           0
 #define LV_DIR_VER                  1
 #define LV_EVENT_CLICKED            1

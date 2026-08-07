@@ -625,5 +625,5 @@ static const app_manager_page_route_t s_settings_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT(settings, NULL, APP_MANAGER_ID_SETTINGS, "root",
+APP_MANAGER_APP_EXPORT(settings, NULL, "系统设置", APP_MANAGER_ID_SETTINGS, "root",
                        APP_MANAGER_APP_FLAG_NONE, s_settings_routes);
