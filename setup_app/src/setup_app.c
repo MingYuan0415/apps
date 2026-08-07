@@ -706,14 +706,13 @@ static esp_err_t _setup_provisioning_pause(
     }
     if (result != ESP_OK && result != ESP_ERR_INVALID_STATE)
     {
-        /* Preserve the close failure; report it for retry. */
+        /* Preserve the close failure: report it first (the App Manager
+         * keeps the first reported error), then the unsubscribe failure if
+         * any. */
+        app_manager_this_page_report_cleanup_error(result);
         if (unsubscribe_result != ESP_OK)
         {
             app_manager_this_page_report_cleanup_error(unsubscribe_result);
-        }
-        else
-        {
-            app_manager_this_page_report_cleanup_error(result);
         }
         return result;
     }
