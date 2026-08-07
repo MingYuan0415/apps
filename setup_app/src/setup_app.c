@@ -668,11 +668,19 @@ static esp_err_t _setup_provisioning_pause(
     setup_provisioning_state_t *state)
 {
     _setup_provisioning_scrub(state);
+    /* The binding window is a foreground resource owned between RESUME and
+     * PAUSE: leaving the page closes it so no window outlives its page. */
+    esp_err_t result = device_link_service_close_window();
+    if (result != ESP_OK && result != ESP_ERR_INVALID_STATE)
+    {
+        return result;
+    }
+    result = ESP_OK;
     if (state->subscription == EVENT_BUS_SUB_HANDLE_INVALID)
     {
-        return ESP_OK;
+        return result;
     }
-    esp_err_t result = event_bus_unsubscribe(state->subscription);
+    result = event_bus_unsubscribe(state->subscription);
     if (result == ESP_OK || result == ESP_ERR_NOT_FOUND)
     {
         state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
