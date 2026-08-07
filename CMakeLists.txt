@@ -40,7 +40,7 @@ idf_component_register(
         imu_service
         sd_storage_service
         connectivity_manager
-        provisioning_service
+        device_link_service
         time_service
         weather_service
         power_service
