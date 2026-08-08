@@ -243,7 +243,20 @@ static void _weather_root_render(weather_root_state_t *state)
     if (state->snapshot != NULL && state->snapshot->location.available &&
             state->snapshot->location.city[0] != '\0')
     {
-        lv_label_set_text(state->city_label, state->snapshot->location.city);
+        char title[WEATHER_SERVICE_CITY_BYTES + WEATHER_SERVICE_DISTRICT_BYTES +
+                   4U];
+        if (state->snapshot->location.district[0] != '\0')
+        {
+            (void)snprintf(title, sizeof(title), "%s·%s",
+                           state->snapshot->location.city,
+                           state->snapshot->location.district);
+        }
+        else
+        {
+            (void)snprintf(title, sizeof(title), "%s",
+                           state->snapshot->location.city);
+        }
+        lv_label_set_text(state->city_label, title);
     }
     else
     {
