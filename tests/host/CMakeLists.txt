@@ -81,6 +81,26 @@ target_link_options(app_ui_navigation_test PRIVATE
 
 add_apps_host_test(app_ui_navigation_test app_ui_navigation_test)
 
+add_executable(settings_factory_reset_page_test
+    settings_factory_reset_page_test.c
+    ../../common/src/app_ui.c
+    ../../settings_app/src/settings_factory_reset_page.c
+)
+
+target_include_directories(settings_factory_reset_page_test PRIVATE
+    include
+    ../../common/include
+    ../../settings_app/src
+    ../../../app_manager/app_core/include
+    ../../../middleware/components/factory_reset_service/include
+)
+
+target_compile_definitions(settings_factory_reset_page_test PRIVATE _GNU_SOURCE)
+configure_apps_host_target(settings_factory_reset_page_test)
+
+add_apps_host_test(settings_factory_reset_page_test
+                   settings_factory_reset_page_test)
+
 add_executable(setup_wifi_adapter_test
     setup_wifi_adapter_test.c
     ../../setup_app/src/setup_wifi_adapter.c

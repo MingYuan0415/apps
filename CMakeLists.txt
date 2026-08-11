@@ -17,6 +17,7 @@ set(APP_SRCS
     "menu_app/src/clock_demo.c"
     "menu_app/src/clock_demo_adapter.c"
     "settings_app/src/settings_app.c"
+    "settings_app/src/settings_factory_reset_page.c"
     "setup_app/src/setup_app.c"
     "setup_app/src/setup_wifi_adapter.c"
 )
@@ -41,6 +42,7 @@ idf_component_register(
         sd_storage_service
         connectivity_manager
         device_link_service
+        factory_reset_service
         time_service
         weather_service
         power_service

@@ -1,9 +1,11 @@
 # Apps Host Tests
 
-These tests compile the production shared navigation helper and Setup Wi-Fi
-adapter against small host fakes. They cover RUN/BACK/OPEN_PAGE submission,
-gateway-owned ID copies, admission failure, exactly-once completion, Wi-Fi
-session and operation filtering, callback delivery, and retryable teardown.
+These tests compile the production shared navigation helper, Settings factory
+reset confirmation page, and Setup Wi-Fi adapter against small host fakes. They
+cover RUN/BACK/OPEN_PAGE submission, gateway-owned ID copies, admission failure,
+exactly-once completion, durable-reset request failure and retry, successful
+request de-duplication, Wi-Fi session and operation filtering, callback delivery,
+and retryable teardown.
 
 Run each profile from the repository root:
 

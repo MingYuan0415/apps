@@ -232,6 +232,7 @@ static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, const char *symbol,
     lv_obj_set_flex_grow(text, 1);
     lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(text, 2, 0);
+    lv_obj_remove_flag(text, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(text, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title_label = lv_label_create(text);

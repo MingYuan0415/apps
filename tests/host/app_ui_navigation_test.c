@@ -13,6 +13,7 @@ struct lv_obj_t
     bool live;
     bool label;
     bool explicit_font;
+    uint32_t flags;
     lv_obj_t *parent;
     const lv_font_t *font;
     char text[32];
@@ -54,6 +55,7 @@ static lv_obj_t *_test_object_create(lv_obj_t *parent, bool label)
             {
                 .live = true,
                 .label = label,
+                .flags = label ? 0U : LV_OBJ_FLAG_CLICKABLE,
                 .parent = parent,
             };
             return &s_objects[index];
@@ -118,6 +120,12 @@ void lv_obj_add_event_cb(lv_obj_t *object, lv_event_cb_t callback,
     (void)callback;
     (void)code;
     (void)user_data;
+}
+
+void lv_obj_remove_flag(lv_obj_t *object, uint32_t flag)
+{
+    assert(object != NULL);
+    object->flags &= ~flag;
 }
 
 lv_event_code_t lv_event_get_code(lv_event_t *event)

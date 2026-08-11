@@ -49,15 +49,18 @@ typedef struct lv_draw_buf
 #define LV_LABEL_LONG_DOT            0
 #define LV_LABEL_LONG_WRAP           1
 #define LV_OBJ_FLAG_SCROLLABLE       1
+#define LV_OBJ_FLAG_CLICKABLE        2
 #define LV_OPA_COVER                 255
 #define LV_SCROLLBAR_MODE_AUTO       0
 #define LV_SIZE_CONTENT              (-1)
+#define LV_STATE_DISABLED            2
 #define LV_STATE_PRESSED             1
 #define LV_TEXT_ALIGN_CENTER         0
 #define LV_TEXT_ALIGN_RIGHT          1
 #define LV_PCT(value)                (value)
 #define LV_SYMBOL_LEFT              "left"
 #define LV_SYMBOL_RIGHT             "right"
+#define LV_SYMBOL_TRASH             "trash"
 
 /** @brief Create a fake generic object. */
 lv_obj_t *lv_obj_create(lv_obj_t *parent);
@@ -70,8 +73,16 @@ void lv_obj_delete(lv_obj_t *object);
 /** @brief Register a fake object event callback. */
 void lv_obj_add_event_cb(lv_obj_t *object, lv_event_cb_t callback,
                          lv_event_code_t code, void *user_data);
+/** @brief Add a state bit to a fake object. */
+void lv_obj_add_state(lv_obj_t *object, uint32_t state);
+/** @brief Remove a state bit from a fake object. */
+void lv_obj_remove_state(lv_obj_t *object, uint32_t state);
+/** @brief Remove a behavior flag from a fake object. */
+void lv_obj_remove_flag(lv_obj_t *object, uint32_t flag);
 /** @brief Return a fake event code. */
 lv_event_code_t lv_event_get_code(lv_event_t *event);
+/** @brief Return fake callback user data. */
+void *lv_event_get_user_data(lv_event_t *event);
 /** @brief Set fake label text. */
 void lv_label_set_text(lv_obj_t *label, const char *text);
 /** @brief Record an explicitly assigned fake text font. */
@@ -106,7 +117,6 @@ void lv_obj_set_style_text_font(lv_obj_t *object, const lv_font_t *font,
         (void)fourth; \
     }
 
-APPS_HOST_LV_NOOP_2(lv_obj_remove_flag, lv_obj_t *, uint32_t)
 APPS_HOST_LV_NOOP_2(lv_obj_set_flex_flow, lv_obj_t *, int)
 APPS_HOST_LV_NOOP_2(lv_obj_set_flex_grow, lv_obj_t *, int)
 APPS_HOST_LV_NOOP_2(lv_obj_set_height, lv_obj_t *, int32_t)

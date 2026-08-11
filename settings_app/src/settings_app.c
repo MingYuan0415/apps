@@ -7,6 +7,7 @@
 #include "esp_app_desc.h"
 #include "event_bus.h"
 #include "power_service.h"
+#include "settings_factory_reset_page.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -14,6 +15,7 @@
 
 #define SETTINGS_PAGE_POWER     "power"
 #define SETTINGS_PAGE_ABOUT     "about"
+#define SETTINGS_PAGE_FACTORY_RESET "factory-reset"
 #define SETTINGS_SURFACE_COLOR  0x1A2024
 #define SETTINGS_PRESSED_COLOR  0x252D32
 #define SETTINGS_TEXT_COLOR     0xF2F5F6
@@ -210,6 +212,13 @@ static void _settings_open_about_event(lv_event_t *event)
     app_ui_request_open_page(APP_MANAGER_ID_SETTINGS, SETTINGS_PAGE_ABOUT);
 }
 
+static void _settings_open_factory_reset_event(lv_event_t *event)
+{
+    (void)event;
+    app_ui_request_open_page(APP_MANAGER_ID_SETTINGS,
+                             SETTINGS_PAGE_FACTORY_RESET);
+}
+
 static void _settings_root_build(settings_root_state_t *state)
 {
     app_ui_page_create(&state->page, "系统设置", true);
@@ -293,6 +302,11 @@ static void _settings_root_build(settings_root_state_t *state)
                       "电池、供电与熄屏控制", _settings_open_power_event, NULL);
     app_ui_add_action(state->page.content, LV_SYMBOL_EYE_OPEN, "关于设备",
                       "硬件与固件构建信息", _settings_open_about_event, NULL);
+
+    app_ui_add_section(state->page.content, "维护");
+    app_ui_add_action(state->page.content, LV_SYMBOL_TRASH, "恢复出厂设置",
+                      "清除本机数据并重新启动",
+                      _settings_open_factory_reset_event, NULL);
 }
 
 static void _settings_root_resume(settings_root_state_t *state)
@@ -621,6 +635,11 @@ static const app_manager_page_route_t s_settings_routes[] =
     {
         .page_id = SETTINGS_PAGE_ABOUT,
         .definition = &s_settings_about_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = SETTINGS_PAGE_FACTORY_RESET,
+        .definition = &settings_factory_reset_page_definition,
         .user_data = NULL,
     },
 };
