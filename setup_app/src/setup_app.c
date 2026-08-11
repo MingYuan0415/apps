@@ -50,6 +50,7 @@ typedef struct setup_provisioning_state
     char qr_text[DEVICE_LINK_SERVICE_QR_MAX_BYTES];
     size_t qr_length;
     uint64_t device_link_generation;
+    device_link_confirmation_token_t confirmation_token;
 } setup_provisioning_state_t;
 
 _Static_assert(sizeof(setup_root_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -568,6 +569,7 @@ static void _setup_provisioning_scrub(setup_provisioning_state_t *state)
     }
     _setup_secure_zero(state->qr_text, sizeof(state->qr_text));
     state->qr_length = 0U;
+    state->confirmation_token = 0U;
     if (state->confirm_row != NULL)
     {
         lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
@@ -595,13 +597,15 @@ static void _setup_provisioning_render(
         lv_label_set_text(state->remaining_label, "");
         return;
     }
-    if (status->pending_confirmation)
+    if (status->pending_confirmation && status->confirmation_token != 0U)
     {
+        state->confirmation_token = status->confirmation_token;
         lv_obj_remove_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
         lv_label_set_text(state->status_label, "手机请求绑定");
     }
     else
     {
+        state->confirmation_token = 0U;
         lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
         lv_label_set_text(state->status_label,
                           status->client_connected ? "手机已连接，等待绑定" :
@@ -655,19 +659,39 @@ static void _setup_provisioning_event(
     }
 }
 
-static void _setup_provisioning_confirm_event(
-    lv_event_t *event)
+static void _setup_provisioning_apply_confirmation(
+    setup_provisioning_state_t *state, bool accept)
 {
-    const bool accept = (bool)(uintptr_t)lv_event_get_user_data(event);
+    const device_link_confirmation_token_t token =
+        state->confirmation_token;
 
-    if (accept)
+    if (token == 0U)
     {
-        (void)device_link_service_confirm_binding(true);
+        return;
     }
-    else
+    const esp_err_t result =
+        device_link_service_confirm_binding(token, accept);
+
+    if (result != ESP_OK)
     {
-        (void)device_link_service_confirm_binding(false);
+        lv_label_set_text(state->status_label, "确认提交失败，请重试");
+        LOG_W("binding confirmation failed: %s", esp_err_to_name(result));
+        return;
     }
+    state->confirmation_token = 0U;
+    lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void _setup_provisioning_confirm_event(lv_event_t *event)
+{
+    _setup_provisioning_apply_confirmation(
+        lv_event_get_user_data(event), true);
+}
+
+static void _setup_provisioning_deny_event(lv_event_t *event)
+{
+    _setup_provisioning_apply_confirmation(
+        lv_event_get_user_data(event), false);
 }
 
 static void _setup_provisioning_mount(setup_provisioning_state_t *state)
@@ -703,7 +727,7 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
     lv_obj_set_style_shadow_width(state->confirm_button, 0, 0);
     lv_obj_add_event_cb(state->confirm_button,
                         _setup_provisioning_confirm_event,
-                        LV_EVENT_CLICKED, (void *)(uintptr_t)true);
+                        LV_EVENT_CLICKED, state);
     lv_obj_t *confirm_label = lv_label_create(state->confirm_button);
 
     lv_label_set_text(confirm_label, "确认绑定");
@@ -720,8 +744,8 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
                               lv_color_hex(SETUP_DENY_COLOR), 0);
     lv_obj_set_style_shadow_width(state->deny_button, 0, 0);
     lv_obj_add_event_cb(state->deny_button,
-                        _setup_provisioning_confirm_event,
-                        LV_EVENT_CLICKED, (void *)(uintptr_t)false);
+                        _setup_provisioning_deny_event,
+                        LV_EVENT_CLICKED, state);
     lv_obj_t *deny_label = lv_label_create(state->deny_button);
 
     lv_label_set_text(deny_label, "拒绝");
