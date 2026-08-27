@@ -8,7 +8,7 @@
 - `home_app/`：显示本地时间与质量、电量/供电、Wi-Fi 和 SD 挂载状态，提供演示中心、配网和设置入口；最近任务由 App Manager 的系统任务切换器（Sys Layer 界面）提供，不属于任何 App 页面。
 - `menu_app/`：作为演示中心，包含运动传感、音频、SD 存储和时间/RTC 四个静态页；音频、文件和 RTC 操作均由页面自有 worker 执行。
 - `settings_app/`：提供亮度、固定熄屏/待机延迟选项、电源详情、运行时固件描述及恢复出厂设置两步确认页。恢复请求只有在 reset journal 持久化成功后才进入不可重复点击的重启等待状态；保存失败时页面保留并允许重试。
-- `setup_app/`：通过二维码开启限时 BLE 手机配网，并管理已保存网络的断开、重连、自动连接和忘记操作；不再在设备侧扫描、选择网络或输入密码。
+- `setup_app/`：开启限时 BLE 绑定窗口，显示六位 Numeric Comparison 并在本机确认，同时管理已保存网络的断开、重连、自动连接和忘记操作；不再在设备侧扫描、选择网络或输入密码。
 - `weather_app/`：展示当前天气、预警、24 小时和 7 日预报，包含预警列表与详情页；只消费 `weather_service` 快照，不执行网络、JSON 或缓存 I/O。
 - `tests/host/`：共用导航和 Setup Wi-Fi adapter 的宿主测试及最小依赖 fake。
 
@@ -47,7 +47,7 @@ cmake --build /tmp/mt-apps-host
 ctest --test-dir /tmp/mt-apps-host --output-on-failure
 ```
 
-`APPS_SANITIZER` 还支持 `address`（ASan/UBSan）和 `thread`（TSan）。当前宿主测试验证 RUN/BACK/OPEN_PAGE 请求、统一命令池准入失败、ID 值复制、completion 恰好一次、恢复出厂确认页的失败重试与成功防重复，以及保存网络操作过滤、快照回调和取消清理；不替代 ESP32-S3 上的界面、二维码、BLE、无线和内存验证。
+`APPS_SANITIZER` 还支持 `address`（ASan/UBSan）和 `thread`（TSan）。当前宿主测试验证 RUN/BACK/OPEN_PAGE 请求、统一命令池准入失败、ID 值复制、completion 恰好一次、恢复出厂确认页的失败重试与成功防重复，以及保存网络操作过滤、快照回调和取消清理；不替代 ESP32-S3 上的界面、Numeric Comparison 确认、BLE、无线和内存验证。
 
 音频、存储和时钟 worker adapter 的故障恢复测试，以及四个演示页的跨层生命周期测试位于主工程 `tests/integration/`，通过 `CROSS_LAYER_SANITIZER` 分别运行普通、ASan/UBSan 和 TSan 配置。
 

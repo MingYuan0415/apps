@@ -187,18 +187,9 @@ static void _setup_auto_connect_event(lv_event_t *event)
 
 static void _setup_open_provisioning_event(lv_event_t *event)
 {
-    const esp_err_t result = device_link_service_open_window();
-    if (result == ESP_OK)
-    {
-        app_ui_request_open_page(APP_MANAGER_ID_SETUP,
-                                 SETUP_PAGE_PROVISIONING);
-    }
-    else
-    {
-        setup_root_state_t *state = lv_event_get_user_data(event);
-        _setup_set_status(state, "手机绑定未启动",
-                          _setup_command_error(result));
-    }
+    (void)event;
+    app_ui_request_open_page(APP_MANAGER_ID_SETUP,
+                             SETUP_PAGE_PROVISIONING);
 }
 
 static void _setup_revoke_binding_event(lv_event_t *event)
