@@ -201,6 +201,18 @@ static void _setup_open_provisioning_event(lv_event_t *event)
     }
 }
 
+static void _setup_revoke_binding_event(lv_event_t *event)
+{
+    setup_root_state_t *state = lv_event_get_user_data(event);
+    const esp_err_t result = device_link_service_revoke_binding();
+
+    if (result != ESP_OK)
+    {
+        _setup_set_status(state, "解除绑定失败",
+                          _setup_command_error(result));
+    }
+}
+
 static void _setup_render_auto_connect(setup_root_state_t *state)
 {
     lv_obj_t *row = lv_obj_create(state->controls);
@@ -351,15 +363,29 @@ static void _setup_root_render(setup_root_state_t *state)
                                  state->device_link.active &&
                                  state->device_link.state ==
                                  DEVICE_LINK_SERVICE_STATE_ERROR;
-    (void)app_ui_add_action(state->controls, LV_SYMBOL_BLUETOOTH,
-                            "手机绑定",
-                            transport_fault ?
-                            "蓝牙关闭失败，需要重启" :
-                            state->device_link_valid &&
-                            state->device_link.active ?
-                            "绑定窗口正在运行" :
-                            "显示配对码并开启 2 分钟绑定窗口",
-                            _setup_open_provisioning_event, state);
+    const bool bound = state->device_link_valid && state->device_link.bound;
+
+    if (bound)
+    {
+        (void)app_ui_add_action(state->controls, LV_SYMBOL_BLUETOOTH,
+                                "解除绑定",
+                                transport_fault ?
+                                "蓝牙关闭失败，需要重启" :
+                                "清除本机保存的手机绑定",
+                                _setup_revoke_binding_event, state);
+    }
+    else
+    {
+        (void)app_ui_add_action(state->controls, LV_SYMBOL_BLUETOOTH,
+                                "手机绑定",
+                                transport_fault ?
+                                "蓝牙关闭失败，需要重启" :
+                                state->device_link_valid &&
+                                state->device_link.active ?
+                                "绑定窗口正在运行" :
+                                "显示配对码并开启 2 分钟绑定窗口",
+                                _setup_open_provisioning_event, state);
+    }
     if (transport_fault)
     {
         lv_label_set_text(state->detail_label,
