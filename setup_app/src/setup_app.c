@@ -13,7 +13,6 @@
 #include <string.h>
 
 #define SETUP_PAGE_PROVISIONING "provisioning"
-#define SETUP_QR_SIZE 280
 #define SETUP_COLOR_TEXT  0xF2F5F6
 #define SETUP_COLOR_MUTED 0x91A0A8
 #define SETUP_ACCEPT_COLOR 0x2E7D32
@@ -359,7 +358,7 @@ static void _setup_root_render(setup_root_state_t *state)
                             state->device_link_valid &&
                             state->device_link.active ?
                             "绑定窗口正在运行" :
-                            "显示二维码并开启 10 分钟绑定窗口",
+                            "显示配对码并开启 2 分钟绑定窗口",
                             _setup_open_provisioning_event, state);
     if (transport_fault)
     {
@@ -654,8 +653,7 @@ static void _setup_provisioning_apply_confirmation(
         LOG_W("binding confirmation failed: %s", esp_err_to_name(result));
         return;
     }
-    state->confirmation_token = 0U;
-    lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+    _setup_provisioning_scrub(state);
 }
 
 static void _setup_provisioning_confirm_event(lv_event_t *event)
@@ -834,6 +832,10 @@ static void _setup_provisioning_handler(app_manager_msg_type_t message,
         state->device_label = NULL;
         state->status_label = NULL;
         state->remaining_label = NULL;
+        state->passkey_label = NULL;
+        state->confirm_row = NULL;
+        state->confirm_button = NULL;
+        state->deny_button = NULL;
         break;
     case APP_MANAGER_MSG_ONSTOP:
     {
