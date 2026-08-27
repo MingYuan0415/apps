@@ -39,7 +39,7 @@ typedef struct setup_root_state
 typedef struct setup_provisioning_state
 {
     app_ui_page_t page;
-    lv_obj_t *qr;
+    lv_obj_t *passkey_label;
     lv_obj_t *device_label;
     lv_obj_t *status_label;
     lv_obj_t *remaining_label;
@@ -47,8 +47,6 @@ typedef struct setup_provisioning_state
     lv_obj_t *confirm_button;
     lv_obj_t *deny_button;
     event_bus_sub_handle_t subscription;
-    char qr_text[DEVICE_LINK_SERVICE_QR_MAX_BYTES];
-    size_t qr_length;
     uint64_t device_link_generation;
     device_link_confirmation_token_t confirmation_token;
 } setup_provisioning_state_t;
@@ -60,16 +58,6 @@ _Static_assert(sizeof(setup_provisioning_state_t) <=
                "Setup provisioning state exceeds the lifecycle arena slot");
 
 static void _setup_root_render(setup_root_state_t *state);
-
-static void _setup_secure_zero(void *data, size_t size)
-{
-    volatile uint8_t *bytes = data;
-    while (size > 0U)
-    {
-        *bytes++ = 0U;
-        --size;
-    }
-}
 
 static const char *_setup_failure_detail(
     connectivity_manager_failure_t failure)
@@ -561,14 +549,10 @@ static void _setup_root_handler(app_manager_msg_type_t message, void *param)
 
 static void _setup_provisioning_scrub(setup_provisioning_state_t *state)
 {
-    if (state->qr != NULL)
+    if (state->passkey_label != NULL)
     {
-        lv_canvas_fill_bg(state->qr, lv_color_hex(0xFFFFFF), LV_OPA_COVER);
-        lv_obj_delete(state->qr);
-        state->qr = NULL;
+        lv_label_set_text(state->passkey_label, "");
     }
-    _setup_secure_zero(state->qr_text, sizeof(state->qr_text));
-    state->qr_length = 0U;
     state->confirmation_token = 0U;
     if (state->confirm_row != NULL)
     {
@@ -599,16 +583,28 @@ static void _setup_provisioning_render(
     }
     if (status->pending_confirmation && status->confirmation_token != 0U)
     {
+        char passkey[8];
+
         state->confirmation_token = status->confirmation_token;
         lv_obj_remove_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(state->status_label, "手机请求绑定");
+        (void)snprintf(passkey, sizeof(passkey), "%06u",
+                       (unsigned)(status->numeric_comparison % 1000000U));
+        if (state->passkey_label != NULL)
+        {
+            lv_label_set_text(state->passkey_label, passkey);
+        }
+        lv_label_set_text(state->status_label, "核对手机上的数字后确认");
     }
     else
     {
         state->confirmation_token = 0U;
         lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+        if (state->passkey_label != NULL)
+        {
+            lv_label_set_text(state->passkey_label, "");
+        }
         lv_label_set_text(state->status_label,
-                          status->client_connected ? "手机已连接，等待绑定" :
+                          status->client_connected ? "手机已连接，等待配对" :
                           "等待手机连接");
     }
     char remaining[48];
@@ -616,26 +612,6 @@ static void _setup_provisioning_render(
     (void)snprintf(remaining, sizeof(remaining), "剩余 %u:%02u",
                    (unsigned)(seconds / 60U), (unsigned)(seconds % 60U));
     lv_label_set_text(state->remaining_label, remaining);
-    if (status->qr_ready && state->qr == NULL)
-    {
-        size_t length = 0U;
-        if (device_link_service_copy_qr(
-                    state->qr_text, sizeof(state->qr_text), &length) == ESP_OK)
-        {
-            state->qr_length = length;
-            state->qr = lv_qrcode_create(state->page.content);
-            lv_qrcode_set_size(state->qr, SETUP_QR_SIZE);
-            lv_qrcode_set_dark_color(state->qr, lv_color_hex(0x111111));
-            lv_qrcode_set_light_color(state->qr, lv_color_hex(0xFFFFFF));
-            lv_qrcode_set_quiet_zone(state->qr, true);
-            if (lv_qrcode_update(state->qr, state->qr_text,
-                                 (uint32_t)state->qr_length) != LV_RESULT_OK)
-            {
-                _setup_provisioning_scrub(state);
-                lv_label_set_text(state->status_label, "二维码生成失败");
-            }
-        }
-    }
 }
 
 static void _setup_provisioning_event(
@@ -697,6 +673,12 @@ static void _setup_provisioning_deny_event(lv_event_t *event)
 static void _setup_provisioning_mount(setup_provisioning_state_t *state)
 {
     app_ui_page_create(&state->page, "手机绑定", true);
+    state->passkey_label = lv_label_create(state->page.content);
+    lv_obj_set_width(state->passkey_label, LV_PCT(100));
+    lv_obj_set_style_text_align(state->passkey_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(state->passkey_label,
+                               app_ui_font(APP_THEME_FONT_BIGL), 0);
+    lv_label_set_text(state->passkey_label, "");
     state->device_label = lv_label_create(state->page.content);
     lv_obj_set_width(state->device_label, LV_PCT(100));
     lv_obj_set_style_text_align(state->device_label, LV_TEXT_ALIGN_CENTER, 0);
