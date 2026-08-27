@@ -48,6 +48,7 @@ typedef struct setup_provisioning_state
     event_bus_sub_handle_t subscription;
     uint64_t device_link_generation;
     device_link_confirmation_token_t confirmation_token;
+    bool window_held;
 } setup_provisioning_state_t;
 
 _Static_assert(sizeof(setup_root_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -544,20 +545,8 @@ static void _setup_root_handler(app_manager_msg_type_t message, void *param)
         state->controls = NULL;
         break;
     case APP_MANAGER_MSG_ONSTOP:
-    {
-        const esp_err_t pause_result = _setup_root_pause(state);
-        const esp_err_t close_result = device_link_service_close_window();
-        if (pause_result == ESP_OK && close_result == ESP_OK)
-        {
-            LOG_I("stopped");
-        }
-        else
-        {
-            app_manager_this_page_report_cleanup_error(
-                pause_result != ESP_OK ? pause_result : close_result);
-        }
+        LOG_I("stopped");
         break;
-    }
     default:
         break;
     }
@@ -753,48 +742,23 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
     lv_obj_center(deny_label);
 }
 
-static esp_err_t _setup_provisioning_resume(
-    setup_provisioning_state_t *state)
+static esp_err_t _setup_provisioning_release_foreground(
+    setup_provisioning_state_t *state, bool report_cleanup)
 {
-    esp_err_t result = device_link_service_open_window();
-    if (result == ESP_OK)
-    {
-        result = event_bus_subscribe(
-                     DEVICE_LINK_SERVICE_MSG,
-                     DEVICE_LINK_SERVICE_MSG_SUB_TYPE_STATUS,
-                     _setup_provisioning_event, state,
-                     EVENT_BUS_DISPATCH_UI, &state->subscription);
-    }
-    device_link_service_status_t status;
-    if (result == ESP_OK)
-    {
-        result = device_link_service_get_status(&status);
-    }
-    if (result == ESP_OK)
-    {
-        state->device_link_generation = status.generation;
-        _setup_provisioning_render(state, &status);
-    }
-    else
-    {
-        lv_label_set_text(state->status_label, "绑定服务不可用");
-    }
-    return result;
-}
-
-static esp_err_t _setup_provisioning_pause(
-    setup_provisioning_state_t *state)
-{
-    _setup_provisioning_scrub(state);
-    /* The binding window is a foreground resource owned between RESUME and
-     * PAUSE: leaving the page closes it so no window outlives its page. */
-    esp_err_t result = device_link_service_close_window();
+    esp_err_t result = ESP_OK;
     esp_err_t unsubscribe_result = ESP_OK;
 
+    if (state->window_held)
+    {
+        result = device_link_service_close_window();
+        if (result == ESP_OK || result == ESP_ERR_INVALID_STATE)
+        {
+            state->window_held = false;
+            result = ESP_OK;
+        }
+    }
     if (state->subscription != EVENT_BUS_SUB_HANDLE_INVALID)
     {
-        /* The subscription is unsubscribed even when the close failed, so a
-         * later event cannot target an unmounted page. */
         unsubscribe_result = event_bus_unsubscribe(state->subscription);
         if (unsubscribe_result == ESP_OK ||
                 unsubscribe_result == ESP_ERR_NOT_FOUND)
@@ -803,24 +767,69 @@ static esp_err_t _setup_provisioning_pause(
             unsubscribe_result = ESP_OK;
         }
     }
-    if (result != ESP_OK && result != ESP_ERR_INVALID_STATE)
+    if (result != ESP_OK)
     {
-        /* Preserve the close failure: report it first (the App Manager
-         * keeps the first reported error), then the unsubscribe failure if
-         * any. */
-        app_manager_this_page_report_cleanup_error(result);
-        if (unsubscribe_result != ESP_OK)
+        if (report_cleanup)
         {
-            app_manager_this_page_report_cleanup_error(unsubscribe_result);
+            app_manager_this_page_report_cleanup_error(result);
+            if (unsubscribe_result != ESP_OK)
+            {
+                app_manager_this_page_report_cleanup_error(unsubscribe_result);
+            }
         }
         return result;
     }
     if (unsubscribe_result != ESP_OK)
     {
-        app_manager_this_page_report_cleanup_error(unsubscribe_result);
+        if (report_cleanup)
+        {
+            app_manager_this_page_report_cleanup_error(unsubscribe_result);
+        }
         return unsubscribe_result;
     }
     return ESP_OK;
+}
+
+static esp_err_t _setup_provisioning_resume(
+    setup_provisioning_state_t *state)
+{
+    device_link_service_status_t status;
+    esp_err_t result = device_link_service_open_window();
+
+    if (result != ESP_OK)
+    {
+        goto fail;
+    }
+    state->window_held = true;
+    result = event_bus_subscribe(
+                 DEVICE_LINK_SERVICE_MSG,
+                 DEVICE_LINK_SERVICE_MSG_SUB_TYPE_STATUS,
+                 _setup_provisioning_event, state,
+                 EVENT_BUS_DISPATCH_UI, &state->subscription);
+    if (result != ESP_OK)
+    {
+        goto fail;
+    }
+    result = device_link_service_get_status(&status);
+    if (result != ESP_OK)
+    {
+        goto fail;
+    }
+    state->device_link_generation = status.generation;
+    _setup_provisioning_render(state, &status);
+    return ESP_OK;
+
+fail:
+    lv_label_set_text(state->status_label, "绑定服务不可用");
+    (void)_setup_provisioning_release_foreground(state, false);
+    return result;
+}
+
+static esp_err_t _setup_provisioning_pause(
+    setup_provisioning_state_t *state)
+{
+    _setup_provisioning_scrub(state);
+    return _setup_provisioning_release_foreground(state, true);
 }
 
 static void _setup_provisioning_handler(app_manager_msg_type_t message,
@@ -855,16 +864,8 @@ static void _setup_provisioning_handler(app_manager_msg_type_t message,
         state->deny_button = NULL;
         break;
     case APP_MANAGER_MSG_ONSTOP:
-    {
-        const esp_err_t pause_result = _setup_provisioning_pause(state);
-        const esp_err_t close_result = device_link_service_close_window();
-        if (pause_result != ESP_OK || close_result != ESP_OK)
-        {
-            app_manager_this_page_report_cleanup_error(
-                pause_result != ESP_OK ? pause_result : close_result);
-        }
+        LOG_I("stopped");
         break;
-    }
     default:
         break;
     }
