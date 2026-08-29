@@ -216,8 +216,9 @@ static void _setup_render_auto_connect(setup_root_state_t *state)
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_t *label = lv_label_create(row);
-    lv_label_set_text(label, "自动连接");
     lv_obj_set_style_text_color(label, lv_color_hex(SETUP_COLOR_TEXT), 0);
+    lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_text(label, "自动连接");
     lv_obj_t *toggle = lv_switch_create(row);
     if (state->connectivity.auto_connect)
     {
@@ -375,7 +376,7 @@ static void _setup_root_render(setup_root_state_t *state)
                                 state->device_link_valid &&
                                 state->device_link.active ?
                                 "绑定窗口正在运行" :
-                                "显示配对码并开启 2 分钟绑定窗口",
+                                "开启 2 分钟绑定窗口",
                                 _setup_open_provisioning_event, state);
     }
     if (transport_fault)
@@ -436,18 +437,20 @@ static void _setup_root_mount(setup_root_state_t *state)
     app_ui_page_create(&state->page, "网络设置", true);
     (void)app_ui_add_section(state->page.content, "WI-FI");
     state->status_label = lv_label_create(state->page.content);
-    lv_label_set_text(state->status_label, "正在加载");
     lv_obj_set_width(state->status_label, LV_PCT(100));
     lv_obj_set_style_text_color(state->status_label,
                                 lv_color_hex(SETUP_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(state->status_label,
                                app_ui_font(APP_THEME_FONT_BIGL), 0);
+    lv_label_set_text(state->status_label, "正在加载");
     state->detail_label = lv_label_create(state->page.content);
-    lv_label_set_text(state->detail_label, "正在读取网络状态");
     lv_obj_set_width(state->detail_label, LV_PCT(100));
     lv_label_set_long_mode(state->detail_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(state->detail_label,
                                 lv_color_hex(SETUP_COLOR_MUTED), 0);
+    lv_obj_set_style_text_font(state->detail_label,
+                               app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_text(state->detail_label, "正在读取网络状态");
     state->controls = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(state->controls);
     lv_obj_set_width(state->controls, LV_PCT(100));
@@ -690,11 +693,20 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
                                app_ui_font(APP_THEME_FONT_BIGL), 0);
     state->status_label = lv_label_create(state->page.content);
     lv_obj_set_width(state->status_label, LV_PCT(100));
+    lv_label_set_long_mode(state->status_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(state->status_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(state->status_label,
+                                lv_color_hex(SETUP_COLOR_TEXT), 0);
+    lv_obj_set_style_text_font(state->status_label,
+                               app_ui_font(APP_THEME_FONT_BODY), 0);
     state->remaining_label = lv_label_create(state->page.content);
     lv_obj_set_width(state->remaining_label, LV_PCT(100));
     lv_obj_set_style_text_align(state->remaining_label,
                                 LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(state->remaining_label,
+                                lv_color_hex(SETUP_COLOR_MUTED), 0);
+    lv_obj_set_style_text_font(state->remaining_label,
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
     /* Binding confirmation row: hidden until a commit is pending. */
     state->confirm_row = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(state->confirm_row);
@@ -716,11 +728,11 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
                         LV_EVENT_CLICKED, state);
     lv_obj_t *confirm_label = lv_label_create(state->confirm_button);
 
-    lv_label_set_text(confirm_label, "确认绑定");
     lv_obj_set_style_text_color(confirm_label,
                                 lv_color_hex(SETUP_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(confirm_label,
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_label_set_text(confirm_label, "确认绑定");
     lv_obj_center(confirm_label);
     state->deny_button = lv_button_create(state->confirm_row);
     lv_obj_set_height(state->deny_button, 44);
@@ -734,11 +746,11 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
                         LV_EVENT_CLICKED, state);
     lv_obj_t *deny_label = lv_label_create(state->deny_button);
 
-    lv_label_set_text(deny_label, "拒绝");
     lv_obj_set_style_text_color(deny_label,
                                 lv_color_hex(SETUP_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(deny_label,
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_label_set_text(deny_label, "拒绝");
     lv_obj_center(deny_label);
 }
 
