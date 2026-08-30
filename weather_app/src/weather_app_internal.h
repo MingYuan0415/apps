@@ -2,7 +2,7 @@
 #define __WEATHER_APP_INTERNAL_H__
 
 #include "app_manager.h"
-#include "app_manager_image_ids.h"
+#include "app_image_ids.h"
 #include "app_ui.h"
 #include "event_bus.h"
 #include "weather_service.h"

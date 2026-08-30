@@ -3,6 +3,7 @@
 #include "mt_log.h"
 
 #include "app_manager.h"
+#include "app_image_ids.h"
 #include "app_ui.h"
 #include "esp_app_desc.h"
 #include "event_bus.h"
@@ -644,5 +645,5 @@ static const app_manager_page_route_t s_settings_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT(settings, NULL, "系统设置", APP_MANAGER_ID_SETTINGS, "root",
+APP_MANAGER_APP_EXPORT(settings, APP_IMAGE_SETTINGS_ICON, "系统设置", APP_MANAGER_ID_SETTINGS, "root",
                        APP_MANAGER_APP_FLAG_NONE, s_settings_routes);

@@ -12,6 +12,12 @@
 - `weather_app/`：展示当前天气、预警、24 小时和 7 日预报，包含预警列表与详情页；只消费 `weather_service` 快照，不执行网络、JSON 或缓存 I/O。
 - `tests/host/`：共用导航和 Setup Wi-Fi adapter 的宿主测试及最小依赖 fake。
 
+每个 App 的只读资源必须放在自己的 `assets/` 目录，并在该 App 的
+`resource_manifest.cmake` 中逐条声明；禁止递归 glob。资源由主工程聚合成唯一的
+`res` 分区，运行时通过 `app_image_ids.h` 中的语义 ID 查询。App descriptor 的
+`icon_id` 指向同一资源表，缺失时由系统界面回退到 LVGL symbol；新增资源需要同时更新
+manifest、语义 ID 和资源测试。
+
 每个应用以普通 `const` Page definition 描述互斥的 typed ops 或 raw handler 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。只有 `APP_MANAGER_APP_EXPORT` 产生的 App descriptor 进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。公共 Page definition 可被多个 App route 引用，但未显式绑定的 App 不能导航到它，也不支持运行时自由挂载。新增应用时应在独立目录中实现生命周期 ops 或 handler，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，不要使用递归 glob。
 
 页面 UI 只在 `ONMOUNT/ONUNMOUNT` 中创建和销毁，根对象必须挂到 Page Screen。Timer、事件订阅、worker 和服务会话只在 `ONRESUME/ONPAUSE` 中启停；清理失败须保留资源 handle 并允许生命周期重试。每个页面私有状态都以静态断言约束在 `APP_MANAGER_PAGE_STATE_BYTES` 内。Weather 的四个页面使用类型化 Page ops，预警详情通过 Typed Blob 接收值复制的 alert key，是新增生产页面的首选参考；现有硬件 demo 暂时保留 raw handler，后续单独迁移。

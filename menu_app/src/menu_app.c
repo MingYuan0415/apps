@@ -3,6 +3,7 @@
 #include "mt_log.h"
 
 #include "app_manager.h"
+#include "app_image_ids.h"
 #include "app_ui.h"
 #include "menu_page_definitions.h"
 
@@ -121,5 +122,5 @@ static const app_manager_page_route_t s_menu_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT(menu, NULL, "演示中心", APP_MANAGER_ID_MENU, "root",
+APP_MANAGER_APP_EXPORT(menu, APP_IMAGE_MENU_ICON, "演示中心", APP_MANAGER_ID_MENU, "root",
                        APP_MANAGER_APP_FLAG_NONE, s_menu_routes);

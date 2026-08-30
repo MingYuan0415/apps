@@ -3,6 +3,7 @@
 #include "mt_log.h"
 
 #include "app_manager.h"
+#include "app_image_ids.h"
 #include "app_ui.h"
 #include "device_link_service.h"
 #include "setup_wifi_adapter.h"
@@ -909,5 +910,5 @@ static const app_manager_page_route_t s_setup_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT(setup, NULL, "网络设置", APP_MANAGER_ID_SETUP, "root",
+APP_MANAGER_APP_EXPORT(setup, APP_IMAGE_SETUP_ICON, "网络设置", APP_MANAGER_ID_SETUP, "root",
                        APP_MANAGER_APP_FLAG_NONE, s_setup_routes);

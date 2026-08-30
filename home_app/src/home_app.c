@@ -3,6 +3,7 @@
 #include "mt_log.h"
 
 #include "app_manager.h"
+#include "app_image_ids.h"
 #include "app_ui.h"
 #include "connectivity_manager.h"
 #include "event_bus.h"
@@ -459,5 +460,5 @@ static const app_manager_page_route_t s_home_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT(home, NULL, "主页", APP_MANAGER_ID_HOME, "root",
+APP_MANAGER_APP_EXPORT(home, APP_IMAGE_HOME_ICON, "主页", APP_MANAGER_ID_HOME, "root",
                        APP_MANAGER_APP_FLAG_PINNED, s_home_routes);
