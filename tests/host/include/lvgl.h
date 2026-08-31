@@ -48,8 +48,14 @@ typedef struct lv_draw_buf
 #define LV_FONT_DEFAULT             ((const lv_font_t *)0)
 #define LV_LABEL_LONG_DOT            0
 #define LV_LABEL_LONG_WRAP           1
+#define LV_LABEL_LONG_SCROLL_CIRCULAR 2
 #define LV_OBJ_FLAG_SCROLLABLE       1
 #define LV_OBJ_FLAG_CLICKABLE        2
+#define LV_OBJ_FLAG_CLICK_FOCUSABLE  4
+#define LV_OBJ_FLAG_GESTURE_BUBBLE   8
+#define LV_OBJ_FLAG_SCROLL_CHAIN     16
+#define LV_OBJ_FLAG_SCROLL_ELASTIC   32
+#define LV_OBJ_FLAG_SCROLL_MOMENTUM  64
 #define LV_OPA_COVER                 255
 #define LV_SCROLLBAR_MODE_AUTO       0
 #define LV_SIZE_CONTENT              (-1)

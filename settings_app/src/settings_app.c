@@ -9,6 +9,8 @@
 #include "event_bus.h"
 #include "power_service.h"
 #include "settings_factory_reset_page.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -182,9 +184,9 @@ static lv_obj_t *_settings_add_segment(settings_root_state_t *state,
                         action);
 
     lv_obj_t *label = lv_label_create(button);
-    lv_label_set_text(label, text);
     lv_obj_set_style_text_color(label, lv_color_hex(SETTINGS_TEXT_COLOR), 0);
     lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_label_set_text(label, text);
     lv_obj_center(label);
     return button;
 }
@@ -199,7 +201,7 @@ static lv_obj_t *_settings_create_segment_row(lv_obj_t *parent)
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(row, false);
     return row;
 }
 
@@ -238,7 +240,7 @@ static void _settings_root_build(settings_root_state_t *state)
     lv_obj_set_style_pad_all(brightness, 14, 0);
     lv_obj_set_style_pad_row(brightness, 8, 0);
     lv_obj_set_flex_flow(brightness, LV_FLEX_FLOW_COLUMN);
-    lv_obj_remove_flag(brightness, LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(brightness, false);
 
     lv_obj_t *heading = lv_obj_create(brightness);
     lv_obj_remove_style_all(heading);
@@ -247,12 +249,12 @@ static void _settings_root_build(settings_root_state_t *state)
     lv_obj_set_flex_flow(heading, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(heading, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(heading, LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(heading, false);
 
     lv_obj_t *label = lv_label_create(heading);
-    lv_label_set_text(label, "亮度");
     lv_obj_set_style_text_color(label, lv_color_hex(SETTINGS_TEXT_COLOR), 0);
     lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_text(label, "亮度");
 
     state->brightness_value = lv_label_create(heading);
     lv_obj_set_style_text_font(state->brightness_value,
@@ -331,7 +333,6 @@ static void _settings_root_resume(settings_root_state_t *state)
 static void _settings_root_start(const app_manager_page_context_t *context)
 {
     settings_root_state_t *state = context->state;
-    memset(state, 0, sizeof(*state));
     state->brightness = app_manager_screen_get_brightness();
 }
 
@@ -511,13 +512,6 @@ static void _settings_power_unmount(settings_power_state_t *state)
     state->sample_value = NULL;
 }
 
-static void _settings_power_start(const app_manager_page_context_t *context)
-{
-    settings_power_state_t *state = context->state;
-    memset(state, 0, sizeof(*state));
-    state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-}
-
 static void _settings_power_mount(const app_manager_page_context_t *context)
 {
     _settings_power_build(context->state);
@@ -543,7 +537,7 @@ static void _settings_power_unmount_op(
 static void _settings_about_tap_event(lv_event_t *event)
 {
     settings_about_state_t *state = lv_event_get_user_data(event);
-    const uint32_t now = lv_tick_get();
+    const uint32_t now = xTaskGetTickCount();
     state->tap_count = now - state->last_tap_ms > 1500U ? 1U :
                        (uint8_t)(state->tap_count + 1U);
     state->last_tap_ms = now;
@@ -559,14 +553,19 @@ static void _settings_about_build(settings_about_state_t *state)
     app_ui_page_create(&state->page, "关于设备", true);
     const esp_app_desc_t *description = esp_app_get_description();
 
-    lv_obj_t *name = lv_label_create(state->page.content);
-    lv_label_set_text(name, "MicroTech");
-    lv_obj_set_width(name, LV_PCT(100));
+    lv_obj_t *name_button = lv_button_create(state->page.content);
+    lv_obj_set_width(name_button, LV_PCT(100));
+    lv_obj_set_height(name_button, 72);
+    lv_obj_set_style_bg_opa(name_button, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(name_button, 0, 0);
+    lv_obj_set_style_shadow_width(name_button, 0, 0);
+    lv_obj_add_event_cb(name_button, _settings_about_tap_event,
+                        LV_EVENT_CLICKED, state);
+    lv_obj_t *name = lv_label_create(name_button);
     lv_obj_set_style_text_color(name, lv_color_hex(SETTINGS_TEXT_COLOR), 0);
     lv_obj_set_style_text_font(name, app_ui_font(APP_THEME_FONT_BIGL), 0);
-    lv_obj_add_flag(name, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(name, _settings_about_tap_event, LV_EVENT_CLICKED,
-                        state);
+    lv_label_set_text(name, "MicroTech");
+    lv_obj_center(name);
 
     app_ui_add_body_label(state->page.content,
                           "Waveshare ESP32-S3 Touch AMOLED 1.8 阶段演示固件");
@@ -591,11 +590,6 @@ static void _settings_about_build(settings_about_state_t *state)
     }
 }
 
-static void _settings_about_start(const app_manager_page_context_t *context)
-{
-    memset(context->state, 0, sizeof(settings_about_state_t));
-}
-
 static void _settings_about_mount(const app_manager_page_context_t *context)
 {
     _settings_about_build(context->state);
@@ -616,17 +610,14 @@ static const app_manager_page_ops_t s_settings_root_ops =
 
 static const app_manager_page_ops_t s_settings_power_ops =
 {
-    .start = _settings_power_start,
     .mount = _settings_power_mount,
     .resume = _settings_power_resume_op,
     .pause = _settings_power_pause_op,
     .unmount = _settings_power_unmount_op,
-    .stop = _settings_power_pause_op,
 };
 
 static const app_manager_page_ops_t s_settings_about_ops =
 {
-    .start = _settings_about_start,
     .mount = _settings_about_mount,
     .unmount = _settings_about_unmount,
 };

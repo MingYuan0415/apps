@@ -51,13 +51,24 @@ static void _menu_page_build(menu_page_state_t *state)
     app_ui_page_create(&state->page, "应用", false);
     app_ui_page_set_subtitle(&state->page, "设备功能");
 
-    const app_manager_app_desc_t *ordered[16] = {0};
+    const app_manager_app_desc_t *ordered[APP_MANAGER_MAX_RESIDENT_APPS] = {0};
     size_t count = 0U;
+    bool truncated = false;
     const app_manager_app_desc_t *descriptor = app_manager_builtin_list_open();
-    while (descriptor != NULL && count < sizeof(ordered) / sizeof(ordered[0]))
+    while (descriptor != NULL)
     {
         if (!_menu_skip_descriptor(descriptor))
         {
+            if (count >= sizeof(ordered) / sizeof(ordered[0]))
+            {
+                if (!truncated)
+                {
+                    LOG_W("application menu capacity reached");
+                    truncated = true;
+                }
+                descriptor = app_manager_builtin_list_get_next(descriptor);
+                continue;
+            }
             size_t insert = count++;
             while (insert > 0U &&
                     _menu_order(ordered[insert - 1U]) >
@@ -88,11 +99,6 @@ static void _menu_page_build(menu_page_state_t *state)
     state->entry_count = count;
 }
 
-static void _menu_start(const app_manager_page_context_t *context)
-{
-    memset(context->state, 0, sizeof(menu_page_state_t));
-}
-
 static void _menu_mount(const app_manager_page_context_t *context)
 {
     _menu_page_build(context->state);
@@ -106,7 +112,6 @@ static void _menu_unmount(const app_manager_page_context_t *context)
 
 static const app_manager_page_ops_t s_menu_root_ops =
 {
-    .start = _menu_start,
     .mount = _menu_mount,
     .unmount = _menu_unmount,
 };

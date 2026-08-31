@@ -61,6 +61,7 @@ _Static_assert(sizeof(setup_provisioning_state_t) <=
                "Setup provisioning state exceeds the lifecycle arena slot");
 
 static void _setup_root_render(setup_root_state_t *state);
+static esp_err_t _setup_root_pause(setup_root_state_t *state);
 
 static const char *_setup_failure_detail(
     connectivity_manager_failure_t failure)
@@ -240,7 +241,7 @@ static void _setup_render_auto_connect(setup_root_state_t *state)
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(row, false);
     lv_obj_t *label = lv_label_create(row);
     lv_obj_set_style_text_color(label, lv_color_hex(SETUP_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
@@ -498,7 +499,7 @@ static void _setup_root_mount(setup_root_state_t *state)
     lv_obj_set_height(state->controls, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_row(state->controls, 8, 0);
     lv_obj_set_flex_flow(state->controls, LV_FLEX_FLOW_COLUMN);
-    lv_obj_remove_flag(state->controls, LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(state->controls, false);
 }
 
 static esp_err_t _setup_root_resume(setup_root_state_t *state)
@@ -530,6 +531,13 @@ static esp_err_t _setup_root_resume(setup_root_state_t *state)
     }
     if (result != ESP_OK)
     {
+        const esp_err_t cleanup_result = _setup_root_pause(state);
+        state->device_link_valid = false;
+        if (cleanup_result != ESP_OK)
+        {
+            LOG_W("setup resume rollback failed: %s",
+                  esp_err_to_name(cleanup_result));
+        }
         _setup_set_status(state, "网络设置不可用",
                           _setup_command_error(result));
     }
@@ -557,13 +565,6 @@ static esp_err_t _setup_root_pause(setup_root_state_t *state)
         result = setup_wifi_adapter_close(&state->wifi);
     }
     return result;
-}
-
-static void _setup_root_start(const app_manager_page_context_t *context)
-{
-    setup_root_state_t *state = context->state;
-    memset(state, 0, sizeof(*state));
-    state->device_link_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
 }
 
 static void _setup_root_mount_op(const app_manager_page_context_t *context)
@@ -750,6 +751,7 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
     lv_obj_set_flex_flow(state->confirm_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_row(state->confirm_row, 8, 0);
     lv_obj_set_style_pad_column(state->confirm_row, 8, 0);
+    app_ui_make_passive(state->confirm_row, false);
     lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
     state->confirm_button = lv_button_create(state->confirm_row);
     lv_obj_set_height(state->confirm_button, 44);
@@ -860,13 +862,6 @@ fail:
     return result;
 }
 
-static void _setup_provisioning_start(const app_manager_page_context_t *context)
-{
-    setup_provisioning_state_t *state = context->state;
-    memset(state, 0, sizeof(*state));
-    state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-}
-
 static void _setup_provisioning_mount_op(
     const app_manager_page_context_t *context)
 {
@@ -904,22 +899,18 @@ static void _setup_provisioning_unmount(
 
 static const app_manager_page_ops_t s_setup_root_ops =
 {
-    .start = _setup_root_start,
     .mount = _setup_root_mount_op,
     .resume = _setup_root_resume_op,
     .pause = _setup_root_pause_op,
     .unmount = _setup_root_unmount,
-    .stop = _setup_root_pause_op,
 };
 
 static const app_manager_page_ops_t s_setup_provisioning_ops =
 {
-    .start = _setup_provisioning_start,
     .mount = _setup_provisioning_mount_op,
     .resume = _setup_provisioning_resume_op,
     .pause = _setup_provisioning_pause_op,
     .unmount = _setup_provisioning_unmount,
-    .stop = _setup_provisioning_pause_op,
 };
 
 static const app_manager_page_definition_t s_setup_root_definition =

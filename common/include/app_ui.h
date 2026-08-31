@@ -35,8 +35,8 @@ typedef enum
  * @brief Create and style one full-screen application page.
  * @param page receives the created LVGL object handles.
  * @param title is the page header text.
- * @param show_back is retained for source compatibility and ignored. Header
- * navigation is handled by App Manager gestures or page content actions.
+ * @param show_back is retained for source compatibility; navigation uses the
+ * App Manager edge gesture and system back path.
  */
 void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back);
 
@@ -124,6 +124,12 @@ void app_ui_set_status_text(lv_obj_t *label, const char *text,
  * @return Loaded font or LV_FONT_DEFAULT.
  */
 const lv_font_t *app_ui_font(app_theme_font_id_t id);
+/**
+ * @brief Configure a generic object as a passive layout container.
+ * @param object is the object to configure.
+ * @param scrollable keeps vertical scrolling when true.
+ */
+void app_ui_make_passive(lv_obj_t *object, bool scrollable);
 /** @brief Queue navigation back from an LVGL event callback. */
 void app_ui_request_back(void);
 /**

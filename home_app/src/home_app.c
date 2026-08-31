@@ -290,19 +290,19 @@ static void _home_page_build(home_page_state_t *state)
     lv_obj_set_flex_flow(clock, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(clock, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(clock, LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(clock, false);
 
     state->time_label = lv_label_create(clock);
-    lv_label_set_text(state->time_label, "--:--");
     lv_obj_set_style_text_color(state->time_label, lv_color_hex(0xF4F7F8), 0);
     lv_obj_set_style_text_font(state->time_label,
                                app_ui_font(APP_THEME_FONT_TITLE), 0);
+    lv_label_set_text(state->time_label, "--:--");
 
     state->date_label = lv_label_create(clock);
-    lv_label_set_text(state->date_label, "等待有效时间");
     lv_obj_set_style_text_color(state->date_label, lv_color_hex(0xAAB5BA), 0);
     lv_obj_set_style_text_font(state->date_label,
                                app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_text(state->date_label, "等待有效时间");
 
     state->quality_label = lv_label_create(clock);
     lv_obj_set_style_text_font(state->quality_label,
@@ -427,14 +427,7 @@ static void _home_page_unmount(home_page_state_t *state)
     state->power_value = NULL;
     state->wifi_value = NULL;
     state->storage_value = NULL;
-}
-
-static void _home_start(const app_manager_page_context_t *context)
-{
-    home_page_state_t *state = context->state;
-    memset(state, 0, sizeof(*state));
-    state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-    state->wifi_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+    state->timer_value = NULL;
 }
 
 static void _home_mount(const app_manager_page_context_t *context)
@@ -459,12 +452,10 @@ static void _home_unmount(const app_manager_page_context_t *context)
 
 static const app_manager_page_ops_t s_home_ops =
 {
-    .start = _home_start,
     .mount = _home_mount,
     .resume = _home_resume,
     .pause = _home_pause,
     .unmount = _home_unmount,
-    .stop = _home_pause,
 };
 
 static const app_manager_page_definition_t s_home_root_definition =

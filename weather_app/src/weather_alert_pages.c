@@ -268,13 +268,6 @@ static esp_err_t _weather_alerts_pause(weather_alerts_state_t *state)
     return result;
 }
 
-static void _weather_alerts_start(
-    const app_manager_page_context_t *context)
-{
-    weather_alerts_state_t *state = context->state;
-    state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-}
-
 static void _weather_alerts_mount(
     const app_manager_page_context_t *context)
 {
@@ -304,7 +297,6 @@ static void _weather_alerts_unmount(
 
 static const app_manager_page_ops_t s_weather_alerts_ops =
 {
-    .start = _weather_alerts_start,
     .mount = _weather_alerts_mount,
     .resume = _weather_alerts_resume_op,
     .pause = _weather_alerts_pause_op,
@@ -497,7 +489,6 @@ static void _weather_alert_detail_start(
     const app_manager_page_context_t *context)
 {
     weather_alert_detail_state_t *state = context->state;
-    state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     _weather_alert_detail_apply_arguments(state, context->arguments);
 }
 

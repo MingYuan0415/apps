@@ -51,11 +51,6 @@ static void _diagnostics_refresh(lv_timer_t *timer)
     _diagnostics_render(lv_timer_get_user_data(timer));
 }
 
-static void _diagnostics_start(const app_manager_page_context_t *context)
-{
-    memset(context->state, 0, sizeof(diagnostics_page_state_t));
-}
-
 static void _diagnostics_mount(const app_manager_page_context_t *context)
 {
     diagnostics_page_state_t *state = context->state;
@@ -99,11 +94,15 @@ static void _diagnostics_unmount(const app_manager_page_context_t *context)
         state->refresh_timer = NULL;
     }
     app_ui_page_destroy(&state->page);
+    state->status = NULL;
+    state->imu = NULL;
+    state->audio = NULL;
+    state->storage = NULL;
+    state->time = NULL;
 }
 
 static const app_manager_page_ops_t s_diagnostics_ops =
 {
-    .start = _diagnostics_start,
     .mount = _diagnostics_mount,
     .resume = _diagnostics_resume,
     .pause = _diagnostics_pause,

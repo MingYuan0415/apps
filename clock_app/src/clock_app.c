@@ -211,8 +211,8 @@ static lv_obj_t *_clock_button(lv_obj_t *parent, const char *text,
     lv_obj_set_style_shadow_width(button, 0, 0);
     lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
     lv_obj_t *label = lv_label_create(button);
-    lv_label_set_text(label, text);
     lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_text(label, text);
     lv_obj_center(label);
     return button;
 }
@@ -237,6 +237,7 @@ static void _clock_mount(const app_manager_page_context_t *context)
     lv_obj_set_flex_flow(views, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(views, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    app_ui_make_passive(views, false);
     _clock_button(views, "时钟", state, _clock_view_clock);
     _clock_button(views, "倒计时", state, _clock_view_countdown);
     _clock_button(views, "秒表", state, _clock_view_stopwatch);
@@ -249,6 +250,7 @@ static void _clock_mount(const app_manager_page_context_t *context)
     lv_obj_set_flex_flow(actions, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(actions, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    app_ui_make_passive(actions, false);
     for (size_t index = 0U; index < 3U; ++index)
     {
         state->actions[index].state = state;
@@ -257,7 +259,6 @@ static void _clock_mount(const app_manager_page_context_t *context)
     _clock_button(actions, "开始", &state->actions[0], _clock_action_event);
     _clock_button(actions, "暂停", &state->actions[1], _clock_action_event);
     _clock_button(actions, "重置", &state->actions[2], _clock_action_event);
-    state->countdown_minutes = 5U;
     state->refresh_timer = lv_timer_create(_clock_refresh, 250U, state);
     _clock_render(state);
 }
@@ -265,8 +266,8 @@ static void _clock_mount(const app_manager_page_context_t *context)
 static void _clock_start(const app_manager_page_context_t *context)
 {
     clock_page_state_t *state = context->state;
-    memset(state, 0, sizeof(*state));
     state->view = CLOCK_VIEW_CLOCK;
+    state->countdown_minutes = 5U;
 }
 
 static esp_err_t _clock_pause(const app_manager_page_context_t *context)
@@ -298,6 +299,9 @@ static void _clock_unmount(const app_manager_page_context_t *context)
         state->refresh_timer = NULL;
     }
     app_ui_page_destroy(&state->page);
+    state->time_label = NULL;
+    state->detail_label = NULL;
+    state->status_label = NULL;
 }
 
 static const app_manager_page_ops_t s_clock_ops =

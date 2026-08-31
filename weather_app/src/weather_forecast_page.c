@@ -187,8 +187,7 @@ static void _weather_forecast_render_chart(weather_forecast_state_t *state)
     lv_obj_t *chart = lv_chart_create(chart_row);
     lv_obj_set_size(chart, 0, 116);
     lv_obj_set_flex_grow(chart, 1);
-    lv_obj_remove_flag(chart,
-                       LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(chart, false);
     lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
     lv_chart_set_point_count(chart, count);
     lv_chart_set_axis_range(chart, LV_CHART_AXIS_PRIMARY_Y,
@@ -582,14 +581,6 @@ static esp_err_t _weather_forecast_pause(weather_forecast_state_t *state)
     return result;
 }
 
-static void _weather_forecast_start(
-    const app_manager_page_context_t *context)
-{
-    weather_forecast_state_t *state = context->state;
-    state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-    state->segment = WEATHER_FORECAST_CURRENT;
-}
-
 static void _weather_forecast_mount(
     const app_manager_page_context_t *context)
 {
@@ -622,7 +613,6 @@ static void _weather_forecast_unmount(
 
 static const app_manager_page_ops_t s_weather_forecast_ops =
 {
-    .start = _weather_forecast_start,
     .mount = _weather_forecast_mount,
     .resume = _weather_forecast_resume_op,
     .pause = _weather_forecast_pause_op,

@@ -544,13 +544,6 @@ static esp_err_t _weather_root_pause(weather_root_state_t *state)
     return result;
 }
 
-static void _weather_root_start(
-    const app_manager_page_context_t *context)
-{
-    weather_root_state_t *state = context->state;
-    state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-}
-
 static void _weather_root_mount(
     const app_manager_page_context_t *context)
 {
@@ -589,7 +582,6 @@ static void _weather_root_unmount(
 
 static const app_manager_page_ops_t s_weather_root_ops =
 {
-    .start = _weather_root_start,
     .mount = _weather_root_mount,
     .resume = _weather_root_resume_op,
     .pause = _weather_root_pause_op,

@@ -110,15 +110,10 @@ static lv_obj_t *_recorder_action(lv_obj_t *parent, const char *text,
     lv_obj_set_style_shadow_width(button, 0, 0);
     lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, state);
     lv_obj_t *label = lv_label_create(button);
-    lv_label_set_text(label, text);
     lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_label_set_text(label, text);
     lv_obj_center(label);
     return button;
-}
-
-static void _recorder_start(const app_manager_page_context_t *context)
-{
-    memset(context->state, 0, sizeof(recorder_page_state_t));
 }
 
 static void _recorder_mount(const app_manager_page_context_t *context)
@@ -133,7 +128,7 @@ static void _recorder_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_font(state->duration_label, app_ui_font(APP_THEME_FONT_TITLE), 0);
     state->space_label = app_ui_add_body_label(state->page.content, "可用空间 --");
     state->file_label = app_ui_add_body_label(state->page.content, "尚未创建录音");
-    lv_label_set_long_mode(state->file_label, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(state->file_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
 
     lv_obj_t *actions = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(actions);
@@ -142,6 +137,7 @@ static void _recorder_mount(const app_manager_page_context_t *context)
     lv_obj_set_flex_flow(actions, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(actions, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    app_ui_make_passive(actions, false);
     _recorder_action(actions, "开始", _recorder_start_event, state);
     _recorder_action(actions, "暂停", _recorder_pause_event, state);
     _recorder_action(actions, "继续", _recorder_resume_event, state);
@@ -179,11 +175,14 @@ static void _recorder_unmount(const app_manager_page_context_t *context)
         state->refresh_timer = NULL;
     }
     app_ui_page_destroy(&state->page);
+    state->state_label = NULL;
+    state->duration_label = NULL;
+    state->space_label = NULL;
+    state->file_label = NULL;
 }
 
 static const app_manager_page_ops_t s_recorder_ops =
 {
-    .start = _recorder_start,
     .mount = _recorder_mount,
     .resume = _recorder_resume,
     .pause = _recorder_pause,

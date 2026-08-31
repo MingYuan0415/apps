@@ -75,11 +75,6 @@ static void _level_calibrate(lv_event_t *event)
     _level_render(state);
 }
 
-static void _level_start(const app_manager_page_context_t *context)
-{
-    memset(context->state, 0, sizeof(level_page_state_t));
-}
-
 static void _level_mount(const app_manager_page_context_t *context)
 {
     level_page_state_t *state = context->state;
@@ -130,11 +125,13 @@ static void _level_unmount(const app_manager_page_context_t *context)
         state->refresh_timer = NULL;
     }
     app_ui_page_destroy(&state->page);
+    state->angle_label = NULL;
+    state->state_label = NULL;
+    state->temperature_label = NULL;
 }
 
 static const app_manager_page_ops_t s_level_ops =
 {
-    .start = _level_start,
     .mount = _level_mount,
     .resume = _level_resume,
     .pause = _level_pause,

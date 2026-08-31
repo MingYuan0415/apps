@@ -21,6 +21,25 @@ const lv_font_t *app_ui_font(app_theme_font_id_t id)
     return font != NULL ? font : LV_FONT_DEFAULT;
 }
 
+void app_ui_make_passive(lv_obj_t *object, bool scrollable)
+{
+    if (object == NULL)
+    {
+        return;
+    }
+    uint32_t passive_flags = LV_OBJ_FLAG_CLICKABLE |
+                             LV_OBJ_FLAG_CLICK_FOCUSABLE |
+                             LV_OBJ_FLAG_GESTURE_BUBBLE |
+                             LV_OBJ_FLAG_SCROLL_CHAIN |
+                             LV_OBJ_FLAG_SCROLL_ELASTIC |
+                             LV_OBJ_FLAG_SCROLL_MOMENTUM;
+    lv_obj_remove_flag(object, passive_flags);
+    if (!scrollable)
+    {
+        lv_obj_remove_flag(object, LV_OBJ_FLAG_SCROLLABLE);
+    }
+}
+
 static bool _app_ui_id_is_valid(const char *id)
 {
     size_t length = id != NULL ? strnlen(id, APP_MANAGER_ID_BYTES) : 0U;
@@ -91,7 +110,6 @@ void app_ui_request_open_page(const char *app_id, const char *page_id)
 
 void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
 {
-    (void)show_back;
     memset(page, 0, sizeof(*page));
 
     lv_obj_t *screen = app_manager_this_page_screen();
@@ -109,7 +127,7 @@ void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
     lv_obj_set_style_pad_all(page->root, 0, 0);
     lv_obj_set_style_pad_gap(page->root, 0, 0);
     lv_obj_set_flex_flow(page->root, LV_FLEX_FLOW_COLUMN);
-    lv_obj_remove_flag(page->root, LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(page->root, false);
 
     page->header = lv_obj_create(page->root);
     lv_obj_remove_style_all(page->header);
@@ -125,7 +143,9 @@ void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
     lv_obj_set_flex_flow(page->header, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(page->header, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(page->header, LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(page->header, false);
+
+    (void)show_back;
 
     page->header_text = lv_obj_create(page->header);
     lv_obj_remove_style_all(page->header_text);
@@ -134,15 +154,14 @@ void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
     lv_obj_set_flex_grow(page->header_text, 1);
     lv_obj_set_flex_flow(page->header_text, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(page->header_text, 1, 0);
-    lv_obj_remove_flag(page->header_text, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(page->header_text, LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(page->header_text, false);
 
     page->title = lv_label_create(page->header_text);
-    lv_label_set_text(page->title, title);
     lv_obj_set_width(page->title, LV_PCT(100));
     lv_obj_set_style_text_color(page->title, lv_color_hex(COLOR_TEXT), 0);
     lv_obj_set_style_text_font(page->title, app_ui_font(APP_THEME_FONT_HEAD), 0);
-    lv_label_set_long_mode(page->title, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(page->title, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_label_set_text(page->title, title != NULL ? title : "");
 
     page->content = lv_obj_create(page->root);
     lv_obj_remove_style_all(page->content);
@@ -159,6 +178,7 @@ void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
     lv_obj_set_flex_flow(page->content, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(page->content, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    app_ui_make_passive(page->content, true);
     lv_obj_set_scroll_dir(page->content, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(page->content, LV_SCROLLBAR_MODE_AUTO);
 }
@@ -185,7 +205,7 @@ void app_ui_page_set_subtitle(app_ui_page_t *page, const char *subtitle)
         lv_obj_set_style_text_color(page->subtitle, lv_color_hex(COLOR_MUTED), 0);
         lv_obj_set_style_text_font(page->subtitle,
                                    app_ui_font(APP_THEME_FONT_SMALL), 0);
-        lv_label_set_long_mode(page->subtitle, LV_LABEL_LONG_DOT);
+        lv_label_set_long_mode(page->subtitle, LV_LABEL_LONG_WRAP);
     }
     lv_label_set_text(page->subtitle, subtitle != NULL ? subtitle : "");
 }
@@ -202,11 +222,11 @@ void app_ui_page_destroy(app_ui_page_t *page)
 lv_obj_t *app_ui_add_section(lv_obj_t *parent, const char *text)
 {
     lv_obj_t *label = lv_label_create(parent);
-    lv_label_set_text(label, text);
     lv_obj_set_width(label, LV_PCT(100));
     lv_obj_set_style_text_color(label, lv_color_hex(COLOR_MUTED), 0);
     lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_obj_set_style_pad_top(label, 5, 0);
+    lv_label_set_text(label, text != NULL ? text : "");
     return label;
 }
 
@@ -217,7 +237,7 @@ static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, const char *symbol,
 {
     lv_obj_t *button = lv_button_create(parent);
     lv_obj_set_width(button, LV_PCT(100));
-    lv_obj_set_height(button, subtitle != NULL ? 66 : 58);
+    lv_obj_set_height(button, LV_SIZE_CONTENT);
     lv_obj_set_style_radius(button, 6, 0);
     lv_obj_set_style_bg_color(button, lv_color_hex(COLOR_SURFACE), 0);
     lv_obj_set_style_bg_color(button, lv_color_hex(COLOR_SURFACE_HI),
@@ -233,11 +253,11 @@ static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, const char *symbol,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     lv_obj_t *icon = lv_label_create(button);
-    lv_label_set_text(icon, symbol != NULL ? symbol : LV_SYMBOL_RIGHT);
     lv_obj_set_width(icon, 28);
     lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(icon, lv_color_hex(COLOR_ACCENT), 0);
     lv_obj_set_style_text_font(icon, LV_FONT_DEFAULT, 0);
+    lv_label_set_text(icon, symbol != NULL ? symbol : LV_SYMBOL_RIGHT);
 
     lv_obj_t *text = lv_obj_create(button);
     lv_obj_remove_style_all(text);
@@ -245,32 +265,33 @@ static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, const char *symbol,
     lv_obj_set_flex_grow(text, 1);
     lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(text, 2, 0);
-    lv_obj_remove_flag(text, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(text, LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(text, false);
 
     lv_obj_t *title_label = lv_label_create(text);
-    lv_label_set_text(title_label, title);
     lv_obj_set_width(title_label, LV_PCT(100));
+    lv_label_set_long_mode(title_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(title_label, lv_color_hex(COLOR_TEXT), 0);
     lv_obj_set_style_text_font(title_label, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_text(title_label, title != NULL ? title : "");
 
     if (subtitle != NULL)
     {
         lv_obj_t *subtitle_label = lv_label_create(text);
-        lv_label_set_text(subtitle_label, subtitle);
         lv_obj_set_width(subtitle_label, LV_PCT(100));
-        lv_label_set_long_mode(subtitle_label, LV_LABEL_LONG_DOT);
+        lv_obj_set_height(subtitle_label, LV_SIZE_CONTENT);
+        lv_label_set_long_mode(subtitle_label, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(subtitle_label, lv_color_hex(COLOR_MUTED), 0);
         lv_obj_set_style_text_font(subtitle_label,
                                    app_ui_font(APP_THEME_FONT_SMALL), 0);
+        lv_label_set_text(subtitle_label, subtitle);
     }
 
     if (navigation)
     {
         lv_obj_t *chevron = lv_label_create(button);
-        lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
         lv_obj_set_style_text_color(chevron, lv_color_hex(COLOR_MUTED), 0);
         lv_obj_set_style_text_font(chevron, LV_FONT_DEFAULT, 0);
+        lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
     }
 
     if (callback != NULL)
@@ -313,22 +334,22 @@ lv_obj_t *app_ui_add_value_row(lv_obj_t *parent, const char *name,
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(row, false);
 
     lv_obj_t *name_label = lv_label_create(row);
-    lv_label_set_text(name_label, name);
     lv_obj_set_width(name_label, LV_PCT(36));
     lv_label_set_long_mode(name_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(name_label, lv_color_hex(COLOR_MUTED), 0);
     lv_obj_set_style_text_font(name_label, app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_label_set_text(name_label, name != NULL ? name : "");
 
     lv_obj_t *current = lv_label_create(row);
-    lv_label_set_text(current, value);
     lv_obj_set_width(current, LV_PCT(60));
     lv_label_set_long_mode(current, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(current, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_style_text_color(current, lv_color_hex(COLOR_TEXT), 0);
     lv_obj_set_style_text_font(current, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_text(current, value != NULL ? value : "");
     if (value_label != NULL)
     {
         *value_label = current;
@@ -339,12 +360,12 @@ lv_obj_t *app_ui_add_value_row(lv_obj_t *parent, const char *name,
 lv_obj_t *app_ui_add_body_label(lv_obj_t *parent, const char *text)
 {
     lv_obj_t *label = lv_label_create(parent);
-    lv_label_set_text(label, text);
     lv_obj_set_width(label, LV_PCT(100));
     lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(label, lv_color_hex(COLOR_MUTED), 0);
     lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_obj_set_style_text_line_space(label, 6, 0);
+    lv_label_set_text(label, text != NULL ? text : "");
     return label;
 }
 
@@ -370,6 +391,6 @@ void app_ui_set_status_text(lv_obj_t *label, const char *text,
     default:
         break;
     }
-    lv_label_set_text(label, text);
     lv_obj_set_style_text_color(label, lv_color_hex(color), 0);
+    lv_label_set_text(label, text != NULL ? text : "");
 }

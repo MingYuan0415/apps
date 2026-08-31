@@ -108,8 +108,7 @@ lv_obj_t *weather_ui_surface(lv_obj_t *parent, int32_t height)
     lv_obj_set_style_bg_opa(surface, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(surface, 6, 0);
     lv_obj_set_style_pad_all(surface, 10, 0);
-    lv_obj_remove_flag(surface,
-                       LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(surface, false);
     return surface;
 }
 
@@ -121,8 +120,7 @@ lv_obj_t *weather_ui_container(lv_obj_t *parent, int32_t height,
     lv_obj_set_width(container, LV_PCT(100));
     lv_obj_set_height(container, height);
     lv_obj_set_flex_flow(container, flex_flow);
-    lv_obj_remove_flag(container,
-                       LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    app_ui_make_passive(container, false);
     return container;
 }
 
