@@ -20,6 +20,10 @@ manifest、语义 ID 和资源测试。
 
 每个应用以普通 `const` Page definition 描述 typed ops 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。只有 `APP_MANAGER_APP_EXPORT_META` 产生的 App descriptor 进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。新增应用时应在独立目录中实现生命周期 ops，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，同时提供图标 manifest，不要使用递归 glob。
 
+页面只声明实际需要的生命周期阶段，无需为未使用阶段编写空回调。例如静态页面只需
+`.mount` 和 `.unmount`；需要前台刷新时再增加 `.resume` 和 `.pause`；需要跨挂载周期保留
+状态时才增加 `.start` 或 `.stop`。新应用使用 typed ops，raw handler 仅用于兼容旧页面。
+
 页面 UI 只在 `ONMOUNT/ONUNMOUNT` 中创建和销毁，根对象必须挂到 Page Screen。Timer、事件订阅、worker 和服务会话只在 `ONRESUME/ONPAUSE` 中启停；清理失败须保留资源 handle 并允许生命周期重试。每个页面私有状态都以静态断言约束在 `APP_MANAGER_PAGE_STATE_BYTES` 内。所有产品页面使用类型化 Page ops，预警详情通过 Typed Blob 接收值复制的 alert key；新增页面沿用同一生命周期边界。
 
 Weather 页面恢复前台时订阅 `WEATHER_SERVICE_MSG` 并 acquire 当前不可变快照，暂停时
