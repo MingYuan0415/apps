@@ -15,8 +15,10 @@ typedef struct app_ui_page
 {
     lv_obj_t *root;    /**< Full-screen root object. */
     lv_obj_t *header;  /**< Fixed page header. */
+    lv_obj_t *header_text; /**< Passive title/subtitle container. */
     lv_obj_t *content; /**< Scrollable page content. */
     lv_obj_t *title;   /**< Header title label. */
+    lv_obj_t *subtitle; /**< Optional header subtitle label. */
 } app_ui_page_t;
 
 /** @brief Semantic color applied to dynamic status text. */
@@ -33,9 +35,24 @@ typedef enum
  * @brief Create and style one full-screen application page.
  * @param page receives the created LVGL object handles.
  * @param title is the page header text.
- * @param show_back controls creation of the back button.
+ * @param show_back is retained for source compatibility and ignored. Header
+ * navigation is handled by App Manager gestures or page content actions.
  */
 void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back);
+
+/**
+ * @brief Replace the primary text in a page header.
+ * @param page owns the header.
+ * @param title is copied by LVGL into the title label.
+ */
+void app_ui_page_set_title(app_ui_page_t *page, const char *title);
+
+/**
+ * @brief Add or replace the secondary text in a page header.
+ * @param page owns the header.
+ * @param subtitle is optional; NULL or an empty string clears the subtitle.
+ */
+void app_ui_page_set_subtitle(app_ui_page_t *page, const char *subtitle);
 /**
  * @brief Delete a page root and clear all stored object pointers.
  * @param page owns the page objects to delete.

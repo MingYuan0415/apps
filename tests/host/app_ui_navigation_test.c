@@ -247,8 +247,11 @@ int main(void)
     memset(s_objects, 0, sizeof(s_objects));
     app_ui_page_t page;
     app_ui_page_create(&page, "符号字体", true);
+    app_ui_page_set_subtitle(&page, "动态副标题");
     (void)app_ui_add_action(page.content, NULL, "导航", NULL, NULL, NULL);
-    assert(_test_explicit_font_count(LV_SYMBOL_LEFT, LV_FONT_DEFAULT) == 1U);
+    assert(_test_explicit_font_count(LV_SYMBOL_LEFT, LV_FONT_DEFAULT) == 0U);
+    assert(_test_explicit_font_count("符号字体", LV_FONT_DEFAULT) == 1U);
+    assert(_test_explicit_font_count("动态副标题", LV_FONT_DEFAULT) == 1U);
     assert(_test_explicit_font_count(LV_SYMBOL_RIGHT, LV_FONT_DEFAULT) == 2U);
     app_ui_page_destroy(&page);
 

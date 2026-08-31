@@ -24,5 +24,7 @@ static const app_manager_page_route_t s_weather_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT(weather, APP_IMAGE_WEATHER_APP, "天气", APP_MANAGER_ID_WEATHER, "root",
-                       APP_MANAGER_APP_FLAG_NONE, s_weather_routes);
+APP_MANAGER_APP_EXPORT_META(weather, APP_IMAGE_WEATHER_APP, "天气",
+                            APP_MANAGER_ID_WEATHER, "root",
+                            APP_MANAGER_APP_FLAG_NONE, s_weather_routes, 10U,
+                            "当前与预报");

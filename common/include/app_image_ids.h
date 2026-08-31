@@ -53,5 +53,9 @@
 #define APP_IMAGE_MENU_ICON                   0x5761U
 #define APP_IMAGE_SETTINGS_ICON               0x5762U
 #define APP_IMAGE_SETUP_ICON                  0x5763U
+#define APP_IMAGE_CLOCK_ICON                  0x5764U
+#define APP_IMAGE_RECORDER_ICON               0x5765U
+#define APP_IMAGE_LEVEL_ICON                  0x5766U
+#define APP_IMAGE_DIAGNOSTICS_ICON            0x5767U
 
 #endif /* __APP_IMAGE_IDS_H__ */

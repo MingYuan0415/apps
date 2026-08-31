@@ -66,14 +66,6 @@ void app_ui_request_back(void)
     _app_ui_navigate(APP_MANAGER_NAV_OP_BACK, NULL, NULL, "back");
 }
 
-static void _app_ui_back_event(lv_event_t *event)
-{
-    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
-    {
-        app_ui_request_back();
-    }
-}
-
 void app_ui_request_run(const char *app_id)
 {
     if (!_app_ui_id_is_valid(app_id))
@@ -99,6 +91,7 @@ void app_ui_request_open_page(const char *app_id, const char *page_id)
 
 void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
 {
+    (void)show_back;
     memset(page, 0, sizeof(*page));
 
     lv_obj_t *screen = app_manager_this_page_screen();
@@ -134,29 +127,22 @@ void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_remove_flag(page->header, LV_OBJ_FLAG_SCROLLABLE);
 
-    if (show_back)
-    {
-        lv_obj_t *back = lv_button_create(page->header);
-        lv_obj_set_size(back, 44, 44);
-        lv_obj_set_style_radius(back, 6, 0);
-        lv_obj_set_style_bg_color(back, lv_color_hex(COLOR_SURFACE), 0);
-        lv_obj_set_style_bg_color(back, lv_color_hex(COLOR_SURFACE_HI),
-                                  LV_STATE_PRESSED);
-        lv_obj_set_style_shadow_width(back, 0, 0);
-        lv_obj_add_event_cb(back, _app_ui_back_event, LV_EVENT_CLICKED, NULL);
+    page->header_text = lv_obj_create(page->header);
+    lv_obj_remove_style_all(page->header_text);
+    lv_obj_set_width(page->header_text, 0);
+    lv_obj_set_height(page->header_text, LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(page->header_text, 1);
+    lv_obj_set_flex_flow(page->header_text, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(page->header_text, 1, 0);
+    lv_obj_remove_flag(page->header_text, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(page->header_text, LV_OBJ_FLAG_SCROLLABLE);
 
-        lv_obj_t *icon = lv_label_create(back);
-        lv_label_set_text(icon, LV_SYMBOL_LEFT);
-        lv_obj_set_style_text_color(icon, lv_color_hex(COLOR_TEXT), 0);
-        lv_obj_set_style_text_font(icon, LV_FONT_DEFAULT, 0);
-        lv_obj_center(icon);
-    }
-
-    page->title = lv_label_create(page->header);
+    page->title = lv_label_create(page->header_text);
     lv_label_set_text(page->title, title);
+    lv_obj_set_width(page->title, LV_PCT(100));
     lv_obj_set_style_text_color(page->title, lv_color_hex(COLOR_TEXT), 0);
     lv_obj_set_style_text_font(page->title, app_ui_font(APP_THEME_FONT_HEAD), 0);
-    lv_obj_set_flex_grow(page->title, 1);
+    lv_label_set_long_mode(page->title, LV_LABEL_LONG_DOT);
 
     page->content = lv_obj_create(page->root);
     lv_obj_remove_style_all(page->content);
@@ -175,6 +161,33 @@ void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back)
                           LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_set_scroll_dir(page->content, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(page->content, LV_SCROLLBAR_MODE_AUTO);
+}
+
+void app_ui_page_set_title(app_ui_page_t *page, const char *title)
+{
+    if (page == NULL || page->title == NULL)
+    {
+        return;
+    }
+    lv_label_set_text(page->title, title != NULL ? title : "");
+}
+
+void app_ui_page_set_subtitle(app_ui_page_t *page, const char *subtitle)
+{
+    if (page == NULL || page->header == NULL)
+    {
+        return;
+    }
+    if (page->subtitle == NULL)
+    {
+        page->subtitle = lv_label_create(page->header_text);
+        lv_obj_set_width(page->subtitle, LV_PCT(100));
+        lv_obj_set_style_text_color(page->subtitle, lv_color_hex(COLOR_MUTED), 0);
+        lv_obj_set_style_text_font(page->subtitle,
+                                   app_ui_font(APP_THEME_FONT_SMALL), 0);
+        lv_label_set_long_mode(page->subtitle, LV_LABEL_LONG_DOT);
+    }
+    lv_label_set_text(page->subtitle, subtitle != NULL ? subtitle : "");
 }
 
 void app_ui_page_destroy(app_ui_page_t *page)

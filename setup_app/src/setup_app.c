@@ -7,6 +7,7 @@
 #include "app_ui.h"
 #include "device_link_service.h"
 #include "setup_wifi_adapter.h"
+#include "onboarding_service.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -34,6 +35,7 @@ typedef struct setup_root_state
     uint64_t device_link_generation;
     bool connectivity_valid;
     bool device_link_valid;
+    onboarding_service_state_t onboarding_state;
 } setup_root_state_t;
 
 typedef struct setup_provisioning_state
@@ -202,6 +204,29 @@ static void _setup_revoke_binding_event(lv_event_t *event)
     if (result != ESP_OK)
     {
         _setup_set_status(state, "解除绑定失败",
+                          _setup_command_error(result));
+    }
+}
+
+static void _setup_finish_event(lv_event_t *event)
+{
+    setup_root_state_t *state = lv_event_get_user_data(event);
+    if (state->onboarding_state == ONBOARDING_SERVICE_COMPLETED)
+    {
+        app_ui_request_run(APP_MANAGER_ID_HOME);
+        return;
+    }
+    esp_err_t result = state->connectivity.state ==
+                       CONNECTIVITY_MANAGER_STATE_IP_READY ?
+                       onboarding_service_complete() :
+                       onboarding_service_defer();
+    if (result == ESP_OK)
+    {
+        app_ui_request_run(APP_MANAGER_ID_HOME);
+    }
+    else
+    {
+        _setup_set_status(state, "设置状态未保存",
                           _setup_command_error(result));
     }
 }
@@ -390,6 +415,21 @@ static void _setup_root_render(setup_root_state_t *state)
         lv_label_set_text(state->detail_label,
                           "手机绑定进行中，本机网络管理已锁定");
     }
+    if (status->state == CONNECTIVITY_MANAGER_STATE_IP_READY)
+    {
+        if (state->onboarding_state != ONBOARDING_SERVICE_COMPLETED)
+        {
+            (void)app_ui_add_command(state->controls, LV_SYMBOL_OK, "完成设置",
+                                     "保存引导状态并进入主页",
+                                     _setup_finish_event, state);
+        }
+    }
+    else if (state->onboarding_state != ONBOARDING_SERVICE_COMPLETED)
+    {
+        (void)app_ui_add_command(state->controls, LV_SYMBOL_RIGHT, "稍后设置",
+                                 "离线功能仍可使用",
+                                 _setup_finish_event, state);
+    }
 }
 
 static void _setup_wifi_status(
@@ -463,6 +503,7 @@ static void _setup_root_mount(setup_root_state_t *state)
 
 static esp_err_t _setup_root_resume(setup_root_state_t *state)
 {
+    (void)onboarding_service_get_state(&state->onboarding_state);
     const setup_wifi_adapter_callbacks_t callbacks =
     {
         .status = _setup_wifi_status,
@@ -515,45 +556,38 @@ static esp_err_t _setup_root_pause(setup_root_state_t *state)
     {
         result = setup_wifi_adapter_close(&state->wifi);
     }
-    if (result != ESP_OK)
-    {
-        app_manager_this_page_report_cleanup_error(result);
-    }
     return result;
 }
 
-static void _setup_root_handler(app_manager_msg_type_t message, void *param)
+static void _setup_root_start(const app_manager_page_context_t *context)
 {
-    (void)param;
-    setup_root_state_t *state = app_manager_this_page_memory();
-    switch (message)
-    {
-    case APP_MANAGER_MSG_ONSTART:
-        memset(state, 0, sizeof(*state));
-        state->device_link_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        LOG_I("started");
-        break;
-    case APP_MANAGER_MSG_ONMOUNT:
-        _setup_root_mount(state);
-        break;
-    case APP_MANAGER_MSG_ONRESUME:
-        (void)_setup_root_resume(state);
-        break;
-    case APP_MANAGER_MSG_ONPAUSE:
-        (void)_setup_root_pause(state);
-        break;
-    case APP_MANAGER_MSG_ONUNMOUNT:
-        app_ui_page_destroy(&state->page);
-        state->status_label = NULL;
-        state->detail_label = NULL;
-        state->controls = NULL;
-        break;
-    case APP_MANAGER_MSG_ONSTOP:
-        LOG_I("stopped");
-        break;
-    default:
-        break;
-    }
+    setup_root_state_t *state = context->state;
+    memset(state, 0, sizeof(*state));
+    state->device_link_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+}
+
+static void _setup_root_mount_op(const app_manager_page_context_t *context)
+{
+    _setup_root_mount(context->state);
+}
+
+static void _setup_root_resume_op(const app_manager_page_context_t *context)
+{
+    (void)_setup_root_resume(context->state);
+}
+
+static esp_err_t _setup_root_pause_op(const app_manager_page_context_t *context)
+{
+    return _setup_root_pause(context->state);
+}
+
+static void _setup_root_unmount(const app_manager_page_context_t *context)
+{
+    setup_root_state_t *state = context->state;
+    app_ui_page_destroy(&state->page);
+    state->status_label = NULL;
+    state->detail_label = NULL;
+    state->controls = NULL;
 }
 
 static void _setup_provisioning_scrub(setup_provisioning_state_t *state)
@@ -756,7 +790,7 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
 }
 
 static esp_err_t _setup_provisioning_release_foreground(
-    setup_provisioning_state_t *state, bool report_cleanup)
+    setup_provisioning_state_t *state)
 {
     esp_err_t result = ESP_OK;
     esp_err_t unsubscribe_result = ESP_OK;
@@ -782,22 +816,10 @@ static esp_err_t _setup_provisioning_release_foreground(
     }
     if (result != ESP_OK)
     {
-        if (report_cleanup)
-        {
-            app_manager_this_page_report_cleanup_error(result);
-            if (unsubscribe_result != ESP_OK)
-            {
-                app_manager_this_page_report_cleanup_error(unsubscribe_result);
-            }
-        }
         return result;
     }
     if (unsubscribe_result != ESP_OK)
     {
-        if (report_cleanup)
-        {
-            app_manager_this_page_report_cleanup_error(unsubscribe_result);
-        }
         return unsubscribe_result;
     }
     return ESP_OK;
@@ -834,65 +856,81 @@ static esp_err_t _setup_provisioning_resume(
 
 fail:
     lv_label_set_text(state->status_label, "绑定服务不可用");
-    (void)_setup_provisioning_release_foreground(state, false);
+    (void)_setup_provisioning_release_foreground(state);
     return result;
 }
 
-static esp_err_t _setup_provisioning_pause(
-    setup_provisioning_state_t *state)
+static void _setup_provisioning_start(const app_manager_page_context_t *context)
 {
-    _setup_provisioning_scrub(state);
-    return _setup_provisioning_release_foreground(state, true);
+    setup_provisioning_state_t *state = context->state;
+    memset(state, 0, sizeof(*state));
+    state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
 }
 
-static void _setup_provisioning_handler(app_manager_msg_type_t message,
-                                        void *param)
+static void _setup_provisioning_mount_op(
+    const app_manager_page_context_t *context)
 {
-    (void)param;
-    setup_provisioning_state_t *state = app_manager_this_page_memory();
-    switch (message)
-    {
-    case APP_MANAGER_MSG_ONSTART:
-        memset(state, 0, sizeof(*state));
-        state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        break;
-    case APP_MANAGER_MSG_ONMOUNT:
-        _setup_provisioning_mount(state);
-        break;
-    case APP_MANAGER_MSG_ONRESUME:
-        (void)_setup_provisioning_resume(state);
-        break;
-    case APP_MANAGER_MSG_ONPAUSE:
-        (void)_setup_provisioning_pause(state);
-        break;
-    case APP_MANAGER_MSG_ONUNMOUNT:
-        _setup_provisioning_scrub(state);
-        app_ui_page_destroy(&state->page);
-        state->device_label = NULL;
-        state->status_label = NULL;
-        state->remaining_label = NULL;
-        state->passkey_label = NULL;
-        state->confirm_row = NULL;
-        state->confirm_button = NULL;
-        state->deny_button = NULL;
-        break;
-    case APP_MANAGER_MSG_ONSTOP:
-        LOG_I("stopped");
-        break;
-    default:
-        break;
-    }
+    _setup_provisioning_mount(context->state);
 }
+
+static void _setup_provisioning_resume_op(
+    const app_manager_page_context_t *context)
+{
+    (void)_setup_provisioning_resume(context->state);
+}
+
+static esp_err_t _setup_provisioning_pause_op(
+    const app_manager_page_context_t *context)
+{
+    setup_provisioning_state_t *state = context->state;
+    _setup_provisioning_scrub(state);
+    return _setup_provisioning_release_foreground(state);
+}
+
+static void _setup_provisioning_unmount(
+    const app_manager_page_context_t *context)
+{
+    setup_provisioning_state_t *state = context->state;
+    _setup_provisioning_scrub(state);
+    app_ui_page_destroy(&state->page);
+    state->device_label = NULL;
+    state->status_label = NULL;
+    state->remaining_label = NULL;
+    state->passkey_label = NULL;
+    state->confirm_row = NULL;
+    state->confirm_button = NULL;
+    state->deny_button = NULL;
+}
+
+static const app_manager_page_ops_t s_setup_root_ops =
+{
+    .start = _setup_root_start,
+    .mount = _setup_root_mount_op,
+    .resume = _setup_root_resume_op,
+    .pause = _setup_root_pause_op,
+    .unmount = _setup_root_unmount,
+    .stop = _setup_root_pause_op,
+};
+
+static const app_manager_page_ops_t s_setup_provisioning_ops =
+{
+    .start = _setup_provisioning_start,
+    .mount = _setup_provisioning_mount_op,
+    .resume = _setup_provisioning_resume_op,
+    .pause = _setup_provisioning_pause_op,
+    .unmount = _setup_provisioning_unmount,
+    .stop = _setup_provisioning_pause_op,
+};
 
 static const app_manager_page_definition_t s_setup_root_definition =
 {
-    .handler = _setup_root_handler,
+    .ops = &s_setup_root_ops,
     .memory_size = sizeof(setup_root_state_t),
 };
 
 static const app_manager_page_definition_t s_setup_provisioning_definition =
 {
-    .handler = _setup_provisioning_handler,
+    .ops = &s_setup_provisioning_ops,
     .memory_size = sizeof(setup_provisioning_state_t),
 };
 
@@ -910,5 +948,7 @@ static const app_manager_page_route_t s_setup_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT(setup, APP_IMAGE_SETUP_ICON, "网络设置", APP_MANAGER_ID_SETUP, "root",
-                       APP_MANAGER_APP_FLAG_NONE, s_setup_routes);
+APP_MANAGER_APP_EXPORT_META(setup, APP_IMAGE_SETUP_ICON, "网络设置",
+                            APP_MANAGER_ID_SETUP, "root",
+                            APP_MANAGER_APP_FLAG_NONE, s_setup_routes, 60U,
+                            "手机配对与 Wi-Fi");

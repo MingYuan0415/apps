@@ -416,6 +416,7 @@ static lv_obj_t *_weather_root_header_button(weather_root_state_t *state)
 static void _weather_root_build(weather_root_state_t *state)
 {
     app_ui_page_create(&state->page, "天气", true);
+    app_ui_page_set_subtitle(&state->page, "当前位置");
     lv_obj_set_style_pad_row(state->page.content, 6, 0);
     state->city_label = state->page.title;
     lv_obj_set_height(state->city_label, 32);

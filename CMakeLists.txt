@@ -3,19 +3,16 @@
 set(APP_SRCS
     "common/src/app_ui.c"
     "home_app/src/home_app.c"
+    "clock_app/src/clock_app.c"
+    "recorder_app/src/recorder_app.c"
+    "level_app/src/level_app.c"
+    "diagnostics_app/src/diagnostics_app.c"
     "weather_app/src/weather_app.c"
     "weather_app/src/weather_ui.c"
     "weather_app/src/weather_root_page.c"
     "weather_app/src/weather_forecast_page.c"
     "weather_app/src/weather_alert_pages.c"
     "menu_app/src/menu_app.c"
-    "menu_app/src/motion_demo.c"
-    "menu_app/src/audio_demo.c"
-    "menu_app/src/audio_demo_adapter.c"
-    "menu_app/src/storage_demo.c"
-    "menu_app/src/storage_demo_adapter.c"
-    "menu_app/src/clock_demo.c"
-    "menu_app/src/clock_demo_adapter.c"
     "settings_app/src/settings_app.c"
     "settings_app/src/settings_factory_reset_page.c"
     "setup_app/src/setup_app.c"
@@ -30,6 +27,7 @@ idf_component_register(
         "setup_app/src"
     PRIV_INCLUDE_DIRS
         "menu_app/src"
+        "clock_app/src"
     WHOLE_ARCHIVE
     REQUIRES
         esp_common
@@ -44,6 +42,9 @@ idf_component_register(
         device_link_service
         factory_reset_service
         time_service
+        timer_service
+        recorder_service
+        onboarding_service
         weather_service
         power_service
         esp_app_format

@@ -5,91 +5,115 @@
 #include "app_manager.h"
 #include "app_image_ids.h"
 #include "app_ui.h"
-#include "menu_page_definitions.h"
 
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
-
-#define MENU_PAGE_MOTION     "motion"
-#define MENU_PAGE_AUDIO      "audio"
-#define MENU_PAGE_STORAGE    "storage"
-#define MENU_PAGE_CLOCK      "clock"
 
 typedef struct menu_page_state
 {
     app_ui_page_t page;
+    size_t entry_count;
 } menu_page_state_t;
 
 _Static_assert(sizeof(menu_page_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
-               "Menu page state exceeds the lifecycle arena slot");
+               "Applications page state exceeds lifecycle arena slot");
 
-static void _menu_open_page(lv_event_t *event)
+static bool _menu_skip_descriptor(const app_manager_app_desc_t *descriptor)
 {
-    const char *page_id = lv_event_get_user_data(event);
-    app_ui_request_open_page(APP_MANAGER_ID_MENU, page_id);
+    if (descriptor == NULL || descriptor->id == NULL ||
+            descriptor->root_page_id == NULL ||
+            (descriptor->flags & APP_MANAGER_APP_FLAG_HIDDEN) != 0U)
+    {
+        return true;
+    }
+    return strcmp(descriptor->id, APP_MANAGER_ID_HOME) == 0 ||
+           strcmp(descriptor->id, APP_MANAGER_ID_MENU) == 0;
+}
+
+static uint16_t _menu_order(const app_manager_app_desc_t *descriptor)
+{
+    return descriptor->launcher_order == 0U ? UINT16_MAX :
+           descriptor->launcher_order;
 }
 
 static void _menu_open_app(lv_event_t *event)
 {
-    app_ui_request_run(lv_event_get_user_data(event));
+    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
+    {
+        app_ui_request_run(lv_event_get_user_data(event));
+    }
 }
 
 static void _menu_page_build(menu_page_state_t *state)
 {
-    app_ui_page_create(&state->page, "演示中心", true);
+    app_ui_page_create(&state->page, "应用", false);
+    app_ui_page_set_subtitle(&state->page, "设备功能");
 
-    app_ui_add_section(state->page.content, "硬件实验");
-    app_ui_add_action(state->page.content, LV_SYMBOL_GPS, "运动传感",
-                      "实时六轴数据与倾斜指示", _menu_open_page,
-                      (void *)MENU_PAGE_MOTION);
-    app_ui_add_action(state->page.content, LV_SYMBOL_AUDIO, "音频",
-                      "扬声器测试音与麦克风电平", _menu_open_page,
-                      (void *)MENU_PAGE_AUDIO);
-    app_ui_add_action(state->page.content, LV_SYMBOL_SD_CARD, "SD 存储",
-                      "挂载状态、容量与安全读写自检", _menu_open_page,
-                      (void *)MENU_PAGE_STORAGE);
-    app_ui_add_action(state->page.content, LV_SYMBOL_BELL, "时间与 RTC",
-                      "网络校时和清醒状态 Alarm", _menu_open_page,
-                      (void *)MENU_PAGE_CLOCK);
-
-    app_ui_add_section(state->page.content, "设备管理");
-    app_ui_add_action(state->page.content, LV_SYMBOL_WIFI, "网络设置",
-                      "手机配网与保存网络管理", _menu_open_app,
-                      (void *)APP_MANAGER_ID_SETUP);
-    app_ui_add_action(state->page.content, LV_SYMBOL_SETTINGS, "系统设置",
-                      "显示、电源与设备信息", _menu_open_app,
-                      (void *)APP_MANAGER_ID_SETTINGS);
-}
-
-static void _menu_page_handler(app_manager_msg_type_t message, void *param)
-{
-    (void)param;
-    menu_page_state_t *state = app_manager_this_page_memory();
-    switch (message)
+    const app_manager_app_desc_t *ordered[16] = {0};
+    size_t count = 0U;
+    const app_manager_app_desc_t *descriptor = app_manager_builtin_list_open();
+    while (descriptor != NULL && count < sizeof(ordered) / sizeof(ordered[0]))
     {
-    case APP_MANAGER_MSG_ONSTART:
-        memset(state, 0, sizeof(*state));
-        LOG_I("started");
-        break;
-    case APP_MANAGER_MSG_ONMOUNT:
-        if (state->page.root == NULL)
+        if (!_menu_skip_descriptor(descriptor))
         {
-            _menu_page_build(state);
+            size_t insert = count++;
+            while (insert > 0U &&
+                    _menu_order(ordered[insert - 1U]) >
+                    _menu_order(descriptor))
+            {
+                ordered[insert] = ordered[insert - 1U];
+                --insert;
+            }
+            ordered[insert] = descriptor;
         }
-        break;
-    case APP_MANAGER_MSG_ONUNMOUNT:
-        app_ui_page_destroy(&state->page);
-        break;
-    case APP_MANAGER_MSG_ONSTOP:
-        LOG_I("stopped");
-        break;
-    default:
-        break;
+        descriptor = app_manager_builtin_list_get_next(descriptor);
     }
+
+    if (count == 0U)
+    {
+        app_ui_add_body_label(state->page.content, "暂无可用应用");
+        return;
+    }
+    for (size_t index = 0U; index < count; ++index)
+    {
+        const app_manager_app_desc_t *app = ordered[index];
+        const char *name = app->display_name != NULL ? app->display_name :
+                           app->name;
+        app_ui_add_action(state->page.content, LV_SYMBOL_RIGHT, name,
+                          app->launcher_subtitle, _menu_open_app,
+                          (void *)app->id);
+    }
+    state->entry_count = count;
 }
+
+static void _menu_start(const app_manager_page_context_t *context)
+{
+    memset(context->state, 0, sizeof(menu_page_state_t));
+}
+
+static void _menu_mount(const app_manager_page_context_t *context)
+{
+    _menu_page_build(context->state);
+}
+
+static void _menu_unmount(const app_manager_page_context_t *context)
+{
+    menu_page_state_t *state = context->state;
+    app_ui_page_destroy(&state->page);
+}
+
+static const app_manager_page_ops_t s_menu_root_ops =
+{
+    .start = _menu_start,
+    .mount = _menu_mount,
+    .unmount = _menu_unmount,
+};
 
 static const app_manager_page_definition_t s_menu_root_definition =
 {
-    .handler = _menu_page_handler,
+    .ops = &s_menu_root_ops,
     .memory_size = sizeof(menu_page_state_t),
 };
 
@@ -100,27 +124,9 @@ static const app_manager_page_route_t s_menu_routes[] =
         .definition = &s_menu_root_definition,
         .user_data = NULL,
     },
-    {
-        .page_id = MENU_PAGE_MOTION,
-        .definition = &menu_motion_page_definition,
-        .user_data = NULL,
-    },
-    {
-        .page_id = MENU_PAGE_AUDIO,
-        .definition = &menu_audio_page_definition,
-        .user_data = NULL,
-    },
-    {
-        .page_id = MENU_PAGE_STORAGE,
-        .definition = &menu_storage_page_definition,
-        .user_data = NULL,
-    },
-    {
-        .page_id = MENU_PAGE_CLOCK,
-        .definition = &menu_clock_page_definition,
-        .user_data = NULL,
-    },
 };
 
-APP_MANAGER_APP_EXPORT(menu, APP_IMAGE_MENU_ICON, "演示中心", APP_MANAGER_ID_MENU, "root",
-                       APP_MANAGER_APP_FLAG_NONE, s_menu_routes);
+APP_MANAGER_APP_EXPORT_META(menu, APP_IMAGE_MENU_ICON, "应用",
+                            APP_MANAGER_ID_MENU, "root",
+                            APP_MANAGER_APP_FLAG_NONE, s_menu_routes, 5U,
+                            "全部功能");

@@ -55,6 +55,8 @@ typedef struct settings_power_state
 typedef struct settings_about_state
 {
     app_ui_page_t page;
+    uint32_t last_tap_ms;
+    uint8_t tap_count;
 } settings_about_state_t;
 
 _Static_assert(sizeof(settings_root_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -326,40 +328,32 @@ static void _settings_root_resume(settings_root_state_t *state)
                           app_manager_pm_get_standby_delay_ms()));
 }
 
-static void _settings_root_handler(app_manager_msg_type_t message, void *param)
+static void _settings_root_start(const app_manager_page_context_t *context)
 {
-    (void)param;
-    settings_root_state_t *state = app_manager_this_page_memory();
-    switch (message)
-    {
-    case APP_MANAGER_MSG_ONSTART:
-        memset(state, 0, sizeof(*state));
-        state->brightness = app_manager_screen_get_brightness();
-        LOG_I("started");
-        break;
-    case APP_MANAGER_MSG_ONMOUNT:
-        if (state->page.root == NULL)
-        {
-            _settings_root_build(state);
-        }
-        break;
-    case APP_MANAGER_MSG_ONRESUME:
-        _settings_root_resume(state);
-        break;
-    case APP_MANAGER_MSG_ONUNMOUNT:
-        app_ui_page_destroy(&state->page);
-        state->brightness_slider = NULL;
-        state->brightness_value = NULL;
-        state->save_status = NULL;
-        state->screen_timeout_value = NULL;
-        state->standby_timeout_value = NULL;
-        break;
-    case APP_MANAGER_MSG_ONSTOP:
-        LOG_I("stopped");
-        break;
-    default:
-        break;
-    }
+    settings_root_state_t *state = context->state;
+    memset(state, 0, sizeof(*state));
+    state->brightness = app_manager_screen_get_brightness();
+}
+
+static void _settings_root_mount(const app_manager_page_context_t *context)
+{
+    _settings_root_build(context->state);
+}
+
+static void _settings_root_resume_op(const app_manager_page_context_t *context)
+{
+    _settings_root_resume(context->state);
+}
+
+static void _settings_root_unmount(const app_manager_page_context_t *context)
+{
+    settings_root_state_t *state = context->state;
+    app_ui_page_destroy(&state->page);
+    state->brightness_slider = NULL;
+    state->brightness_value = NULL;
+    state->save_status = NULL;
+    state->screen_timeout_value = NULL;
+    state->standby_timeout_value = NULL;
 }
 
 static void _settings_power_render(settings_power_state_t *state,
@@ -505,7 +499,6 @@ static esp_err_t _settings_power_pause(settings_power_state_t *state)
         state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
         return ESP_OK;
     }
-    app_manager_this_page_report_cleanup_error(result);
     return result;
 }
 
@@ -518,36 +511,46 @@ static void _settings_power_unmount(settings_power_state_t *state)
     state->sample_value = NULL;
 }
 
-static void _settings_power_handler(app_manager_msg_type_t message, void *param)
+static void _settings_power_start(const app_manager_page_context_t *context)
 {
-    (void)param;
-    settings_power_state_t *state = app_manager_this_page_memory();
-    switch (message)
+    settings_power_state_t *state = context->state;
+    memset(state, 0, sizeof(*state));
+    state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+}
+
+static void _settings_power_mount(const app_manager_page_context_t *context)
+{
+    _settings_power_build(context->state);
+}
+
+static void _settings_power_resume_op(const app_manager_page_context_t *context)
+{
+    _settings_power_resume(context->state);
+}
+
+static esp_err_t _settings_power_pause_op(
+    const app_manager_page_context_t *context)
+{
+    return _settings_power_pause(context->state);
+}
+
+static void _settings_power_unmount_op(
+    const app_manager_page_context_t *context)
+{
+    _settings_power_unmount(context->state);
+}
+
+static void _settings_about_tap_event(lv_event_t *event)
+{
+    settings_about_state_t *state = lv_event_get_user_data(event);
+    const uint32_t now = lv_tick_get();
+    state->tap_count = now - state->last_tap_ms > 1500U ? 1U :
+                       (uint8_t)(state->tap_count + 1U);
+    state->last_tap_ms = now;
+    if (state->tap_count >= 5U)
     {
-    case APP_MANAGER_MSG_ONSTART:
-        memset(state, 0, sizeof(*state));
-        state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        break;
-    case APP_MANAGER_MSG_ONMOUNT:
-        if (state->page.root == NULL)
-        {
-            _settings_power_build(state);
-        }
-        break;
-    case APP_MANAGER_MSG_ONRESUME:
-        _settings_power_resume(state);
-        break;
-    case APP_MANAGER_MSG_ONPAUSE:
-        (void)_settings_power_pause(state);
-        break;
-    case APP_MANAGER_MSG_ONUNMOUNT:
-        _settings_power_unmount(state);
-        break;
-    case APP_MANAGER_MSG_ONSTOP:
-        (void)_settings_power_pause(state);
-        break;
-    default:
-        break;
+        state->tap_count = 0U;
+        app_ui_request_run(APP_MANAGER_ID_DIAGNOSTICS);
     }
 }
 
@@ -561,6 +564,9 @@ static void _settings_about_build(settings_about_state_t *state)
     lv_obj_set_width(name, LV_PCT(100));
     lv_obj_set_style_text_color(name, lv_color_hex(SETTINGS_TEXT_COLOR), 0);
     lv_obj_set_style_text_font(name, app_ui_font(APP_THEME_FONT_BIGL), 0);
+    lv_obj_add_flag(name, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(name, _settings_about_tap_event, LV_EVENT_CLICKED,
+                        state);
 
     app_ui_add_body_label(state->page.content,
                           "Waveshare ESP32-S3 Touch AMOLED 1.8 阶段演示固件");
@@ -585,39 +591,61 @@ static void _settings_about_build(settings_about_state_t *state)
     }
 }
 
-static void _settings_about_handler(app_manager_msg_type_t message, void *param)
+static void _settings_about_start(const app_manager_page_context_t *context)
 {
-    (void)param;
-    settings_about_state_t *state = app_manager_this_page_memory();
-    if (message == APP_MANAGER_MSG_ONSTART)
-    {
-        memset(state, 0, sizeof(*state));
-    }
-    else if (message == APP_MANAGER_MSG_ONMOUNT && state->page.root == NULL)
-    {
-        _settings_about_build(state);
-    }
-    else if (message == APP_MANAGER_MSG_ONUNMOUNT)
-    {
-        app_ui_page_destroy(&state->page);
-    }
+    memset(context->state, 0, sizeof(settings_about_state_t));
 }
+
+static void _settings_about_mount(const app_manager_page_context_t *context)
+{
+    _settings_about_build(context->state);
+}
+
+static void _settings_about_unmount(const app_manager_page_context_t *context)
+{
+    app_ui_page_destroy(&((settings_about_state_t *)context->state)->page);
+}
+
+static const app_manager_page_ops_t s_settings_root_ops =
+{
+    .start = _settings_root_start,
+    .mount = _settings_root_mount,
+    .resume = _settings_root_resume_op,
+    .unmount = _settings_root_unmount,
+};
+
+static const app_manager_page_ops_t s_settings_power_ops =
+{
+    .start = _settings_power_start,
+    .mount = _settings_power_mount,
+    .resume = _settings_power_resume_op,
+    .pause = _settings_power_pause_op,
+    .unmount = _settings_power_unmount_op,
+    .stop = _settings_power_pause_op,
+};
+
+static const app_manager_page_ops_t s_settings_about_ops =
+{
+    .start = _settings_about_start,
+    .mount = _settings_about_mount,
+    .unmount = _settings_about_unmount,
+};
 
 static const app_manager_page_definition_t s_settings_root_definition =
 {
-    .handler = _settings_root_handler,
+    .ops = &s_settings_root_ops,
     .memory_size = sizeof(settings_root_state_t),
 };
 
 static const app_manager_page_definition_t s_settings_power_definition =
 {
-    .handler = _settings_power_handler,
+    .ops = &s_settings_power_ops,
     .memory_size = sizeof(settings_power_state_t),
 };
 
 static const app_manager_page_definition_t s_settings_about_definition =
 {
-    .handler = _settings_about_handler,
+    .ops = &s_settings_about_ops,
     .memory_size = sizeof(settings_about_state_t),
 };
 
@@ -645,5 +673,7 @@ static const app_manager_page_route_t s_settings_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT(settings, APP_IMAGE_SETTINGS_ICON, "系统设置", APP_MANAGER_ID_SETTINGS, "root",
-                       APP_MANAGER_APP_FLAG_NONE, s_settings_routes);
+APP_MANAGER_APP_EXPORT_META(settings, APP_IMAGE_SETTINGS_ICON, "系统设置",
+                            APP_MANAGER_ID_SETTINGS, "root",
+                            APP_MANAGER_APP_FLAG_NONE, s_settings_routes, 50U,
+                            "设备与电源");

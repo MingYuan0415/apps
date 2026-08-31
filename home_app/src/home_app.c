@@ -10,6 +10,7 @@
 #include "power_service.h"
 #include "sd_storage_service.h"
 #include "time_service.h"
+#include "timer_service.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -26,6 +27,7 @@ typedef struct home_page_state
     lv_obj_t *power_value;
     lv_obj_t *wifi_value;
     lv_obj_t *storage_value;
+    lv_obj_t *timer_value;
     lv_timer_t *refresh_timer;
     event_bus_sub_handle_t power_subscription;
     event_bus_sub_handle_t wifi_subscription;
@@ -201,6 +203,25 @@ static void _home_update_cached_status(home_page_state_t *state)
                            mounted ? "已挂载" : "未挂载",
                            mounted ? APP_UI_STATUS_SUCCESS :
                            APP_UI_STATUS_WARNING);
+
+    timer_service_snapshot_t timer;
+    if (timer_service_get_snapshot(&timer) == ESP_OK &&
+            (timer.countdown_state == TIMER_SERVICE_RUNNING ||
+             timer.focus_state == TIMER_SERVICE_RUNNING))
+    {
+        const uint32_t remaining = timer.focus_state == TIMER_SERVICE_RUNNING ?
+                                   timer.focus_remaining_ms :
+                                   timer.countdown_remaining_ms;
+        char text[32];
+        (void)snprintf(text, sizeof(text), "%02u:%02u",
+                       (unsigned)(remaining / 60000U),
+                       (unsigned)((remaining / 1000U) % 60U));
+        app_ui_set_status_text(state->timer_value, text, APP_UI_STATUS_ACCENT);
+    }
+    else
+    {
+        app_ui_set_status_text(state->timer_value, "无", APP_UI_STATUS_NEUTRAL);
+    }
 }
 
 static void _home_refresh_timer(lv_timer_t *timer)
@@ -296,20 +317,25 @@ static void _home_page_build(home_page_state_t *state)
                          &state->wifi_value);
     app_ui_add_value_row(state->page.content, "SD 卡", "检查中",
                          &state->storage_value);
+    app_ui_add_value_row(state->page.content, "当前计时", "无",
+                         &state->timer_value);
 
     app_ui_add_section(state->page.content, "快捷入口");
     app_ui_add_action(state->page.content, LV_SYMBOL_GPS, "天气",
                       "当前、24 小时、7 日与气象预警", _home_open_app,
                       (void *)APP_MANAGER_ID_WEATHER);
-    app_ui_add_action(state->page.content, LV_SYMBOL_LIST, "演示中心",
-                      "传感器、音频、存储与时间实验", _home_open_app,
-                      (void *)APP_MANAGER_ID_MENU);
-    app_ui_add_action(state->page.content, LV_SYMBOL_WIFI, "网络设置",
-                      "扫描并连接 Wi-Fi", _home_open_app,
-                      (void *)APP_MANAGER_ID_SETUP);
+    app_ui_add_action(state->page.content, LV_SYMBOL_BELL, "时钟",
+                      "倒计时、秒表与专注", _home_open_app,
+                      (void *)APP_MANAGER_ID_CLOCK);
+    app_ui_add_action(state->page.content, LV_SYMBOL_AUDIO, "录音",
+                      "WAV 语音备忘", _home_open_app,
+                      (void *)APP_MANAGER_ID_RECORDER);
     app_ui_add_action(state->page.content, LV_SYMBOL_SETTINGS, "系统设置",
                       "显示、电源与设备信息", _home_open_app,
                       (void *)APP_MANAGER_ID_SETTINGS);
+    app_ui_add_action(state->page.content, LV_SYMBOL_LIST, "应用",
+                      "查看设备上的全部功能", _home_open_app,
+                      (void *)APP_MANAGER_ID_MENU);
 
     _home_update_clock(state);
     _home_update_cached_status(state);
@@ -389,10 +415,6 @@ static esp_err_t _home_page_pause(home_page_state_t *state)
         lv_timer_delete(state->refresh_timer);
         state->refresh_timer = NULL;
     }
-    if (first_error != ESP_OK)
-    {
-        app_manager_this_page_report_cleanup_error(first_error);
-    }
     return first_error;
 }
 
@@ -407,47 +429,47 @@ static void _home_page_unmount(home_page_state_t *state)
     state->storage_value = NULL;
 }
 
-static void _home_page_handler(app_manager_msg_type_t message, void *param)
+static void _home_start(const app_manager_page_context_t *context)
 {
-    (void)param;
-    home_page_state_t *state = app_manager_this_page_memory();
-    switch (message)
-    {
-    case APP_MANAGER_MSG_ONSTART:
-        memset(state, 0, sizeof(*state));
-        state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        state->wifi_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        LOG_I("started");
-        break;
-    case APP_MANAGER_MSG_ONMOUNT:
-        if (state->page.root == NULL)
-        {
-            _home_page_build(state);
-        }
-        break;
-    case APP_MANAGER_MSG_ONRESUME:
-        _home_page_resume(state);
-        break;
-    case APP_MANAGER_MSG_ONPAUSE:
-        (void)_home_page_pause(state);
-        break;
-    case APP_MANAGER_MSG_ONUNMOUNT:
-        _home_page_unmount(state);
-        break;
-    case APP_MANAGER_MSG_ONSTOP:
-        if (_home_page_pause(state) == ESP_OK)
-        {
-            LOG_I("stopped");
-        }
-        break;
-    default:
-        break;
-    }
+    home_page_state_t *state = context->state;
+    memset(state, 0, sizeof(*state));
+    state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+    state->wifi_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
 }
+
+static void _home_mount(const app_manager_page_context_t *context)
+{
+    _home_page_build(context->state);
+}
+
+static void _home_resume(const app_manager_page_context_t *context)
+{
+    _home_page_resume(context->state);
+}
+
+static esp_err_t _home_pause(const app_manager_page_context_t *context)
+{
+    return _home_page_pause(context->state);
+}
+
+static void _home_unmount(const app_manager_page_context_t *context)
+{
+    _home_page_unmount(context->state);
+}
+
+static const app_manager_page_ops_t s_home_ops =
+{
+    .start = _home_start,
+    .mount = _home_mount,
+    .resume = _home_resume,
+    .pause = _home_pause,
+    .unmount = _home_unmount,
+    .stop = _home_pause,
+};
 
 static const app_manager_page_definition_t s_home_root_definition =
 {
-    .handler = _home_page_handler,
+    .ops = &s_home_ops,
     .memory_size = sizeof(home_page_state_t),
 };
 
@@ -460,5 +482,6 @@ static const app_manager_page_route_t s_home_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT(home, APP_IMAGE_HOME_ICON, "主页", APP_MANAGER_ID_HOME, "root",
-                       APP_MANAGER_APP_FLAG_PINNED, s_home_routes);
+APP_MANAGER_APP_EXPORT_META(home, APP_IMAGE_HOME_ICON, "主页", APP_MANAGER_ID_HOME,
+                            "root", APP_MANAGER_APP_FLAG_PINNED, s_home_routes,
+                            1U, "今日概览");

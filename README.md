@@ -5,8 +5,8 @@
 ## 目录结构与应用
 
 - `common/`：统一 368 x 448 页面骨架、标题栏、导航/命令行、值行和语义状态，保留异步导航 API。
-- `home_app/`：显示本地时间与质量、电量/供电、Wi-Fi 和 SD 挂载状态，提供演示中心、配网和设置入口；最近任务由 App Manager 的系统任务切换器（Sys Layer 界面）提供，不属于任何 App 页面。
-- `menu_app/`：作为演示中心，包含运动传感、音频、SD 存储和时间/RTC 四个静态页；音频、文件和 RTC 操作均由页面自有 worker 执行。
+- `home_app/`：显示本地时间与质量、电量/供电、Wi-Fi、SD 和活动计时状态，提供天气、时钟、录音、设置与应用入口；最近任务由 App Manager 的系统任务切换器提供。
+- `menu_app/`：按注册 descriptor 构建应用目录，统一展示图标、名称和功能摘要。
 - `settings_app/`：提供亮度、固定熄屏/待机延迟选项、电源详情、运行时固件描述及恢复出厂设置两步确认页。恢复请求只有在 reset journal 持久化成功后才进入不可重复点击的重启等待状态；保存失败时页面保留并允许重试。
 - `setup_app/`：开启限时 BLE 绑定窗口，显示六位 Numeric Comparison 并在本机确认，同时管理已保存网络的断开、重连、自动连接和忘记操作；不再在设备侧扫描、选择网络或输入密码。
 - `weather_app/`：展示当前天气、预警、24 小时和 7 日预报，包含预警列表与详情页；只消费 `weather_service` 快照，不执行网络、JSON 或缓存 I/O。
@@ -18,9 +18,9 @@
 `icon_id` 指向同一资源表，缺失时由系统界面回退到 LVGL symbol；新增资源需要同时更新
 manifest、语义 ID 和资源测试。
 
-每个应用以普通 `const` Page definition 描述互斥的 typed ops 或 raw handler 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。只有 `APP_MANAGER_APP_EXPORT` 产生的 App descriptor 进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。公共 Page definition 可被多个 App route 引用，但未显式绑定的 App 不能导航到它，也不支持运行时自由挂载。新增应用时应在独立目录中实现生命周期 ops 或 handler，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，不要使用递归 glob。
+每个应用以普通 `const` Page definition 描述 typed ops 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。只有 `APP_MANAGER_APP_EXPORT_META` 产生的 App descriptor 进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。新增应用时应在独立目录中实现生命周期 ops，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，同时提供图标 manifest，不要使用递归 glob。
 
-页面 UI 只在 `ONMOUNT/ONUNMOUNT` 中创建和销毁，根对象必须挂到 Page Screen。Timer、事件订阅、worker 和服务会话只在 `ONRESUME/ONPAUSE` 中启停；清理失败须保留资源 handle 并允许生命周期重试。每个页面私有状态都以静态断言约束在 `APP_MANAGER_PAGE_STATE_BYTES` 内。Weather 的四个页面使用类型化 Page ops，预警详情通过 Typed Blob 接收值复制的 alert key，是新增生产页面的首选参考；现有硬件 demo 暂时保留 raw handler，后续单独迁移。
+页面 UI 只在 `ONMOUNT/ONUNMOUNT` 中创建和销毁，根对象必须挂到 Page Screen。Timer、事件订阅、worker 和服务会话只在 `ONRESUME/ONPAUSE` 中启停；清理失败须保留资源 handle 并允许生命周期重试。每个页面私有状态都以静态断言约束在 `APP_MANAGER_PAGE_STATE_BYTES` 内。所有产品页面使用类型化 Page ops，预警详情通过 Typed Blob 接收值复制的 alert key；新增页面沿用同一生命周期边界。
 
 Weather 页面恢复前台时订阅 `WEATHER_SERVICE_MSG` 并 acquire 当前不可变快照，暂停时
 先退订再 release；事件只触发按 generation 重取，不复制小时、逐日或预警数组。预警详情
@@ -28,7 +28,9 @@ Weather 页面恢复前台时订阅 `WEATHER_SERVICE_MSG` 并 acquire 当前不�
 的临时格式化缓冲使用 PSRAM。图片按语义 ID 查询 mmap 描述符，资源缺失时使用 LVGL
 symbol，不在页面状态中保存文件路径或可变图片 payload。
 
-SD 自检仅在已挂载的 `/sdcard` 下以 `O_EXCL` 创建本次独占的 4 KiB 临时文件，分块写入、读回校验并删除；不枚举、覆盖或格式化用户文件。未挂载时应用只提示插卡后重启，不调用存储服务的 init/deinit。
+录音应用使用 `recorder_service` 写入 16 kHz/16-bit/双声道 WAV，录音完成后将临时
+`.part` 原子改名为 `.wav`，可在目录内播放或删除；服务不可用时页面保持可见并允许重试。
+水平仪使用 IMU 加速度计算横纵倾角；诊断页面通过设置中的五次点击入口打开，不出现在普通应用目录。
 
 ## ESP-IDF 集成
 
