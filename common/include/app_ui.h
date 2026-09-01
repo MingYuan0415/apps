@@ -41,6 +41,12 @@ typedef enum
 void app_ui_page_create(app_ui_page_t *page, const char *title, bool show_back);
 
 /**
+ * @brief Create the headerless full-screen Home page layout.
+ * @param page receives the created root and content objects.
+ */
+void app_ui_page_create_home(app_ui_page_t *page);
+
+/**
  * @brief Replace the primary text in a page header.
  * @param page owns the header.
  * @param title is copied by LVGL into the title label.
@@ -92,6 +98,19 @@ lv_obj_t *app_ui_add_action(lv_obj_t *parent, const char *symbol,
 lv_obj_t *app_ui_add_command(lv_obj_t *parent, const char *symbol,
                              const char *title, const char *subtitle,
                              lv_event_cb_t callback, void *user_data);
+
+/**
+ * @brief Add a fixed-size semantic icon button.
+ * @param parent is the row or container that owns the button.
+ * @param image_id is the semantic image ID, or zero to skip image lookup.
+ * @param fallback_symbol is used when the image is unavailable.
+ * @param callback receives click events.
+ * @param user_data is retained as LVGL event user data.
+ * @return Created button, or NULL when allocation fails.
+ */
+lv_obj_t *app_ui_add_icon_button(lv_obj_t *parent, uint32_t image_id,
+                                 const char *fallback_symbol,
+                                 lv_event_cb_t callback, void *user_data);
 /**
  * @brief Add a name/value row and optionally return its value label.
  * @param parent is the LVGL parent object.

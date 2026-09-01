@@ -13,6 +13,10 @@ typedef struct lv_font_t
 {
     uint8_t marker;
 } lv_font_t;
+typedef struct lv_image_dsc_t
+{
+    uint32_t marker;
+} lv_image_dsc_t;
 
 typedef uint32_t lv_color_t;
 typedef int32_t lv_event_code_t;
@@ -56,6 +60,7 @@ typedef struct lv_draw_buf
 #define LV_OBJ_FLAG_SCROLL_CHAIN     16
 #define LV_OBJ_FLAG_SCROLL_ELASTIC   32
 #define LV_OBJ_FLAG_SCROLL_MOMENTUM  64
+#define LV_OBJ_FLAG_HIDDEN            128
 #define LV_OPA_COVER                 255
 #define LV_SCROLLBAR_MODE_AUTO       0
 #define LV_SIZE_CONTENT              (-1)
@@ -67,6 +72,14 @@ typedef struct lv_draw_buf
 #define LV_SYMBOL_LEFT              "left"
 #define LV_SYMBOL_RIGHT             "right"
 #define LV_SYMBOL_TRASH             "trash"
+#define LV_SYMBOL_WIFI              "wifi"
+#define LV_SYMBOL_BLUETOOTH         "bluetooth"
+#define LV_SYMBOL_BATTERY_FULL      "battery"
+#define LV_SYMBOL_GPS               "weather"
+#define LV_SYMBOL_BELL              "clock"
+#define LV_SYMBOL_AUDIO             "audio"
+#define LV_SYMBOL_SETTINGS          "settings"
+#define LV_SYMBOL_LIST              "list"
 
 /** @brief Create a fake generic object. */
 lv_obj_t *lv_obj_create(lv_obj_t *parent);
@@ -74,6 +87,10 @@ lv_obj_t *lv_obj_create(lv_obj_t *parent);
 lv_obj_t *lv_button_create(lv_obj_t *parent);
 /** @brief Create a fake label. */
 lv_obj_t *lv_label_create(lv_obj_t *parent);
+/** @brief Create a fake image. */
+lv_obj_t *lv_image_create(lv_obj_t *parent);
+/** @brief Set a fake image source. */
+void lv_image_set_src(lv_obj_t *object, const lv_image_dsc_t *source);
 /** @brief Delete a fake object. */
 void lv_obj_delete(lv_obj_t *object);
 /** @brief Register a fake object event callback. */

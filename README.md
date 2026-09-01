@@ -7,7 +7,7 @@
 - `common/`：统一 368 x 448 页面骨架、标题栏、导航/命令行、值行和语义状态，保留异步导航 API。
 - `home_app/`：显示本地时间与质量、电量/供电、Wi-Fi、SD 和活动计时状态，提供天气、时钟、录音、设置与应用入口；最近任务由 App Manager 的系统任务切换器提供。
 - `menu_app/`：按注册 descriptor 构建应用目录，统一展示图标、名称和功能摘要。
-- `settings_app/`：提供亮度、固定熄屏/待机延迟选项、电源详情、运行时固件描述及恢复出厂设置两步确认页。恢复请求只有在 reset journal 持久化成功后才进入不可重复点击的重启等待状态；保存失败时页面保留并允许重试。
+- `settings_app/`：提供亮度、固定熄屏/待机延迟选项、电源详情、连接管理、时间状态、SD 存储状态、运行时固件描述及恢复出厂设置两步确认页。恢复请求只有在 reset journal 持久化成功后才进入不可重复点击的重启等待状态；保存失败时页面保留并允许重试。
 - `setup_app/`：开启限时 BLE 绑定窗口，显示六位 Numeric Comparison 并在本机确认，同时管理已保存网络的断开、重连、自动连接和忘记操作；不再在设备侧扫描、选择网络或输入密码。
 - `weather_app/`：展示当前天气、预警、24 小时和 7 日预报，包含预警列表与详情页；只消费 `weather_service` 快照，不执行网络、JSON 或缓存 I/O。
 - `tests/host/`：共用导航和 Setup Wi-Fi adapter 的宿主测试及最小依赖 fake。
@@ -32,9 +32,10 @@ Weather 页面恢复前台时订阅 `WEATHER_SERVICE_MSG` 并 acquire 当前不�
 的临时格式化缓冲使用 PSRAM。图片按语义 ID 查询 mmap 描述符，资源缺失时使用 LVGL
 symbol，不在页面状态中保存文件路径或可变图片 payload。
 
-录音应用使用 `recorder_service` 写入 16 kHz/16-bit/双声道 WAV，录音完成后将临时
-`.part` 原子改名为 `.wav`，可在目录内播放或删除；服务不可用时页面保持可见并允许重试。
-水平仪使用 IMU 加速度计算横纵倾角；诊断页面通过设置中的五次点击入口打开，不出现在普通应用目录。
+录音应用使用 `recorder_service` 写入 16 kHz/16-bit/双声道 WAV。录音、播放、删除和
+`.part` 到 `.wav` 的 finalize 均由 service worker 异步执行，页面只提交命令并读取
+generation snapshot；服务不可用或 finalize 失败时页面保持可见并允许重试。
+水平仪使用 IMU 加速度计算横纵倾角，校准读写通过 `chore_service` 的短任务完成，页面只消费结果；诊断页面通过设置中的五次点击入口打开，不出现在普通应用目录。
 
 ## ESP-IDF 集成
 
@@ -48,7 +49,7 @@ set(EXTRA_COMPONENT_DIRS
 )
 ```
 
-在固件入口组件中声明 `PRIV_REQUIRES apps`，确保内置应用归档参与最终链接。工程还需提供 `app_core`、`app_theme`、`event_bus`、`connectivity_manager`、`device_link_service`、`factory_reset_service`、`time_service`、`power_service`、`imu_service`、`audio_service`、`sd_storage_service`、`freertos`、`heap`、`fatfs`、`esp_app_format`、`esp_hw_support`、`mt_log` 和 LVGL；具体依赖以根 `CMakeLists.txt` 为准。组件要求 ESP-IDF 5.1 或更高版本，并启用外部 RAM task stack 支持。
+在固件入口组件中声明 `PRIV_REQUIRES apps`，确保内置应用归档参与最终链接。工程还需提供 `app_core`、`app_theme`、`event_bus`、`chore_service`、`connectivity_manager`、`device_link_service`、`factory_reset_service`、`time_service`、`power_service`、`imu_service`、`audio_service`、`sd_storage_service`、`freertos`、`heap`、`fatfs`、`esp_app_format`、`esp_hw_support`、`mt_log` 和 LVGL；具体依赖以根 `CMakeLists.txt` 为准。组件要求 ESP-IDF 5.1 或更高版本，并启用外部 RAM task stack 支持。
 
 ## 宿主测试
 
@@ -61,7 +62,7 @@ ctest --test-dir /tmp/mt-apps-host --output-on-failure
 
 `APPS_SANITIZER` 还支持 `address`（ASan/UBSan）和 `thread`（TSan）。当前宿主测试验证 RUN/BACK/OPEN_PAGE 请求、统一命令池准入失败、ID 值复制、completion 恰好一次、恢复出厂确认页的失败重试与成功防重复，以及保存网络操作过滤、快照回调和取消清理；不替代 ESP32-S3 上的界面、Numeric Comparison 确认、BLE、无线和内存验证。
 
-音频、存储和时钟 worker adapter 的故障恢复测试，以及四个演示页的跨层生命周期测试位于主工程 `tests/integration/`，通过 `CROSS_LAYER_SANITIZER` 分别运行普通、ASan/UBSan 和 TSan 配置。
+音频、存储和时钟 worker adapter 的故障恢复测试，以及产品页面的跨层生命周期测试位于主工程 `tests/integration/`，通过 `CROSS_LAYER_SANITIZER` 分别运行普通、ASan/UBSan 和 TSan 配置。
 
 ## 设计与修改边界
 

@@ -7,6 +7,7 @@
 #include "app_ui.h"
 #include "audio_service.h"
 #include "connectivity_manager.h"
+#include "device_link_service.h"
 #include "imu_service.h"
 #include "recorder_service.h"
 #include "sd_storage_service.h"
@@ -23,6 +24,8 @@ typedef struct diagnostics_page_state
     lv_obj_t *audio;
     lv_obj_t *storage;
     lv_obj_t *time;
+    lv_obj_t *wifi;
+    lv_obj_t *bluetooth;
     lv_timer_t *refresh_timer;
 } diagnostics_page_state_t;
 
@@ -42,6 +45,29 @@ static void _diagnostics_render(diagnostics_page_state_t *state)
     const time_service_quality_t quality = time_service_get_quality();
     lv_label_set_text(state->time, quality == TIME_SERVICE_QUALITY_INVALID ?
                       "RTC/NTP：未校准" : "RTC/NTP：有效");
+    connectivity_manager_status_snapshot_t wifi;
+    if (connectivity_manager_get_status(&wifi) == ESP_OK)
+    {
+        lv_label_set_text_fmt(state->wifi, "Wi-Fi：%s",
+                              wifi.state == CONNECTIVITY_MANAGER_STATE_IP_READY ?
+                              (wifi.ssid[0] != '\0' ? wifi.ssid : "已连接") :
+                              (wifi.available ? "未连接" : "不可用"));
+    }
+    else
+    {
+        lv_label_set_text(state->wifi, "Wi-Fi：不可用");
+    }
+    device_link_service_status_t bluetooth;
+    if (device_link_service_get_status(&bluetooth) == ESP_OK)
+    {
+        lv_label_set_text(state->bluetooth,
+                          bluetooth.bound ? "蓝牙：已绑定" :
+                          (bluetooth.active ? "蓝牙：绑定窗口" : "蓝牙：未绑定"));
+    }
+    else
+    {
+        lv_label_set_text(state->bluetooth, "蓝牙：不可用");
+    }
     app_ui_set_status_text(state->status, "诊断页面仅供维护使用",
                            APP_UI_STATUS_NEUTRAL);
 }
@@ -61,6 +87,8 @@ static void _diagnostics_mount(const app_manager_page_context_t *context)
     state->audio = app_ui_add_body_label(state->page.content, "音频：--");
     state->storage = app_ui_add_body_label(state->page.content, "SD：--");
     state->time = app_ui_add_body_label(state->page.content, "RTC/NTP：--");
+    state->wifi = app_ui_add_body_label(state->page.content, "Wi-Fi：--");
+    state->bluetooth = app_ui_add_body_label(state->page.content, "蓝牙：--");
     state->refresh_timer = lv_timer_create(_diagnostics_refresh, 1000U, state);
     _diagnostics_render(state);
 }
@@ -99,6 +127,8 @@ static void _diagnostics_unmount(const app_manager_page_context_t *context)
     state->audio = NULL;
     state->storage = NULL;
     state->time = NULL;
+    state->wifi = NULL;
+    state->bluetooth = NULL;
 }
 
 static const app_manager_page_ops_t s_diagnostics_ops =

@@ -60,6 +60,7 @@ endfunction()
 
 add_executable(app_ui_navigation_test
     app_ui_navigation_test.c
+    lvgl_image_fake.c
     ../../common/src/app_ui.c
 )
 
@@ -83,6 +84,7 @@ add_apps_host_test(app_ui_navigation_test app_ui_navigation_test)
 
 add_executable(settings_factory_reset_page_test
     settings_factory_reset_page_test.c
+    lvgl_image_fake.c
     ../../common/src/app_ui.c
     ../../settings_app/src/settings_factory_reset_page.c
 )

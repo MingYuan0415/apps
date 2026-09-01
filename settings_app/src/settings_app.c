@@ -5,9 +5,13 @@
 #include "app_manager.h"
 #include "app_image_ids.h"
 #include "app_ui.h"
+#include "connectivity_manager.h"
+#include "device_link_service.h"
 #include "esp_app_desc.h"
 #include "event_bus.h"
 #include "power_service.h"
+#include "sd_storage_service.h"
+#include "time_service.h"
 #include "settings_factory_reset_page.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -19,6 +23,8 @@
 #define SETTINGS_PAGE_POWER     "power"
 #define SETTINGS_PAGE_ABOUT     "about"
 #define SETTINGS_PAGE_FACTORY_RESET "factory-reset"
+#define SETTINGS_PAGE_TIME        "time"
+#define SETTINGS_PAGE_STORAGE     "storage"
 #define SETTINGS_SURFACE_COLOR  0x1A2024
 #define SETTINGS_PRESSED_COLOR  0x252D32
 #define SETTINGS_TEXT_COLOR     0xF2F5F6
@@ -40,6 +46,9 @@ struct settings_root_state
     lv_obj_t *save_status;
     lv_obj_t *screen_timeout_value;
     lv_obj_t *standby_timeout_value;
+    lv_obj_t *wifi_value;
+    lv_obj_t *bluetooth_value;
+    lv_obj_t *storage_value;
     settings_timeout_action_t timeout_actions[7];
     uint8_t brightness;
 };
@@ -61,12 +70,23 @@ typedef struct settings_about_state
     uint8_t tap_count;
 } settings_about_state_t;
 
+typedef struct settings_info_state
+{
+    app_ui_page_t page;
+    lv_obj_t *source_value;
+    lv_obj_t *detail_value;
+    lv_timer_t *refresh_timer;
+    bool storage;
+} settings_info_state_t;
+
 _Static_assert(sizeof(settings_root_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Settings root state exceeds the lifecycle arena slot");
 _Static_assert(sizeof(settings_power_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Settings power state exceeds the lifecycle arena slot");
 _Static_assert(sizeof(settings_about_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Settings about state exceeds the lifecycle arena slot");
+_Static_assert(sizeof(settings_info_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
+               "Settings info state exceeds the lifecycle arena slot");
 
 static const char *_settings_screen_timeout_text(int32_t timeout_ms)
 {
@@ -211,6 +231,24 @@ static void _settings_open_power_event(lv_event_t *event)
     app_ui_request_open_page(APP_MANAGER_ID_SETTINGS, SETTINGS_PAGE_POWER);
 }
 
+static void _settings_open_connection_event(lv_event_t *event)
+{
+    (void)event;
+    app_ui_request_run(APP_MANAGER_ID_SETUP);
+}
+
+static void _settings_open_time_event(lv_event_t *event)
+{
+    (void)event;
+    app_ui_request_open_page(APP_MANAGER_ID_SETTINGS, SETTINGS_PAGE_TIME);
+}
+
+static void _settings_open_storage_event(lv_event_t *event)
+{
+    (void)event;
+    app_ui_request_open_page(APP_MANAGER_ID_SETTINGS, SETTINGS_PAGE_STORAGE);
+}
+
 static void _settings_open_about_event(lv_event_t *event)
 {
     (void)event;
@@ -222,6 +260,84 @@ static void _settings_open_factory_reset_event(lv_event_t *event)
     (void)event;
     app_ui_request_open_page(APP_MANAGER_ID_SETTINGS,
                              SETTINGS_PAGE_FACTORY_RESET);
+}
+
+static void _settings_info_refresh(lv_timer_t *timer)
+{
+    settings_info_state_t *state = lv_timer_get_user_data(timer);
+    if (state->storage)
+    {
+        const bool mounted = sd_storage_service_is_mounted();
+        app_ui_set_status_text(state->source_value,
+                               mounted ? "已挂载" : "未挂载",
+                               mounted ? APP_UI_STATUS_SUCCESS :
+                               APP_UI_STATUS_WARNING);
+        lv_label_set_text(state->detail_value,
+                          mounted ? sd_storage_service_get_mount_path() :
+                          "可在重新插入 SD 卡后重试");
+        return;
+    }
+    const time_service_quality_t quality = time_service_get_quality();
+    struct tm local_time;
+    char text[64];
+    const char *quality_text = quality == TIME_SERVICE_QUALITY_NTP ? "网络校时" :
+                               (quality == TIME_SERVICE_QUALITY_RTC ? "RTC" :
+                                (quality == TIME_SERVICE_QUALITY_MANUAL ?
+                                 "手动设置" : "无有效时间"));
+    app_ui_set_status_text(state->source_value, quality_text,
+                           quality == TIME_SERVICE_QUALITY_INVALID ?
+                           APP_UI_STATUS_WARNING : APP_UI_STATUS_SUCCESS);
+    if (time_service_get_local(&local_time) == ESP_OK)
+    {
+        (void)strftime(text, sizeof(text), "%Y-%m-%d %H:%M:%S", &local_time);
+        lv_label_set_text(state->detail_value, text);
+    }
+    else
+    {
+        lv_label_set_text(state->detail_value, "等待有效时间");
+    }
+}
+
+static void _settings_info_mount(const app_manager_page_context_t *context)
+{
+    settings_info_state_t *state = context->state;
+    app_ui_page_create(&state->page, state->storage ? "存储管理" : "时间设置",
+                       false);
+    app_ui_page_set_subtitle(&state->page,
+                             state->storage ? "SD 卡与容量" : "时区与校时");
+    app_ui_add_section(state->page.content,
+                       state->storage ? "存储状态" : "时间状态");
+    app_ui_add_value_row(state->page.content,
+                         state->storage ? "SD 卡" : "时间来源", "读取中",
+                         &state->source_value);
+    app_ui_add_value_row(state->page.content,
+                         state->storage ? "挂载路径" : "当前时间", "读取中",
+                         &state->detail_value);
+    if (state->storage)
+    {
+        app_ui_add_body_label(state->page.content,
+                              "安全卸载将在录音停止后由存储服务执行。");
+    }
+    else
+    {
+        app_ui_add_body_label(state->page.content,
+                              "网络校时需要设备已连接 Wi-Fi。");
+    }
+    state->refresh_timer = lv_timer_create(_settings_info_refresh, 1000U, state);
+    _settings_info_refresh(state->refresh_timer);
+}
+
+static void _settings_info_unmount(const app_manager_page_context_t *context)
+{
+    settings_info_state_t *state = context->state;
+    if (state->refresh_timer != NULL)
+    {
+        lv_timer_delete(state->refresh_timer);
+        state->refresh_timer = NULL;
+    }
+    app_ui_page_destroy(&state->page);
+    state->source_value = NULL;
+    state->detail_value = NULL;
 }
 
 static void _settings_root_build(settings_root_state_t *state)
@@ -303,12 +419,29 @@ static void _settings_root_build(settings_root_state_t *state)
     (void)_settings_add_segment(state, standby_options, "从不", -1, true, 6);
 
     app_ui_add_section(state->page.content, "设备");
+    app_ui_add_value_row(state->page.content, "Wi-Fi", "读取中",
+                         &state->wifi_value);
+    app_ui_add_value_row(state->page.content, "蓝牙", "读取中",
+                         &state->bluetooth_value);
+    app_ui_add_value_row(state->page.content, "存储", "读取中",
+                         &state->storage_value);
     app_ui_add_action(state->page.content, LV_SYMBOL_POWER, "电源状态",
                       "电池、供电与熄屏控制", _settings_open_power_event, NULL);
+    app_ui_add_action(state->page.content, LV_SYMBOL_BLUETOOTH,
+                      "连接管理", "BLE 绑定与 Wi-Fi 网络",
+                      _settings_open_connection_event, NULL);
+    app_ui_add_action(state->page.content, LV_SYMBOL_HOME,
+                      "时间设置", "时区、时间来源与校时状态",
+                      _settings_open_time_event, NULL);
+    app_ui_add_action(state->page.content, LV_SYMBOL_SD_CARD,
+                      "存储管理", "SD 卡状态与容量信息",
+                      _settings_open_storage_event, NULL);
     app_ui_add_action(state->page.content, LV_SYMBOL_EYE_OPEN, "关于设备",
                       "硬件与固件构建信息", _settings_open_about_event, NULL);
 
     app_ui_add_section(state->page.content, "维护");
+    app_ui_add_body_label(state->page.content,
+                          "固件更新：暂不可用（需要后台或 App 支持）");
     app_ui_add_action(state->page.content, LV_SYMBOL_TRASH, "恢复出厂设置",
                       "清除本机数据并重新启动",
                       _settings_open_factory_reset_event, NULL);
@@ -328,6 +461,43 @@ static void _settings_root_resume(settings_root_state_t *state)
     lv_label_set_text(state->standby_timeout_value,
                       _settings_standby_timeout_text(
                           app_manager_pm_get_standby_delay_ms()));
+
+    connectivity_manager_status_snapshot_t wifi;
+    if (connectivity_manager_get_status(&wifi) == ESP_OK)
+    {
+        const char *wifi_text = wifi.state == CONNECTIVITY_MANAGER_STATE_IP_READY ?
+                                (wifi.ssid[0] != '\0' ? wifi.ssid : "已连接") :
+                                (wifi.state == CONNECTIVITY_MANAGER_STATE_CONNECTING ?
+                                 "连接中" : "未连接");
+        app_ui_set_status_text(state->wifi_value, wifi_text,
+                               wifi.state == CONNECTIVITY_MANAGER_STATE_IP_READY ?
+                               APP_UI_STATUS_SUCCESS : APP_UI_STATUS_NEUTRAL);
+    }
+    else
+    {
+        app_ui_set_status_text(state->wifi_value, "不可用",
+                               APP_UI_STATUS_ERROR);
+    }
+
+    device_link_service_status_t bluetooth;
+    if (device_link_service_get_status(&bluetooth) == ESP_OK)
+    {
+        app_ui_set_status_text(state->bluetooth_value,
+                               bluetooth.bound ? "已绑定" :
+                               (bluetooth.active ? "绑定窗口开启" : "未绑定"),
+                               bluetooth.bound ? APP_UI_STATUS_SUCCESS :
+                               (bluetooth.active ? APP_UI_STATUS_ACCENT :
+                                APP_UI_STATUS_NEUTRAL));
+    }
+    else
+    {
+        app_ui_set_status_text(state->bluetooth_value, "不可用",
+                               APP_UI_STATUS_ERROR);
+    }
+    app_ui_set_status_text(state->storage_value,
+                           sd_storage_service_is_mounted() ? "已挂载" : "未挂载",
+                           sd_storage_service_is_mounted() ?
+                           APP_UI_STATUS_SUCCESS : APP_UI_STATUS_WARNING);
 }
 
 static void _settings_root_start(const app_manager_page_context_t *context)
@@ -355,6 +525,9 @@ static void _settings_root_unmount(const app_manager_page_context_t *context)
     state->save_status = NULL;
     state->screen_timeout_value = NULL;
     state->standby_timeout_value = NULL;
+    state->wifi_value = NULL;
+    state->bluetooth_value = NULL;
+    state->storage_value = NULL;
 }
 
 static void _settings_power_render(settings_power_state_t *state,
@@ -622,6 +795,30 @@ static const app_manager_page_ops_t s_settings_about_ops =
     .unmount = _settings_about_unmount,
 };
 
+static void _settings_time_start(const app_manager_page_context_t *context)
+{
+    ((settings_info_state_t *)context->state)->storage = false;
+}
+
+static void _settings_storage_start(const app_manager_page_context_t *context)
+{
+    ((settings_info_state_t *)context->state)->storage = true;
+}
+
+static const app_manager_page_ops_t s_settings_time_ops =
+{
+    .start = _settings_time_start,
+    .mount = _settings_info_mount,
+    .unmount = _settings_info_unmount,
+};
+
+static const app_manager_page_ops_t s_settings_storage_ops =
+{
+    .start = _settings_storage_start,
+    .mount = _settings_info_mount,
+    .unmount = _settings_info_unmount,
+};
+
 static const app_manager_page_definition_t s_settings_root_definition =
 {
     .ops = &s_settings_root_ops,
@@ -638,6 +835,18 @@ static const app_manager_page_definition_t s_settings_about_definition =
 {
     .ops = &s_settings_about_ops,
     .memory_size = sizeof(settings_about_state_t),
+};
+
+static const app_manager_page_definition_t s_settings_time_definition =
+{
+    .ops = &s_settings_time_ops,
+    .memory_size = sizeof(settings_info_state_t),
+};
+
+static const app_manager_page_definition_t s_settings_storage_definition =
+{
+    .ops = &s_settings_storage_ops,
+    .memory_size = sizeof(settings_info_state_t),
 };
 
 static const app_manager_page_route_t s_settings_routes[] =
@@ -660,6 +869,16 @@ static const app_manager_page_route_t s_settings_routes[] =
     {
         .page_id = SETTINGS_PAGE_FACTORY_RESET,
         .definition = &settings_factory_reset_page_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = SETTINGS_PAGE_TIME,
+        .definition = &s_settings_time_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = SETTINGS_PAGE_STORAGE,
+        .definition = &s_settings_storage_definition,
         .user_data = NULL,
     },
 };

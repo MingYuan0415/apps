@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -51,24 +52,31 @@ static void _menu_page_build(menu_page_state_t *state)
     app_ui_page_create(&state->page, "应用", false);
     app_ui_page_set_subtitle(&state->page, "设备功能");
 
-    const app_manager_app_desc_t *ordered[APP_MANAGER_MAX_RESIDENT_APPS] = {0};
+    size_t registry_count = 0U;
+    const app_manager_app_desc_t *scan = app_manager_builtin_list_open();
+    while (scan != NULL)
+    {
+        if (!_menu_skip_descriptor(scan))
+        {
+            ++registry_count;
+        }
+        scan = app_manager_builtin_list_get_next(scan);
+    }
+    const app_manager_app_desc_t **ordered = registry_count == 0U ? NULL :
+        calloc(registry_count, sizeof(*ordered));
+    if (registry_count != 0U && ordered == NULL)
+    {
+        app_ui_add_body_label(state->page.content, "应用目录内存不足");
+        LOG_W("application menu allocation failed: count=%u",
+              (unsigned)registry_count);
+        return;
+    }
     size_t count = 0U;
-    bool truncated = false;
     const app_manager_app_desc_t *descriptor = app_manager_builtin_list_open();
     while (descriptor != NULL)
     {
         if (!_menu_skip_descriptor(descriptor))
         {
-            if (count >= sizeof(ordered) / sizeof(ordered[0]))
-            {
-                if (!truncated)
-                {
-                    LOG_W("application menu capacity reached");
-                    truncated = true;
-                }
-                descriptor = app_manager_builtin_list_get_next(descriptor);
-                continue;
-            }
             size_t insert = count++;
             while (insert > 0U &&
                     _menu_order(ordered[insert - 1U]) >
@@ -85,6 +93,7 @@ static void _menu_page_build(menu_page_state_t *state)
     if (count == 0U)
     {
         app_ui_add_body_label(state->page.content, "暂无可用应用");
+        free(ordered);
         return;
     }
     for (size_t index = 0U; index < count; ++index)
@@ -97,6 +106,7 @@ static void _menu_page_build(menu_page_state_t *state)
                           (void *)app->id);
     }
     state->entry_count = count;
+    free(ordered);
 }
 
 static void _menu_mount(const app_manager_page_context_t *context)

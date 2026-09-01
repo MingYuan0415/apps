@@ -2,6 +2,7 @@
 # never become production registrations through a recursive glob.
 set(APP_SRCS
     "common/src/app_ui.c"
+    "common/src/app_weather_ui.c"
     "home_app/src/home_app.c"
     "clock_app/src/clock_app.c"
     "recorder_app/src/recorder_app.c"
@@ -35,6 +36,7 @@ idf_component_register(
         app_core
         app_theme
         audio_service
+        chore_service
         event_bus
         imu_service
         sd_storage_service
@@ -54,4 +56,5 @@ idf_component_register(
         heap
         lvgl__lvgl
         mt_log
+        nv_storage
 )
