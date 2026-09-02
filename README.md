@@ -5,7 +5,7 @@
 ## 目录结构与应用
 
 - `common/`：统一 368 x 448 页面骨架、标题栏、导航/命令行、值行和语义状态，保留异步导航 API。
-- `home_app/`：显示本地时间与质量、电量/供电、Wi-Fi、SD 和活动计时状态，提供天气、时钟、录音、设置与应用入口；最近任务由 App Manager 的系统任务切换器提供。
+- `home_app/`：顶部 Wi-Fi/蓝牙/电池状态条（Wi-Fi 与电池为 LVGL 矢量绘制），中央矢量模拟表盘随 `time_service` 走时并标注数字时间、日期与时间源质量，天气横幅显示实况图标、当前温度与今日高低温/湿度（点击进天气），底部时钟/录音/水平仪/设置四枚圆环瓦片，时钟瓦片在倒计时或专注运行时变为进度环；最近任务由 App Manager 的系统任务切换器提供。
 - `menu_app/`：按注册 descriptor 构建应用目录，统一展示图标、名称和功能摘要。
 - `settings_app/`：提供亮度、固定熄屏/待机延迟选项、电源详情、连接管理、时间状态、SD 存储状态、运行时固件描述及恢复出厂设置两步确认页。恢复请求只有在 reset journal 持久化成功后才进入不可重复点击的重启等待状态；保存失败时页面保留并允许重试。
 - `setup_app/`：开启限时 BLE 绑定窗口，显示六位 Numeric Comparison 并在本机确认，同时管理已保存网络的断开、重连、自动连接和忘记操作；不再在设备侧扫描、选择网络或输入密码。
@@ -13,10 +13,16 @@
 - `tests/host/`：共用导航和 Setup Wi-Fi adapter 的宿主测试及最小依赖 fake。
 
 每个 App 的只读资源必须放在自己的 `assets/` 目录，并在该 App 的
-`resource_manifest.cmake` 中逐条声明；禁止递归 glob。资源由主工程聚合成唯一的
-`res` 分区，运行时通过 `app_image_ids.h` 中的语义 ID 查询。App descriptor 的
-`icon_id` 指向同一资源表，缺失时由系统界面回退到 LVGL symbol；新增资源需要同时更新
-manifest、语义 ID 和资源测试。
+`resource_manifest.cmake` 中逐条声明；禁止递归 glob。图片资源以 SVG 为唯一入库源
+（不提交 PNG）：构建期由 `cmake/mt_app_resources.cmake` 统一执行
+`tools/asset_pipeline/svg2png.py`（PyMuPDF）栅格化为 RGBA PNG，再经锁定的
+LVGLImage.py 转 RGB565A8 BIN 打包进唯一的 `res` 分区；manifest 记录的宽/高即导出
+尺寸，同一 SVG 可登记多条尺寸记录，kind 取值 `SVG|PNG|FONT`。SVG 必须写入终色
+（不允许 `currentColor`）并带 `viewBox`。运行时通过 `app_image_ids.h` 中的语义 ID
+查询，App descriptor 的 `icon_id` 指向同一资源表，缺失时由系统界面回退到 LVGL
+symbol；新增资源需要同时更新 manifest、语义 ID 和 `tests/resources`，改动 manifest
+后执行 `idf.py reconfigure`。天气状况图标为 QWeather Icons（MIT）的 `N-fill.svg`
+vendor 源，随附 `weather_app/assets/qweather-icons-LICENSE.txt`。
 
 每个应用以普通 `const` Page definition 描述 typed ops 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。只有 `APP_MANAGER_APP_EXPORT_META` 产生的 App descriptor 进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。新增应用时应在独立目录中实现生命周期 ops，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，同时提供图标 manifest，不要使用递归 glob。
 
