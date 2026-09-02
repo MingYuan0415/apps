@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MicroTech home tile glyph: rendered at 52 px on a ring button. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <circle cx="12" cy="12" r="9" stroke="#F2F5F6" stroke-width="2"/>
+  <path d="M12 3 V6 M12 18 V21 M3 12 H6 M18 12 H21" stroke="#93A0A6" stroke-width="1.6" stroke-linecap="round"/>
+  <circle cx="12" cy="12" r="3" fill="#4FC4D8"/>
+</svg>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MicroTech app icon: dark-theme geometric glyph, transparent base. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <path d="M12 28 L32 12 L52 28" stroke="#F2F5F6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M17 27 V50 H47 V27" stroke="#F2F5F6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="28" y="39" width="8" height="11" rx="2" fill="#F5C451"/>
+</svg>

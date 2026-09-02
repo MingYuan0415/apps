@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MicroTech app icon: dark-theme geometric glyph, transparent base. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect x="12" y="12" width="17" height="17" rx="4" fill="#4FC4D8"/>
+  <rect x="35" y="12" width="17" height="17" rx="4" fill="#F2F5F6"/>
+  <rect x="12" y="35" width="17" height="17" rx="4" fill="#F2F5F6"/>
+  <rect x="35" y="35" width="17" height="17" rx="4" fill="#F2F5F6"/>
+</svg>

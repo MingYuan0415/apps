@@ -1,2 +1,2 @@
 list(APPEND MICROTECH_APP_RESOURCE_RECORDS
-    "${CMAKE_CURRENT_LIST_DIR}/assets/icon.png|clock__icon.png|APP_IMAGE_CLOCK_ICON|64|64|PNG")
+    "${CMAKE_CURRENT_LIST_DIR}/assets/icon.svg|clock__icon.png|APP_IMAGE_CLOCK_ICON|64|64|SVG")

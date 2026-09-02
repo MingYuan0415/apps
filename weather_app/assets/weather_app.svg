@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MicroTech app icon: dark-theme geometric glyph, transparent base. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <circle cx="43" cy="21" r="8.5" fill="#F5C451"/>
+  <ellipse cx="29" cy="43" rx="16" ry="8" fill="#F2F5F6"/>
+  <circle cx="23" cy="37" r="8" fill="#F2F5F6"/>
+  <circle cx="35" cy="35" r="9.5" fill="#F2F5F6"/>
+</svg>

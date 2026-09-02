@@ -50,6 +50,7 @@
 #define APP_IMAGE_WEATHER_UNKNOWN_SMALL       0x5753U
 
 #define APP_IMAGE_HOME_ICON                   0x5760U
+
 #define APP_IMAGE_MENU_ICON                   0x5761U
 #define APP_IMAGE_SETTINGS_ICON               0x5762U
 #define APP_IMAGE_SETUP_ICON                  0x5763U
@@ -57,5 +58,10 @@
 #define APP_IMAGE_RECORDER_ICON               0x5765U
 #define APP_IMAGE_LEVEL_ICON                  0x5766U
 #define APP_IMAGE_DIAGNOSTICS_ICON            0x5767U
+
+/* Home tile glyphs: 0x5770-0x577F reserved for home_app-owned assets. */
+#define APP_IMAGE_HOME_RECORDER               0x5770U
+#define APP_IMAGE_HOME_LEVEL                  0x5771U
+#define APP_IMAGE_HOME_SETTINGS               0x5772U
 
 #endif /* __APP_IMAGE_IDS_H__ */
