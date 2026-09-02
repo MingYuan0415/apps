@@ -4,6 +4,7 @@
 #include "app_manager.h"
 #include "app_image_ids.h"
 #include "app_ui.h"
+#include "app_ui_theme.h"
 #include "event_bus.h"
 #include "weather_service.h"
 
@@ -16,15 +17,15 @@
 #define WEATHER_PAGE_DETAIL     "alert-detail"
 #define WEATHER_ARGUMENT_ALERT_KEY 1U
 
-#define WEATHER_COLOR_BACKGROUND 0x090D0F
-#define WEATHER_COLOR_SURFACE    0x151B1F
-#define WEATHER_COLOR_SURFACE_HI 0x20282D
-#define WEATHER_COLOR_TEXT       0xF2F5F6
-#define WEATHER_COLOR_MUTED      0x93A0A6
-#define WEATHER_COLOR_SUN        0xF5C451
-#define WEATHER_COLOR_RAIN       0x4FC4D8
-#define WEATHER_COLOR_WARNING    0xFF756C
-#define WEATHER_COLOR_WARNING_BG 0x3B2021
+#define WEATHER_COLOR_BACKGROUND APP_UI_COLOR_BACKGROUND
+#define WEATHER_COLOR_SURFACE    APP_UI_COLOR_SURFACE
+#define WEATHER_COLOR_SURFACE_HI APP_UI_COLOR_SURFACE_HI
+#define WEATHER_COLOR_TEXT       APP_UI_COLOR_TEXT
+#define WEATHER_COLOR_MUTED      APP_UI_COLOR_MUTED
+#define WEATHER_COLOR_SUN        APP_UI_COLOR_SUN
+#define WEATHER_COLOR_RAIN       APP_UI_COLOR_RAIN
+#define WEATHER_COLOR_WARNING    APP_UI_COLOR_WARNING
+#define WEATHER_COLOR_WARNING_BG APP_UI_COLOR_WARNING_BG
 
 typedef struct weather_alert_arguments
 {

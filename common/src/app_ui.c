@@ -3,17 +3,18 @@
 #include "mt_log.h"
 
 #include "app_ui.h"
+#include "app_ui_theme.h"
 #include <string.h>
 
-#define COLOR_BACKGROUND 0x0D1113
-#define COLOR_SURFACE    0x1A2024
-#define COLOR_SURFACE_HI 0x252D32
-#define COLOR_TEXT       0xF2F5F6
-#define COLOR_MUTED      0x91A0A8
-#define COLOR_ACCENT     0x39C6C8
+#define COLOR_BACKGROUND APP_UI_COLOR_BACKGROUND
+#define COLOR_SURFACE    APP_UI_COLOR_SURFACE
+#define COLOR_SURFACE_HI APP_UI_COLOR_SURFACE_HI
+#define COLOR_TEXT       APP_UI_COLOR_TEXT
+#define COLOR_MUTED      APP_UI_COLOR_MUTED
+#define COLOR_ACCENT     APP_UI_COLOR_RAIN
 #define COLOR_SUCCESS    0x65D18A
-#define COLOR_WARNING    0xF0B35A
-#define COLOR_ERROR      0xF06A6A
+#define COLOR_WARNING    APP_UI_COLOR_SUN
+#define COLOR_ERROR      APP_UI_COLOR_WARNING
 
 const lv_font_t *app_ui_font(app_theme_font_id_t id)
 {
@@ -285,6 +286,7 @@ static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, const char *symbol,
     lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(icon, lv_color_hex(COLOR_ACCENT), 0);
     lv_obj_set_style_text_font(icon, LV_FONT_DEFAULT, 0);
+    app_ui_make_passive(icon, false);
     lv_label_set_text(icon, symbol != NULL ? symbol : LV_SYMBOL_RIGHT);
 
     lv_obj_t *text = lv_obj_create(button);
@@ -319,6 +321,7 @@ static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, const char *symbol,
         lv_obj_t *chevron = lv_label_create(button);
         lv_obj_set_style_text_color(chevron, lv_color_hex(COLOR_MUTED), 0);
         lv_obj_set_style_text_font(chevron, LV_FONT_DEFAULT, 0);
+        app_ui_make_passive(chevron, false);
         lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
     }
 
