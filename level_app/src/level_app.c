@@ -125,7 +125,7 @@ static void _level_render(level_page_state_t *state)
         lv_label_set_text(state->angle_label, text);
     }
     char info[64];
-    (void)snprintf(info, sizeof(info), "温度 %.1f °C · 无磁力计,不提供方位",
+    (void)snprintf(info, sizeof(info), "温度 %.1f °C",
                    snapshot.sample.temperature_c);
     lv_label_set_text(state->info_label, info);
 
@@ -435,7 +435,7 @@ static void _level_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_align(state->state_label, LV_TEXT_ALIGN_CENTER, 0);
 
     state->info_label = app_ui_add_body_label(state->page.content,
-                        "温度 -- °C · 无磁力计,不提供方位");
+                        "温度 -- °C");
     lv_obj_set_width(state->info_label, LV_PCT(100));
     lv_label_set_long_mode(state->info_label, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(state->info_label, LV_TEXT_ALIGN_CENTER, 0);

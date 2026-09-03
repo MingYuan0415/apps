@@ -440,8 +440,6 @@ static void _settings_root_build(settings_root_state_t *state)
                       "硬件与固件构建信息", _settings_open_about_event, NULL);
 
     app_ui_add_section(state->page.content, "维护");
-    app_ui_add_body_label(state->page.content,
-                          "固件更新：暂不可用（需要后台或 App 支持）");
     app_ui_add_action(state->page.content, LV_SYMBOL_TRASH, "恢复出厂设置",
                       "清除本机数据并重新启动",
                       _settings_open_factory_reset_event, NULL);
