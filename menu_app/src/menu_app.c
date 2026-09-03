@@ -52,14 +52,14 @@ static lv_obj_t *_menu_add_tile(menu_page_state_t *state,
                                 const app_manager_app_desc_t *app)
 {
     lv_obj_t *card = lv_button_create(state->page.content);
-    lv_obj_set_width(card, 161);
-    lv_obj_set_height(card, 132);
+    lv_obj_set_width(card, 168);
+    lv_obj_set_height(card, 136);
     lv_obj_set_style_radius(card, 8, 0);
     lv_obj_set_style_bg_color(card, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
     lv_obj_set_style_bg_color(card, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
                               LV_STATE_PRESSED);
     lv_obj_set_style_shadow_width(card, 0, 0);
-    lv_obj_set_style_pad_all(card, 10, 0);
+    lv_obj_set_style_pad_all(card, 6, 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(card, LV_FLEX_ALIGN_SPACE_EVENLY,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -81,6 +81,7 @@ static lv_obj_t *_menu_add_tile(menu_page_state_t *state,
                        app->name;
     lv_obj_t *title = lv_label_create(card);
     lv_obj_set_width(title, LV_PCT(100));
+    lv_obj_set_height(title, 26);
     lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(title, lv_color_hex(APP_UI_COLOR_TEXT), 0);
@@ -91,6 +92,7 @@ static lv_obj_t *_menu_add_tile(menu_page_state_t *state,
     {
         lv_obj_t *subtitle = lv_label_create(card);
         lv_obj_set_width(subtitle, LV_PCT(100));
+        lv_obj_set_height(subtitle, 24);
         lv_label_set_long_mode(subtitle, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(subtitle, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(subtitle,
@@ -104,15 +106,16 @@ static lv_obj_t *_menu_add_tile(menu_page_state_t *state,
 
 static void _menu_page_build(menu_page_state_t *state)
 {
-    app_ui_page_create(&state->page, "应用", false);
-    app_ui_page_set_subtitle(&state->page, "设备功能");
+    app_ui_page_create_home(&state->page);
 
     lv_obj_t *content = state->page.content;
+    lv_obj_set_style_pad_top(content, 12, 0);
+    lv_obj_set_style_pad_bottom(content, 12, 0);
     lv_obj_set_flex_flow(content, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_flex_align(content, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_START);
-    lv_obj_set_style_pad_column(content, 10, 0);
-    lv_obj_set_style_pad_row(content, 10, 0);
+    lv_obj_set_style_pad_column(content, 8, 0);
+    lv_obj_set_style_pad_row(content, 8, 0);
 
     size_t registry_count = 0U;
     const app_manager_app_desc_t *scan = app_manager_builtin_list_open();
@@ -168,7 +171,7 @@ static void _menu_page_build(menu_page_state_t *state)
     {
         lv_obj_t *spacer = lv_obj_create(content);
         lv_obj_remove_style_all(spacer);
-        lv_obj_set_size(spacer, 161, 0);
+        lv_obj_set_size(spacer, 168, 0);
         app_ui_make_passive(spacer, false);
     }
     state->entry_count = count;
