@@ -10,11 +10,13 @@ typedef struct clock_stopwatch_state
 {
     app_ui_page_t page;
     lv_obj_t *value_label;
+    lv_obj_t *ms_label;
     lv_obj_t *hint_label;
     lv_obj_t *btn_primary;
     lv_obj_t *btn_reset;
     lv_timer_t *refresh_timer;
     char last_value[12];
+    char last_ms[6];
     timer_service_state_t last_state;
 } clock_stopwatch_state_t;
 
@@ -37,6 +39,19 @@ static void _stopwatch_render(clock_stopwatch_state_t *state)
         (void)snprintf(state->last_value, sizeof(state->last_value), "%s",
                        text);
         lv_label_set_text(state->value_label, text);
+    }
+    char ms[6];
+    (void)snprintf(ms, sizeof(ms), ".%03u",
+                   (unsigned)(snapshot.stopwatch_elapsed_ms % 1000U));
+    if (strcmp(state->last_ms, ms) != 0)
+    {
+        (void)snprintf(state->last_ms, sizeof(state->last_ms), "%s", ms);
+        lv_label_set_text(state->ms_label, ms);
+    }
+    if (state->refresh_timer != NULL)
+    {
+        lv_timer_set_period(state->refresh_timer,
+                            view == TIMER_SERVICE_RUNNING ? 50U : 250U);
     }
     if (state->last_state != view)
     {
@@ -126,12 +141,29 @@ static void _stopwatch_mount(const app_manager_page_context_t *context)
                           LV_FLEX_ALIGN_CENTER);
     app_ui_make_passive(stage, false);
 
-    state->value_label = lv_label_create(stage);
+    lv_obj_t *value_row = lv_obj_create(stage);
+    lv_obj_remove_style_all(value_row);
+    lv_obj_set_width(value_row, LV_SIZE_CONTENT);
+    lv_obj_set_height(value_row, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(value_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(value_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END,
+                          LV_FLEX_ALIGN_END);
+    app_ui_make_passive(value_row, false);
+
+    state->value_label = lv_label_create(value_row);
     lv_obj_set_style_text_color(state->value_label,
                                 lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(state->value_label,
                                app_ui_font(APP_THEME_FONT_HUGE), 0);
     lv_label_set_text(state->value_label, "00:00");
+
+    state->ms_label = lv_label_create(value_row);
+    lv_obj_set_style_text_color(state->ms_label,
+                                lv_color_hex(APP_UI_COLOR_RAIN), 0);
+    lv_obj_set_style_text_font(state->ms_label,
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_obj_set_style_pad_bottom(state->ms_label, 10, 0);
+    lv_label_set_text(state->ms_label, ".000");
 
     state->hint_label = lv_label_create(stage);
     lv_obj_set_style_text_color(state->hint_label,
@@ -192,6 +224,7 @@ static void _stopwatch_unmount(const app_manager_page_context_t *context)
     }
     app_ui_page_destroy(&state->page);
     state->value_label = NULL;
+    state->ms_label = NULL;
     state->hint_label = NULL;
     state->btn_primary = NULL;
     state->btn_reset = NULL;

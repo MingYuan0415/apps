@@ -124,6 +124,81 @@ void clock_ui_ring_update(lv_obj_t *ring, bool active, uint32_t remaining_ms,
     lv_arc_set_angles(ring, 0, (lv_value_precise_t)span);
 }
 
+static uint32_t s_minutes = 5U;
+
+uint32_t clock_ui_minutes_get(void)
+{
+    return s_minutes;
+}
+
+void clock_ui_minutes_set(uint32_t minutes)
+{
+    if (minutes == 0U)
+    {
+        minutes = 1U;
+    }
+    if (minutes > 779U)
+    {
+        minutes = 779U;
+    }
+    s_minutes = minutes;
+}
+
+static void _clock_nav_complete(esp_err_t result, void *context)
+{
+    (void)context;
+    if (result != ESP_OK)
+    {
+        LOG_W("clock navigation failed: %s", esp_err_to_name(result));
+    }
+}
+
+void clock_ui_open_page_with_minutes(const char *page_id, uint32_t minutes)
+{
+    const clock_duration_arguments_t payload = { .minutes = minutes };
+    app_manager_nav_request_t request =
+    {
+        .operation = APP_MANAGER_NAV_OP_OPEN_PAGE,
+        .app_id = APP_MANAGER_ID_CLOCK,
+        .page_id = page_id,
+        .has_arguments = true,
+        .arguments =
+        {
+            .version = APP_MANAGER_TYPED_BLOB_VERSION,
+            .type = CLOCK_ARGUMENT_MINUTES,
+            .size = sizeof(payload),
+        },
+        .transition = { .effect = APP_MANAGER_TRANSITION_DEFAULT },
+    };
+    memcpy(request.arguments.payload, &payload, sizeof(payload));
+    const esp_err_t result = app_manager_navigate_async(&request,
+                             _clock_nav_complete, NULL);
+    if (result != ESP_OK)
+    {
+        LOG_W("clock page %s navigation failed: %s", page_id,
+              esp_err_to_name(result));
+    }
+}
+
+bool clock_ui_take_minutes_argument(uint32_t *minutes)
+{
+    const app_manager_typed_blob_t *arguments =
+        app_manager_this_page_arguments();
+    if (arguments == NULL || arguments->type != CLOCK_ARGUMENT_MINUTES ||
+            arguments->size != sizeof(clock_duration_arguments_t))
+    {
+        return false;
+    }
+    clock_duration_arguments_t payload;
+    memcpy(&payload, arguments->payload, sizeof(payload));
+    if (payload.minutes == 0U || payload.minutes > 779U)
+    {
+        return false;
+    }
+    *minutes = payload.minutes;
+    return true;
+}
+
 static void _clock_root_set_summary(clock_root_state_t *state,
                                     clock_card_t card, const char *text,
                                     uint32_t color, uint32_t span,
@@ -456,6 +531,11 @@ static const app_manager_page_route_t s_clock_routes[] =
     {
         .page_id = CLOCK_PAGE_FOCUS,
         .definition = &clock_focus_page_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = CLOCK_PAGE_DURATION,
+        .definition = &clock_duration_page_definition,
         .user_data = NULL,
     },
 };

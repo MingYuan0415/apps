@@ -16,11 +16,47 @@
 #define CLOCK_PAGE_COUNTDOWN    "countdown"
 #define CLOCK_PAGE_STOPWATCH    "stopwatch"
 #define CLOCK_PAGE_FOCUS        "focus"
+#define CLOCK_PAGE_DURATION     "duration"
+
+#define CLOCK_ARGUMENT_MINUTES  1U
+
+typedef struct clock_duration_arguments
+{
+    uint32_t minutes;
+} clock_duration_arguments_t;
+
+_Static_assert(sizeof(clock_duration_arguments_t) <=
+               APP_MANAGER_TYPED_BLOB_PAYLOAD_BYTES,
+               "Clock duration arguments exceed the Typed Blob payload");
 
 extern const app_manager_page_definition_t clock_root_page_definition;
 extern const app_manager_page_definition_t clock_countdown_page_definition;
 extern const app_manager_page_definition_t clock_stopwatch_page_definition;
 extern const app_manager_page_definition_t clock_focus_page_definition;
+extern const app_manager_page_definition_t clock_duration_page_definition;
+
+/**
+ * @brief Open a clock page carrying the selected countdown minutes.
+ * @param page_id is the target route inside the clock app.
+ * @param minutes is the duration payload.
+ */
+void clock_ui_open_page_with_minutes(const char *page_id, uint32_t minutes);
+/**
+ * @brief Read the app-wide countdown duration in minutes.
+ * @return Current duration.
+ */
+uint32_t clock_ui_minutes_get(void);
+/**
+ * @brief Persist the app-wide countdown duration in minutes.
+ * @param minutes is clamped to 1..779.
+ */
+void clock_ui_minutes_set(uint32_t minutes);
+/**
+ * @brief Read a Typed Blob minutes payload if the page was opened with one.
+ * @param minutes receives the payload when the argument type matches.
+ * @return true when a valid payload was consumed.
+ */
+bool clock_ui_take_minutes_argument(uint32_t *minutes);
 
 /**
  * @brief Create a contextual control-row button (grows equally per row).

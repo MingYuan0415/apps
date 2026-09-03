@@ -6,6 +6,7 @@ set(APP_SRCS
     "home_app/src/home_app.c"
     "clock_app/src/clock_app.c"
     "clock_app/src/clock_countdown_page.c"
+    "clock_app/src/clock_duration_page.c"
     "clock_app/src/clock_stopwatch_page.c"
     "clock_app/src/clock_focus_page.c"
     "recorder_app/src/recorder_app.c"

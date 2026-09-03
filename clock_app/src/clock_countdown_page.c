@@ -17,7 +17,7 @@ typedef struct clock_countdown_state
     lv_obj_t *ring;
     lv_obj_t *value_label;
     lv_obj_t *hint_label;
-    lv_obj_t *chips[4];
+    lv_obj_t *chips[5];
     lv_obj_t *btn_primary;
     lv_obj_t *btn_reset;
     lv_timer_t *refresh_timer;
@@ -67,11 +67,14 @@ static void _countdown_render(clock_countdown_state_t *state)
     if (state->last_minutes != state->minutes)
     {
         state->last_minutes = state->minutes;
+        bool preset_hit = false;
         for (size_t index = 0U; index < 4U; ++index)
         {
-            clock_ui_chip_set_selected(state->chips[index],
-                                       state->minutes == k_presets[index]);
+            const bool selected = state->minutes == k_presets[index];
+            preset_hit = preset_hit || selected;
+            clock_ui_chip_set_selected(state->chips[index], selected);
         }
+        clock_ui_chip_set_selected(state->chips[4], !preset_hit);
     }
     if (state->last_state != view)
     {
@@ -122,9 +125,16 @@ static void _countdown_chip_event(lv_event_t *event)
         return;
     }
     const uint32_t index = lv_obj_get_index(lv_event_get_target(event));
+    if (index == 4U)
+    {
+        clock_ui_open_page_with_minutes(CLOCK_PAGE_DURATION,
+                                        state->minutes);
+        return;
+    }
     if (index < 4U)
     {
         state->minutes = k_presets[index];
+        clock_ui_minutes_set(state->minutes);
     }
     _countdown_render(state);
 }
@@ -171,7 +181,7 @@ static void _countdown_mount(const app_manager_page_context_t *context)
 {
     clock_countdown_state_t *state = context->state;
     memset(state, 0, sizeof(*state));
-    state->minutes = 5U;
+    state->minutes = clock_ui_minutes_get();
     state->last_minutes = UINT32_MAX;
     app_ui_page_create(&state->page, "倒计时", true);
 
@@ -218,6 +228,8 @@ static void _countdown_mount(const app_manager_page_context_t *context)
         state->chips[index] = clock_ui_chip(chip_row, k_preset_text[index],
                                             _countdown_chip_event, state);
     }
+    state->chips[4] = clock_ui_chip(chip_row, "自定义",
+                                    _countdown_chip_event, state);
 
     lv_obj_t *controls = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(controls);
@@ -252,6 +264,7 @@ static esp_err_t _countdown_pause(const app_manager_page_context_t *context)
 static void _countdown_resume(const app_manager_page_context_t *context)
 {
     clock_countdown_state_t *state = context->state;
+    state->minutes = clock_ui_minutes_get();
     state->last_state = TIMER_SERVICE_IDLE;
     state->last_minutes = 0U;
     state->last_value[0] = '\0';
@@ -280,9 +293,21 @@ static void _countdown_unmount(const app_manager_page_context_t *context)
     state->btn_reset = NULL;
 }
 
+static void _countdown_new_intent(const app_manager_page_context_t *context)
+{
+    clock_countdown_state_t *state = context->state;
+    uint32_t minutes = 0U;
+    if (clock_ui_take_minutes_argument(&minutes))
+    {
+        clock_ui_minutes_set(minutes);
+        state->minutes = clock_ui_minutes_get();
+    }
+}
+
 static const app_manager_page_ops_t s_clock_countdown_ops =
 {
     .mount = _countdown_mount,
+    .new_intent = _countdown_new_intent,
     .resume = _countdown_resume,
     .pause = _countdown_pause,
     .unmount = _countdown_unmount,
