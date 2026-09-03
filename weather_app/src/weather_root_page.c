@@ -267,8 +267,14 @@ static void _weather_root_render(weather_root_state_t *state)
         lv_label_set_text(state->temperature_label, "--°");
         lv_label_set_text(state->condition_label, "暂无实时天气");
         lv_label_set_text(state->range_label, "体感--°  高--°  低--°");
-        lv_obj_add_flag(state->main_image, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(state->image_fallback, LV_OBJ_FLAG_HIDDEN);
+        if (weather_ui_set_image(state->main_image, 0U, false))
+        {
+            lv_obj_add_flag(state->image_fallback, LV_OBJ_FLAG_HIDDEN);
+        }
+        else
+        {
+            lv_obj_remove_flag(state->image_fallback, LV_OBJ_FLAG_HIDDEN);
+        }
     }
     else
     {

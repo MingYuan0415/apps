@@ -169,7 +169,7 @@ static void _display_mount(const app_manager_page_context_t *context)
 
     state->slider = lv_slider_create(card);
     lv_obj_set_width(state->slider, LV_PCT(100));
-    lv_obj_set_height(state->slider, 32);
+    lv_obj_set_height(state->slider, 16);
     lv_slider_set_range(state->slider, 10, 255);
     lv_obj_set_style_bg_color(state->slider,
                               lv_color_hex(APP_UI_COLOR_SURFACE_HI),
@@ -179,7 +179,7 @@ static void _display_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_bg_color(state->slider, lv_color_hex(APP_UI_COLOR_TEXT),
                               LV_PART_KNOB);
     lv_obj_set_style_radius(state->slider, LV_RADIUS_CIRCLE, LV_PART_KNOB);
-    lv_obj_set_style_pad_all(state->slider, 6, LV_PART_KNOB);
+    lv_obj_set_style_pad_all(state->slider, 7, LV_PART_KNOB);
     lv_obj_add_event_cb(state->slider, _display_event, LV_EVENT_VALUE_CHANGED,
                         state);
     lv_obj_add_event_cb(state->slider, _display_event, LV_EVENT_RELEASED,

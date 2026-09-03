@@ -324,17 +324,36 @@ static void _home_render_weather(home_page_state_t *state)
     const weather_service_snapshot_t *snapshot = NULL;
     if (weather_service_snapshot_acquire(&snapshot) != ESP_OK || snapshot == NULL)
     {
-        _home_set_weather_image(state, 0U, false);
+        _home_set_weather_image(state, 0U, true);
         lv_label_set_text(state->weather_city, "天气");
         lv_label_set_text(state->weather_value, "--");
         lv_label_set_text(state->weather_condition, "服务不可用");
         lv_label_set_text(state->weather_sub, "");
+        lv_obj_add_flag(state->weather_sub, LV_OBJ_FLAG_HIDDEN);
         _home_set_color(state->weather_value, APP_UI_COLOR_WARNING);
         return;
     }
-    lv_label_set_text(state->weather_city,
-                      snapshot->location.city[0] != '\0' ?
-                      snapshot->location.city : "天气");
+    if (snapshot->location.city[0] != '\0')
+    {
+        char title[WEATHER_SERVICE_CITY_BYTES +
+                   WEATHER_SERVICE_DISTRICT_BYTES + 4U];
+        if (snapshot->location.district[0] != '\0')
+        {
+            (void)snprintf(title, sizeof(title), "%s·%s",
+                           snapshot->location.city,
+                           snapshot->location.district);
+        }
+        else
+        {
+            (void)snprintf(title, sizeof(title), "%s",
+                           snapshot->location.city);
+        }
+        lv_label_set_text(state->weather_city, title);
+    }
+    else
+    {
+        lv_label_set_text(state->weather_city, "天气");
+    }
     char sub[48];
     sub[0] = '\0';
     if ((snapshot->available_mask & WEATHER_SERVICE_DATA_DAILY) != 0U &&
@@ -372,9 +391,17 @@ static void _home_render_weather(home_page_state_t *state)
                                 !status.configured ? "未配置" : "等待天气";
         lv_label_set_text(state->weather_condition, condition);
         _home_set_color(state->weather_value, APP_UI_COLOR_MUTED);
-        _home_set_weather_image(state, 0U, false);
+        _home_set_weather_image(state, 0U, true);
     }
     lv_label_set_text(state->weather_sub, sub);
+    if (sub[0] != '\0')
+    {
+        lv_obj_remove_flag(state->weather_sub, LV_OBJ_FLAG_HIDDEN);
+    }
+    else
+    {
+        lv_obj_add_flag(state->weather_sub, LV_OBJ_FLAG_HIDDEN);
+    }
     weather_service_snapshot_release(snapshot);
 }
 
