@@ -404,6 +404,9 @@ static void _clock_root_mount(const app_manager_page_context_t *context)
     memset(state, 0, sizeof(*state));
     app_ui_page_create(&state->page, "时钟", true);
     app_ui_page_set_subtitle(&state->page, "时间与计时");
+    lv_obj_set_style_pad_bottom(state->page.content, 12, 0);
+    lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
+    lv_obj_remove_flag(state->page.content, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *clock_row = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(clock_row);
