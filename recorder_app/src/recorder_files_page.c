@@ -115,8 +115,8 @@ static void _files_render(recorder_files_state_t *state)
         _files_rebuild(state);
     }
     const bool playing = snapshot.state == RECORDER_SERVICE_PLAYING;
-    recorder_ui_control_set_text(state->btn_play,
-                                 playing ? "停止播放" : "播放");
+    app_ui_button_set_text(state->btn_play,
+                           playing ? "停止播放" : "播放");
     const bool show_bar = playing && snapshot.playback_duration_ms > 0U;
     recorder_ui_set_visible(state->bar, show_bar);
     if (show_bar)
@@ -235,19 +235,11 @@ static void _files_mount(const app_manager_page_context_t *context)
     app_ui_make_passive(state->bar, false);
     recorder_ui_set_visible(state->bar, false);
 
-    lv_obj_t *controls = lv_obj_create(state->page.content);
-    lv_obj_remove_style_all(controls);
-    lv_obj_set_width(controls, LV_PCT(100));
-    lv_obj_set_height(controls, 52);
-    lv_obj_set_flex_flow(controls, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(controls, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(controls, 8, 0);
-    app_ui_make_passive(controls, false);
-    state->btn_play = recorder_ui_control(controls, "播放", 52,
-                                          _files_play_event, state);
-    state->btn_delete = recorder_ui_control(controls, "删除", 52,
-                                            _files_delete_event, state);
+    lv_obj_t *controls = app_ui_button_row_create(state->page.content, 52);
+    state->btn_play = app_ui_button_create(controls, "播放",
+                                           _files_play_event, state);
+    state->btn_delete = app_ui_button_create(controls, "删除",
+                        _files_delete_event, state);
 
     _files_rebuild(state);
     state->refresh_timer = lv_timer_create(_files_refresh, 250U, state);

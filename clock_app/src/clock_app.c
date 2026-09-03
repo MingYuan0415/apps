@@ -33,69 +33,6 @@ typedef struct clock_root_state
 _Static_assert(sizeof(clock_root_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Clock root state exceeds the lifecycle arena slot");
 
-lv_obj_t *clock_ui_action_button(lv_obj_t *parent, const char *text,
-                                 lv_event_cb_t callback, void *user_data)
-{
-    lv_obj_t *button = lv_button_create(parent);
-    lv_obj_set_width(button, 0);
-    lv_obj_set_flex_grow(button, 1);
-    lv_obj_set_height(button, 52);
-    lv_obj_set_style_radius(button, 6, 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
-                              LV_STATE_PRESSED);
-    lv_obj_set_style_shadow_width(button, 0, 0);
-    lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
-    lv_obj_t *label = lv_label_create(button);
-    lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_SMALL), 0);
-    lv_obj_set_style_text_color(label, lv_color_hex(APP_UI_COLOR_TEXT), 0);
-    lv_label_set_text(label, text);
-    lv_obj_center(label);
-    return button;
-}
-
-void clock_ui_button_set_text(lv_obj_t *button, const char *text)
-{
-    lv_obj_t *label = lv_obj_get_child(button, 0);
-    if (label != NULL)
-    {
-        lv_label_set_text(label, text);
-    }
-}
-
-lv_obj_t *clock_ui_chip(lv_obj_t *parent, const char *text,
-                        lv_event_cb_t callback, void *user_data)
-{
-    lv_obj_t *chip = lv_button_create(parent);
-    lv_obj_set_width(chip, 0);
-    lv_obj_set_flex_grow(chip, 1);
-    lv_obj_set_height(chip, 40);
-    lv_obj_set_style_radius(chip, 6, 0);
-    lv_obj_set_style_bg_color(chip, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
-    lv_obj_set_style_bg_color(chip, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
-                              LV_STATE_PRESSED);
-    lv_obj_set_style_shadow_width(chip, 0, 0);
-    lv_obj_add_event_cb(chip, callback, LV_EVENT_CLICKED, user_data);
-    lv_obj_t *label = lv_label_create(chip);
-    lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
-    lv_obj_set_style_text_color(label, lv_color_hex(APP_UI_COLOR_MUTED), 0);
-    lv_label_set_text(label, text);
-    lv_obj_center(label);
-    return chip;
-}
-
-void clock_ui_chip_set_selected(lv_obj_t *chip, bool selected)
-{
-    lv_obj_t *label = lv_obj_get_child(chip, 0);
-    if (label == NULL)
-    {
-        return;
-    }
-    lv_obj_set_style_text_color(label,
-                                lv_color_hex(selected ? APP_UI_COLOR_RAIN :
-                                        APP_UI_COLOR_MUTED), 0);
-}
-
 void clock_ui_format_mmss(uint32_t milliseconds, char *output,
                           size_t output_size)
 {

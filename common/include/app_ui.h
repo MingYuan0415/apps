@@ -98,6 +98,64 @@ lv_obj_t *app_ui_add_action(lv_obj_t *parent, const char *symbol,
 lv_obj_t *app_ui_add_command(lv_obj_t *parent, const char *symbol,
                              const char *title, const char *subtitle,
                              lv_event_cb_t callback, void *user_data);
+/**
+ * @brief Add a destructive navigation row with a red title.
+ * @param parent is the LVGL parent object.
+ * @param symbol is the optional LVGL symbol text.
+ * @param title is the primary row text.
+ * @param subtitle is the optional secondary text.
+ * @param callback receives click events.
+ * @param user_data is retained as LVGL event user data.
+ * @return Created row object.
+ */
+lv_obj_t *app_ui_add_danger_action(lv_obj_t *parent, const char *symbol,
+                                   const char *title, const char *subtitle,
+                                   lv_event_cb_t callback, void *user_data);
+/**
+ * @brief Create an equal-width button row (space-between, passive).
+ * @param parent is the page content or card owning the row.
+ * @param height is the row height in pixels.
+ * @return Created passive row container.
+ */
+lv_obj_t *app_ui_button_row_create(lv_obj_t *parent, int32_t height);
+/**
+ * @brief Create a grow-width control button inside an app_ui_button_row.
+ * @param row is an app_ui_button_row_create container.
+ * @param text is the button caption.
+ * @param callback receives click events.
+ * @param user_data is retained as LVGL event user data.
+ * @return Created button.
+ */
+lv_obj_t *app_ui_button_create(lv_obj_t *row, const char *text,
+                               lv_event_cb_t callback, void *user_data);
+/**
+ * @brief Replace the caption of an app_ui_button_create button.
+ * @param button is an app_ui_button_create button.
+ * @param text is the new caption.
+ */
+void app_ui_button_set_text(lv_obj_t *button, const char *text);
+/**
+ * @brief Create a 40 px selectable chip row.
+ * @param parent is the page content or card owning the row.
+ * @return Created passive row container for app_ui_chip_create.
+ */
+lv_obj_t *app_ui_chip_row_create(lv_obj_t *parent);
+/**
+ * @brief Create a grow-width selectable chip inside an app_ui_chip_row.
+ * @param row is an app_ui_chip_row_create container.
+ * @param text is the chip caption.
+ * @param callback receives click events.
+ * @param user_data is retained as LVGL event user data.
+ * @return Created chip button.
+ */
+lv_obj_t *app_ui_chip_create(lv_obj_t *row, const char *text,
+                             lv_event_cb_t callback, void *user_data);
+/**
+ * @brief Toggle the accent selection state of a chip.
+ * @param chip is an app_ui_chip_create button.
+ * @param selected uses the accent color when true.
+ */
+void app_ui_chip_set_selected(lv_obj_t *chip, bool selected);
 
 /**
  * @brief Add a fixed-size semantic icon button.

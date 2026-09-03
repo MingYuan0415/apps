@@ -157,8 +157,8 @@ static void _duration_mount(const app_manager_page_context_t *context)
     lv_obj_set_flex_align(controls, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     app_ui_make_passive(controls, false);
-    (void)clock_ui_action_button(controls, "确定", _duration_confirm_event,
-                                 state);
+    (void)app_ui_button_create(controls, "确定", _duration_confirm_event,
+                               state);
 
     lv_obj_add_event_cb(state->hour_roller, _duration_value_event,
                         LV_EVENT_VALUE_CHANGED, state);

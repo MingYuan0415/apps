@@ -59,38 +59,6 @@ void clock_ui_minutes_set(uint32_t minutes);
 bool clock_ui_take_minutes_argument(uint32_t *minutes);
 
 /**
- * @brief Create a contextual control-row button (grows equally per row).
- * @param parent is the control row container.
- * @param text is the button caption.
- * @param callback receives click events.
- * @param user_data is retained as LVGL event user data.
- * @return Created button.
- */
-lv_obj_t *clock_ui_action_button(lv_obj_t *parent, const char *text,
-                                 lv_event_cb_t callback, void *user_data);
-/**
- * @brief Replace the caption of a clock_ui_action_button.
- * @param button is a clock_ui_action_button.
- * @param text is the new caption.
- */
-void clock_ui_button_set_text(lv_obj_t *button, const char *text);
-/**
- * @brief Create a preset chip button with selectable accent state.
- * @param parent is the chip row container.
- * @param text is the chip caption.
- * @param callback receives click events.
- * @param user_data is retained as LVGL event user data.
- * @return Created button.
- */
-lv_obj_t *clock_ui_chip(lv_obj_t *parent, const char *text,
-                        lv_event_cb_t callback, void *user_data);
-/**
- * @brief Set chip text color to signal selection.
- * @param chip is a clock_ui_chip button.
- * @param selected uses the accent color when true.
- */
-void clock_ui_chip_set_selected(lv_obj_t *chip, bool selected);
-/**
  * @brief Format milliseconds as minutes:seconds (minutes may exceed 99).
  * @param milliseconds is the duration to render.
  * @param output receives the text.

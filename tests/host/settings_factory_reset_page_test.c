@@ -194,6 +194,24 @@ void lv_obj_remove_style(lv_obj_t *object, void *style, int selector)
     (void)selector;
 }
 
+lv_obj_t *lv_obj_get_child(lv_obj_t *object, int32_t index)
+{
+    int32_t seen = 0;
+
+    for (size_t scan = 0U; scan < TEST_OBJECT_CAPACITY; ++scan)
+    {
+        if (s_objects[scan].live && s_objects[scan].parent == object)
+        {
+            if (seen == index)
+            {
+                return &s_objects[scan];
+            }
+            ++seen;
+        }
+    }
+    return NULL;
+}
+
 void lv_obj_delete(lv_obj_t *object)
 {
     if (object == NULL)

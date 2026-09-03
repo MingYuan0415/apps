@@ -4,40 +4,6 @@
 
 #include "recorder_app_internal.h"
 
-lv_obj_t *recorder_ui_control(lv_obj_t *parent, const char *text,
-                              int32_t height, lv_event_cb_t callback,
-                              void *user_data)
-{
-    lv_obj_t *button = lv_button_create(parent);
-    lv_obj_set_width(button, 0);
-    lv_obj_set_flex_grow(button, 1);
-    lv_obj_set_height(button, height);
-    lv_obj_set_style_radius(button, 6, 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
-                              LV_STATE_PRESSED);
-    lv_obj_set_style_shadow_width(button, 0, 0);
-    if (callback != NULL)
-    {
-        lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
-    }
-    lv_obj_t *label = lv_label_create(button);
-    lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_SMALL), 0);
-    lv_obj_set_style_text_color(label, lv_color_hex(APP_UI_COLOR_TEXT), 0);
-    lv_label_set_text(label, text);
-    lv_obj_center(label);
-    return button;
-}
-
-void recorder_ui_control_set_text(lv_obj_t *button, const char *text)
-{
-    lv_obj_t *label = lv_obj_get_child(button, 0);
-    if (label != NULL)
-    {
-        lv_label_set_text(label, text);
-    }
-}
-
 void recorder_ui_set_visible(lv_obj_t *control, bool visible)
 {
     if (visible)
@@ -127,8 +93,8 @@ static void _recorder_root_render(recorder_root_state_t *state)
     recorder_ui_set_visible(state->secondary_row, recording || paused);
     if (recording || paused)
     {
-        recorder_ui_control_set_text(state->btn_secondary,
-                                     recording ? "暂停" : "继续");
+        app_ui_button_set_text(state->btn_secondary,
+                               recording ? "暂停" : "继续");
     }
     if (snapshot.operation_pending)
     {
@@ -319,20 +285,12 @@ static void _recorder_root_mount(const app_manager_page_context_t *context)
     app_ui_make_passive(state->record_indicator, false);
     lv_obj_center(state->record_indicator);
 
-    state->secondary_row = lv_obj_create(state->page.content);
-    lv_obj_remove_style_all(state->secondary_row);
-    lv_obj_set_width(state->secondary_row, LV_PCT(100));
-    lv_obj_set_height(state->secondary_row, 52);
-    lv_obj_set_flex_flow(state->secondary_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(state->secondary_row, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(state->secondary_row, 8, 0);
-    app_ui_make_passive(state->secondary_row, false);
-    state->btn_secondary = recorder_ui_control(state->secondary_row, "暂停",
-                           52, _recorder_secondary_event,
+    state->secondary_row = app_ui_button_row_create(state->page.content, 52);
+    state->btn_secondary = app_ui_button_create(state->secondary_row, "暂停",
+                           _recorder_secondary_event,
                            state);
-    state->btn_stop = recorder_ui_control(state->secondary_row, "停止", 52,
-                                          _recorder_stop_event, state);
+    state->btn_stop = app_ui_button_create(state->secondary_row, "停止",
+                                           _recorder_stop_event, state);
     recorder_ui_set_visible(state->secondary_row, false);
 
     state->space_label = app_ui_add_body_label(state->page.content,

@@ -72,9 +72,9 @@ static void _countdown_render(clock_countdown_state_t *state)
         {
             const bool selected = state->minutes == k_presets[index];
             preset_hit = preset_hit || selected;
-            clock_ui_chip_set_selected(state->chips[index], selected);
+            app_ui_chip_set_selected(state->chips[index], selected);
         }
-        clock_ui_chip_set_selected(state->chips[4], !preset_hit);
+        app_ui_chip_set_selected(state->chips[4], !preset_hit);
     }
     if (state->last_state != view)
     {
@@ -83,22 +83,22 @@ static void _countdown_render(clock_countdown_state_t *state)
         {
         case TIMER_SERVICE_IDLE:
             lv_label_set_text(state->hint_label, "选择时长后开始");
-            clock_ui_button_set_text(state->btn_primary, "开始");
+            app_ui_button_set_text(state->btn_primary, "开始");
             lv_obj_add_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
             break;
         case TIMER_SERVICE_RUNNING:
             lv_label_set_text(state->hint_label, "倒计时进行中");
-            clock_ui_button_set_text(state->btn_primary, "暂停");
+            app_ui_button_set_text(state->btn_primary, "暂停");
             lv_obj_remove_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
             break;
         case TIMER_SERVICE_PAUSED:
             lv_label_set_text(state->hint_label, "已暂停");
-            clock_ui_button_set_text(state->btn_primary, "继续");
+            app_ui_button_set_text(state->btn_primary, "继续");
             lv_obj_remove_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
             break;
         default:
             lv_label_set_text(state->hint_label, "时间到");
-            clock_ui_button_set_text(state->btn_primary, "重新开始");
+            app_ui_button_set_text(state->btn_primary, "重新开始");
             lv_obj_remove_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
             break;
         }
@@ -214,37 +214,21 @@ static void _countdown_mount(const app_manager_page_context_t *context)
                                app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_label_set_text(state->hint_label, "选择时长后开始");
 
-    lv_obj_t *chip_row = lv_obj_create(state->page.content);
-    lv_obj_remove_style_all(chip_row);
-    lv_obj_set_width(chip_row, LV_PCT(100));
-    lv_obj_set_height(chip_row, 40);
-    lv_obj_set_flex_flow(chip_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(chip_row, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(chip_row, 8, 0);
-    app_ui_make_passive(chip_row, false);
+    lv_obj_t *chip_row = app_ui_chip_row_create(state->page.content);
     for (size_t index = 0U; index < 4U; ++index)
     {
-        state->chips[index] = clock_ui_chip(chip_row, k_preset_text[index],
-                                            _countdown_chip_event, state);
+        state->chips[index] = app_ui_chip_create(chip_row, k_preset_text[index],
+                              _countdown_chip_event, state);
     }
-    state->chips[4] = clock_ui_chip(chip_row, "自定义",
-                                    _countdown_chip_event, state);
+    state->chips[4] = app_ui_chip_create(chip_row, "自定义",
+                                         _countdown_chip_event, state);
 
-    lv_obj_t *controls = lv_obj_create(state->page.content);
-    lv_obj_remove_style_all(controls);
-    lv_obj_set_width(controls, LV_PCT(100));
-    lv_obj_set_height(controls, 52);
-    lv_obj_set_flex_flow(controls, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(controls, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(controls, 8, 0);
-    app_ui_make_passive(controls, false);
-    state->btn_primary = clock_ui_action_button(controls, "开始",
+    lv_obj_t *controls = app_ui_button_row_create(state->page.content, 52);
+    state->btn_primary = app_ui_button_create(controls, "开始",
                          _countdown_primary_event,
                          state);
-    state->btn_reset = clock_ui_action_button(controls, "重置",
-                       _countdown_reset_event, state);
+    state->btn_reset = app_ui_button_create(controls, "重置",
+                                            _countdown_reset_event, state);
     lv_obj_add_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
 
     state->refresh_timer = lv_timer_create(_countdown_refresh, 250U, state);

@@ -60,7 +60,7 @@ static void _stopwatch_render(clock_stopwatch_state_t *state)
         {
         case TIMER_SERVICE_RUNNING:
             lv_label_set_text(state->hint_label, "计时中");
-            clock_ui_button_set_text(state->btn_primary, "暂停");
+            app_ui_button_set_text(state->btn_primary, "暂停");
             lv_obj_remove_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
             lv_obj_set_style_text_color(state->value_label,
                                         lv_color_hex(APP_UI_COLOR_TEXT),
@@ -68,7 +68,7 @@ static void _stopwatch_render(clock_stopwatch_state_t *state)
             break;
         case TIMER_SERVICE_PAUSED:
             lv_label_set_text(state->hint_label, "已暂停");
-            clock_ui_button_set_text(state->btn_primary, "继续");
+            app_ui_button_set_text(state->btn_primary, "继续");
             lv_obj_remove_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
             lv_obj_set_style_text_color(state->value_label,
                                         lv_color_hex(APP_UI_COLOR_MUTED),
@@ -76,7 +76,7 @@ static void _stopwatch_render(clock_stopwatch_state_t *state)
             break;
         default:
             lv_label_set_text(state->hint_label, "未开始");
-            clock_ui_button_set_text(state->btn_primary, "开始");
+            app_ui_button_set_text(state->btn_primary, "开始");
             lv_obj_add_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
             lv_obj_set_style_text_color(state->value_label,
                                         lv_color_hex(APP_UI_COLOR_TEXT),
@@ -172,20 +172,12 @@ static void _stopwatch_mount(const app_manager_page_context_t *context)
                                app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_label_set_text(state->hint_label, "未开始");
 
-    lv_obj_t *controls = lv_obj_create(state->page.content);
-    lv_obj_remove_style_all(controls);
-    lv_obj_set_width(controls, LV_PCT(100));
-    lv_obj_set_height(controls, 52);
-    lv_obj_set_flex_flow(controls, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(controls, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(controls, 8, 0);
-    app_ui_make_passive(controls, false);
-    state->btn_primary = clock_ui_action_button(controls, "开始",
+    lv_obj_t *controls = app_ui_button_row_create(state->page.content, 52);
+    state->btn_primary = app_ui_button_create(controls, "开始",
                          _stopwatch_primary_event,
                          state);
-    state->btn_reset = clock_ui_action_button(controls, "重置",
-                       _stopwatch_reset_event, state);
+    state->btn_reset = app_ui_button_create(controls, "重置",
+                                            _stopwatch_reset_event, state);
     lv_obj_add_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
 
     state->refresh_timer = lv_timer_create(_stopwatch_refresh, 250U, state);

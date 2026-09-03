@@ -105,6 +105,8 @@ void lv_arc_set_rotation(lv_obj_t *object, int32_t rotation);
 void lv_obj_remove_style(lv_obj_t *object, void *style, int selector);
 /** @brief Set a fake image source. */
 void lv_image_set_src(lv_obj_t *object, const lv_image_dsc_t *source);
+/** @brief Return the index-th live fake child, or NULL. */
+lv_obj_t *lv_obj_get_child(lv_obj_t *object, int32_t index);
 /** @brief Delete a fake object. */
 void lv_obj_delete(lv_obj_t *object);
 /** @brief Register a fake object event callback. */
