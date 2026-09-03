@@ -112,6 +112,18 @@ lv_obj_t *app_ui_add_danger_action(lv_obj_t *parent, const char *symbol,
                                    const char *title, const char *subtitle,
                                    lv_event_cb_t callback, void *user_data);
 /**
+ * @brief Add a two-line icon-less entry row with a live summary label.
+ * @param parent is the page content owning the row.
+ * @param title is the row title.
+ * @param summary_out receives the muted summary label.
+ * @param callback receives click events.
+ * @param user_data is retained as LVGL event user data.
+ * @return Created row button.
+ */
+lv_obj_t *app_ui_add_entry_row(lv_obj_t *parent, const char *title,
+                               lv_obj_t **summary_out,
+                               lv_event_cb_t callback, void *user_data);
+/**
  * @brief Create an equal-width button row (space-between, passive).
  * @param parent is the page content or card owning the row.
  * @param height is the row height in pixels.

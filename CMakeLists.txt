@@ -20,6 +20,9 @@ set(APP_SRCS
     "weather_app/src/weather_alert_pages.c"
     "menu_app/src/menu_app.c"
     "settings_app/src/settings_app.c"
+    "settings_app/src/settings_display_page.c"
+    "settings_app/src/settings_policy_page.c"
+    "settings_app/src/settings_device_page.c"
     "settings_app/src/settings_factory_reset_page.c"
     "setup_app/src/setup_app.c"
     "setup_app/src/setup_wifi_adapter.c"
@@ -34,6 +37,7 @@ idf_component_register(
     PRIV_INCLUDE_DIRS
         "menu_app/src"
         "clock_app/src"
+        "settings_app/src"
         "recorder_app/src"
     WHOLE_ARCHIVE
     REQUIRES

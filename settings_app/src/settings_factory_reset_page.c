@@ -4,6 +4,8 @@
 
 #include "settings_factory_reset_page.h"
 
+#include <string.h>
+
 #include "app_ui.h"
 #include "factory_reset_service.h"
 
@@ -55,6 +57,7 @@ static void _settings_factory_reset_mount(
     const app_manager_page_context_t *context)
 {
     settings_factory_reset_state_t *state = context->state;
+    memset(state, 0, sizeof(*state));
     app_ui_page_create(&state->page, "恢复出厂设置", true);
 
     app_ui_add_section(state->page.content, "将清除的内容");
@@ -63,7 +66,7 @@ static void _settings_factory_reset_mount(
         "设备绑定授权、蓝牙配对与 CCCD 状态、Wi-Fi 配置和本地传输状态将全部清除，随后设备会重新启动。此操作无法撤销。");
 
     app_ui_add_section(state->page.content, "确认操作");
-    state->confirm_button = app_ui_add_command(
+    state->confirm_button = app_ui_add_danger_action(
                                 state->page.content, LV_SYMBOL_TRASH,
                                 "确认恢复出厂设置", "清除本机数据并重新启动",
                                 _settings_factory_reset_confirm, state);

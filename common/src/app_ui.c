@@ -356,6 +356,65 @@ lv_obj_t *app_ui_add_command(lv_obj_t *parent, const char *symbol,
                               user_data, false, NULL);
 }
 
+lv_obj_t *app_ui_add_entry_row(lv_obj_t *parent, const char *title,
+                               lv_obj_t **summary_out,
+                               lv_event_cb_t callback, void *user_data)
+{
+    lv_obj_t *button = lv_button_create(parent);
+    lv_obj_set_width(button, LV_PCT(100));
+    lv_obj_set_height(button, 64);
+    lv_obj_set_style_radius(button, 8, 0);
+    lv_obj_set_style_bg_color(button, lv_color_hex(COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_color(button, lv_color_hex(COLOR_SURFACE_HI),
+                              LV_STATE_PRESSED);
+    lv_obj_set_style_shadow_width(button, 0, 0);
+    lv_obj_set_style_pad_left(button, 14, 0);
+    lv_obj_set_style_pad_right(button, 12, 0);
+    lv_obj_set_style_pad_column(button, 10, 0);
+    lv_obj_set_flex_flow(button, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(button, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    if (callback != NULL)
+    {
+        lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
+    }
+
+    lv_obj_t *text = lv_obj_create(button);
+    lv_obj_remove_style_all(text);
+    lv_obj_set_width(text, 0);
+    lv_obj_set_flex_grow(text, 1);
+    lv_obj_set_height(text, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(text, 2, 0);
+    app_ui_make_passive(text, false);
+
+    lv_obj_t *title_label = lv_label_create(text);
+    lv_obj_set_width(title_label, LV_PCT(100));
+    lv_label_set_long_mode(title_label, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_color(title_label, lv_color_hex(COLOR_TEXT), 0);
+    lv_obj_set_style_text_font(title_label,
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_label_set_text(title_label, title != NULL ? title : "");
+
+    lv_obj_t *summary = lv_label_create(text);
+    lv_obj_set_width(summary, LV_PCT(100));
+    lv_label_set_long_mode(summary, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_color(summary, lv_color_hex(COLOR_MUTED), 0);
+    lv_obj_set_style_text_font(summary, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_text(summary, "");
+    if (summary_out != NULL)
+    {
+        *summary_out = summary;
+    }
+
+    lv_obj_t *chevron = lv_label_create(button);
+    lv_obj_set_style_text_color(chevron, lv_color_hex(COLOR_MUTED), 0);
+    lv_obj_set_style_text_font(chevron, LV_FONT_DEFAULT, 0);
+    app_ui_make_passive(chevron, false);
+    lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
+    return button;
+}
+
 lv_obj_t *app_ui_add_danger_action(lv_obj_t *parent, const char *symbol,
                                    const char *title, const char *subtitle,
                                    lv_event_cb_t callback, void *user_data)
