@@ -10,6 +10,7 @@ set(APP_SRCS
     "clock_app/src/clock_stopwatch_page.c"
     "clock_app/src/clock_focus_page.c"
     "recorder_app/src/recorder_app.c"
+    "recorder_app/src/recorder_files_page.c"
     "level_app/src/level_app.c"
     "diagnostics_app/src/diagnostics_app.c"
     "weather_app/src/weather_app.c"
@@ -33,6 +34,7 @@ idf_component_register(
     PRIV_INCLUDE_DIRS
         "menu_app/src"
         "clock_app/src"
+        "recorder_app/src"
     WHOLE_ARCHIVE
     REQUIRES
         esp_common
