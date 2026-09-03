@@ -41,7 +41,7 @@ symbol，不在页面状态中保存文件路径或可变图片 payload。
 录音应用使用 `recorder_service` 写入 16 kHz/16-bit/双声道 WAV。录音、播放、删除和
 `.part` 到 `.wav` 的 finalize 均由 service worker 异步执行，页面只提交命令并读取
 generation snapshot；服务不可用或 finalize 失败时页面保持可见并允许重试。
-水平仪使用 IMU 加速度计算横纵倾角，校准读写通过 `chore_service` 的短任务完成，页面只消费结果；诊断页面通过设置中的五次点击入口打开，不出现在普通应用目录。
+水平仪使用 IMU 加速度计算横纵倾角，校准读写通过 `chore_service` 的短任务完成，页面只消费结果；校准由 Apps storage helper 持久化，`apps_factory_reset_persisted_state()` 删除后重新加载为零偏移。诊断页面通过设置中的五次点击入口打开，不出现在普通应用目录。
 
 ## ESP-IDF 集成
 

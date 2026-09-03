@@ -8,7 +8,7 @@
 #include "app_ui_theme.h"
 #include "chore_service.h"
 #include "imu_service.h"
-#include "nv_storage.h"
+#include "level_app_persistence.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -51,16 +51,6 @@ typedef struct level_page_state
     atomic_int calibration_result;
     bool calibration_error;
 } level_page_state_t;
-
-typedef struct level_calibration_blob
-{
-    uint32_t version;
-    float roll_offset;
-    float pitch_offset;
-} level_calibration_blob_t;
-
-#define LEVEL_CALIBRATION_KEY "level_cal"
-#define LEVEL_CALIBRATION_VERSION 1U
 
 _Static_assert(sizeof(level_page_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Level page state exceeds lifecycle arena slot");
@@ -211,33 +201,13 @@ static void _level_calibration_job(const chore_service_cancel_token_t *cancel,
     esp_err_t result = ESP_FAIL;
     if (job->operation == LEVEL_CALIBRATION_LOAD)
     {
-        level_calibration_blob_t blob;
-        size_t size = sizeof(blob);
-        result = nv_storage_get_blob(LEVEL_CALIBRATION_KEY, &blob, &size);
-        if (result == ESP_OK && size == sizeof(blob) &&
-                blob.version == LEVEL_CALIBRATION_VERSION &&
-                isfinite(blob.roll_offset) && isfinite(blob.pitch_offset) &&
-                fabsf(blob.roll_offset) <= 180.0F &&
-                fabsf(blob.pitch_offset) <= 180.0F)
-        {
-            job->roll_offset = blob.roll_offset;
-            job->pitch_offset = blob.pitch_offset;
-        }
-        else if (result == ESP_ERR_NOT_FOUND)
-        {
-            result = ESP_OK;
-        }
+        result = level_app_persistence_load(&job->roll_offset,
+                                            &job->pitch_offset);
     }
     else
     {
-        const level_calibration_blob_t blob =
-        {
-            .version = LEVEL_CALIBRATION_VERSION,
-            .roll_offset = job->roll_offset,
-            .pitch_offset = job->pitch_offset,
-        };
-        result = nv_storage_set_blob(LEVEL_CALIBRATION_KEY, &blob,
-                                     sizeof(blob));
+        result = level_app_persistence_save(job->roll_offset,
+                                            job->pitch_offset);
     }
     job->state->pending_roll_offset = job->roll_offset;
     job->state->pending_pitch_offset = job->pitch_offset;

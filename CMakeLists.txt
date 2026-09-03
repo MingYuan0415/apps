@@ -2,6 +2,7 @@
 # never become production registrations through a recursive glob.
 set(APP_SRCS
     "common/src/app_ui.c"
+    "common/src/apps_persistence.c"
     "common/src/app_weather_ui.c"
     "home_app/src/home_app.c"
     "clock_app/src/clock_app.c"
@@ -12,6 +13,7 @@ set(APP_SRCS
     "recorder_app/src/recorder_app.c"
     "recorder_app/src/recorder_files_page.c"
     "level_app/src/level_app.c"
+    "level_app/src/level_app_persistence.c"
     "diagnostics_app/src/diagnostics_app.c"
     "weather_app/src/weather_app.c"
     "weather_app/src/weather_ui.c"
@@ -40,6 +42,7 @@ idf_component_register(
         "clock_app/src"
         "settings_app/src"
         "recorder_app/src"
+        "level_app/src"
     WHOLE_ARCHIVE
     REQUIRES
         esp_common

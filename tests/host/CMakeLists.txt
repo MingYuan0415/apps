@@ -103,6 +103,24 @@ configure_apps_host_target(settings_factory_reset_page_test)
 add_apps_host_test(settings_factory_reset_page_test
                    settings_factory_reset_page_test)
 
+add_executable(apps_persistence_test
+    apps_persistence_test.c
+    ../../common/src/apps_persistence.c
+    ../../level_app/src/level_app_persistence.c
+)
+
+target_include_directories(apps_persistence_test PRIVATE
+    include
+    ../../common/include
+    ../../level_app/src
+    ../../../middleware/components/nv_storage/include
+)
+
+target_link_libraries(apps_persistence_test PRIVATE m)
+configure_apps_host_target(apps_persistence_test)
+
+add_apps_host_test(apps_persistence_test apps_persistence_test)
+
 add_executable(setup_wifi_adapter_test
     setup_wifi_adapter_test.c
     ../../setup_app/src/setup_wifi_adapter.c
