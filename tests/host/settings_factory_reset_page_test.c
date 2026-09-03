@@ -162,6 +162,38 @@ lv_obj_t *lv_label_create(lv_obj_t *parent)
     return _test_object_create(parent, false, true);
 }
 
+lv_obj_t *lv_arc_create(lv_obj_t *parent)
+{
+    return _test_object_create(parent, false, false);
+}
+
+void lv_arc_set_bg_angles(lv_obj_t *object, int32_t start, int32_t end)
+{
+    (void)object;
+    (void)start;
+    (void)end;
+}
+
+void lv_arc_set_angles(lv_obj_t *object, int32_t start, int32_t end)
+{
+    (void)object;
+    (void)start;
+    (void)end;
+}
+
+void lv_arc_set_rotation(lv_obj_t *object, int32_t rotation)
+{
+    (void)object;
+    (void)rotation;
+}
+
+void lv_obj_remove_style(lv_obj_t *object, void *style, int selector)
+{
+    (void)object;
+    (void)style;
+    (void)selector;
+}
+
 void lv_obj_delete(lv_obj_t *object)
 {
     if (object == NULL)

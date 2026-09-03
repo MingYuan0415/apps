@@ -62,6 +62,10 @@ typedef struct lv_draw_buf
 #define LV_OBJ_FLAG_SCROLL_MOMENTUM  64
 #define LV_OBJ_FLAG_HIDDEN            128
 #define LV_OPA_COVER                 255
+#define LV_OPA_TRANSP                  0
+#define LV_PART_MAIN                   0
+#define LV_PART_INDICATOR              1
+#define LV_PART_KNOB                   2
 #define LV_SCROLLBAR_MODE_AUTO       0
 #define LV_SIZE_CONTENT              (-1)
 #define LV_STATE_DISABLED            2
@@ -89,6 +93,16 @@ lv_obj_t *lv_button_create(lv_obj_t *parent);
 lv_obj_t *lv_label_create(lv_obj_t *parent);
 /** @brief Create a fake image. */
 lv_obj_t *lv_image_create(lv_obj_t *parent);
+/** @brief Create a fake arc. */
+lv_obj_t *lv_arc_create(lv_obj_t *parent);
+/** @brief Set fake arc background angles. */
+void lv_arc_set_bg_angles(lv_obj_t *object, int32_t start, int32_t end);
+/** @brief Set fake arc indicator angles. */
+void lv_arc_set_angles(lv_obj_t *object, int32_t start, int32_t end);
+/** @brief Set fake arc rotation. */
+void lv_arc_set_rotation(lv_obj_t *object, int32_t rotation);
+/** @brief Remove a fake style selector. */
+void lv_obj_remove_style(lv_obj_t *object, void *style, int selector);
 /** @brief Set a fake image source. */
 void lv_image_set_src(lv_obj_t *object, const lv_image_dsc_t *source);
 /** @brief Delete a fake object. */
@@ -152,6 +166,9 @@ APPS_HOST_LV_NOOP_2(lv_label_set_long_mode, lv_obj_t *, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_size, lv_obj_t *, int32_t, int32_t)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_bg_color, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_bg_opa, lv_obj_t *, int, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_arc_color, lv_obj_t *, lv_color_t, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_arc_opa, lv_obj_t *, int, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_arc_width, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_pad_all, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_pad_bottom, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_pad_column, lv_obj_t *, int32_t, int)

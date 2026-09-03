@@ -112,6 +112,16 @@ lv_obj_t *app_ui_add_icon_button(lv_obj_t *parent, uint32_t image_id,
                                  const char *fallback_symbol,
                                  lv_event_cb_t callback, void *user_data);
 /**
+ * @brief Create a passive full-circle progress ring starting at 12 o'clock.
+ * @param parent is the LVGL parent object.
+ * @param size is the ring diameter in pixels.
+ * @param width is the arc stroke width for both track and indicator.
+ * @param track_color is the RGB background track color.
+ * @return Created arc whose INDICATOR part carries the progress sweep.
+ */
+lv_obj_t *app_ui_ring_create(lv_obj_t *parent, int32_t size, int32_t width,
+                             uint32_t track_color);
+/**
  * @brief Add a name/value row and optionally return its value label.
  * @param parent is the LVGL parent object.
  * @param name is the row name.

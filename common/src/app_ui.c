@@ -400,6 +400,27 @@ lv_obj_t *app_ui_add_icon_button(lv_obj_t *parent, uint32_t image_id,
     return button;
 }
 
+lv_obj_t *app_ui_ring_create(lv_obj_t *parent, int32_t size, int32_t width,
+                             uint32_t track_color)
+{
+    lv_obj_t *arc = lv_arc_create(parent);
+    if (arc == NULL)
+    {
+        return NULL;
+    }
+    lv_obj_set_size(arc, size, size);
+    lv_obj_remove_style(arc, NULL, LV_PART_KNOB);
+    lv_obj_set_style_bg_opa(arc, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_arc_width(arc, width, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(arc, lv_color_hex(track_color), LV_PART_MAIN);
+    lv_obj_set_style_arc_width(arc, width, LV_PART_INDICATOR);
+    lv_arc_set_bg_angles(arc, 0, 360);
+    lv_arc_set_angles(arc, 0, 0);
+    lv_arc_set_rotation(arc, 270);
+    app_ui_make_passive(arc, false);
+    return arc;
+}
+
 lv_obj_t *app_ui_add_value_row(lv_obj_t *parent, const char *name,
                                const char *value, lv_obj_t **value_label)
 {
