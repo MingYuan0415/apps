@@ -292,6 +292,7 @@ static void _clock_root_add_card(clock_root_state_t *state, const char *name,
                                  const char *page_id, clock_card_t card)
 {
     lv_obj_t *row = lv_button_create(state->page.content);
+    app_ui_click_only(row);
     lv_obj_set_width(row, LV_PCT(100));
     lv_obj_set_height(row, 68);
     lv_obj_set_style_radius(row, 8, 0);

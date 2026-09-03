@@ -401,6 +401,7 @@ static void _weather_root_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
 static lv_obj_t *_weather_root_header_button(weather_root_state_t *state)
 {
     lv_obj_t *button = lv_button_create(state->page.header);
+    app_ui_click_only(button);
     lv_obj_set_size(button, 44, 44);
     lv_obj_set_style_radius(button, 6, 0);
     lv_obj_set_style_bg_color(button, lv_color_hex(WEATHER_COLOR_SURFACE), 0);
@@ -467,6 +468,7 @@ static void _weather_root_build(weather_root_state_t *state)
                            LV_LABEL_LONG_SCROLL_CIRCULAR);
 
     state->alert_button = lv_button_create(state->page.content);
+    app_ui_click_only(state->alert_button);
     lv_obj_set_size(state->alert_button, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_radius(state->alert_button, 6, 0);
     lv_obj_set_style_bg_color(state->alert_button,
@@ -496,6 +498,7 @@ static void _weather_root_build(weather_root_state_t *state)
                           LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
 
     lv_obj_t *detail = lv_button_create(state->page.content);
+    app_ui_click_only(detail);
     lv_obj_set_size(detail, LV_PCT(100), 44);
     lv_obj_set_style_radius(detail, 6, 0);
     lv_obj_set_style_bg_color(detail, lv_color_hex(WEATHER_COLOR_SURFACE_HI),

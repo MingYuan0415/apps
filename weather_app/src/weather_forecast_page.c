@@ -530,6 +530,7 @@ static void _weather_forecast_build(weather_forecast_state_t *state)
     for (uintptr_t index = 0U; index < WEATHER_FORECAST_SEGMENT_COUNT; ++index)
     {
         lv_obj_t *button = lv_button_create(segments);
+        app_ui_click_only(button);
         lv_obj_set_size(button, LV_PCT(32), LV_PCT(100));
         lv_obj_set_style_radius(button, 4, 0);
         lv_obj_set_style_bg_color(button,

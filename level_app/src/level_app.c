@@ -441,6 +441,7 @@ static void _level_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_align(state->info_label, LV_TEXT_ALIGN_CENTER, 0);
 
     lv_obj_t *calibrate = lv_button_create(state->page.content);
+    app_ui_click_only(calibrate);
     lv_obj_set_width(calibrate, LV_PCT(100));
     lv_obj_set_height(calibrate, 52);
     lv_obj_set_style_radius(calibrate, 6, 0);

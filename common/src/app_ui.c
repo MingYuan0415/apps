@@ -269,6 +269,7 @@ static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, const char *symbol,
                                     bool navigation, lv_obj_t **title_out)
 {
     lv_obj_t *button = lv_button_create(parent);
+    app_ui_click_only(button);
     lv_obj_set_width(button, LV_PCT(100));
     lv_obj_set_height(button, LV_SIZE_CONTENT);
     lv_obj_set_style_radius(button, 8, 0);
@@ -361,6 +362,7 @@ lv_obj_t *app_ui_add_entry_row(lv_obj_t *parent, const char *title,
                                lv_event_cb_t callback, void *user_data)
 {
     lv_obj_t *button = lv_button_create(parent);
+    app_ui_click_only(button);
     lv_obj_set_width(button, LV_PCT(100));
     lv_obj_set_height(button, 64);
     lv_obj_set_style_radius(button, 8, 0);
@@ -449,6 +451,7 @@ lv_obj_t *app_ui_button_create(lv_obj_t *row, const char *text,
                                lv_event_cb_t callback, void *user_data)
 {
     lv_obj_t *button = lv_button_create(row);
+    app_ui_click_only(button);
     lv_obj_set_width(button, 0);
     lv_obj_set_flex_grow(button, 1);
     lv_obj_set_height(button, LV_PCT(100));
@@ -487,6 +490,7 @@ lv_obj_t *app_ui_chip_create(lv_obj_t *row, const char *text,
                              lv_event_cb_t callback, void *user_data)
 {
     lv_obj_t *chip = lv_button_create(row);
+    app_ui_click_only(chip);
     lv_obj_set_width(chip, 0);
     lv_obj_set_flex_grow(chip, 1);
     lv_obj_set_height(chip, LV_PCT(100));
@@ -519,6 +523,11 @@ void app_ui_chip_set_selected(lv_obj_t *chip, bool selected)
                                         COLOR_MUTED), 0);
 }
 
+void app_ui_click_only(lv_obj_t *obj)
+{
+    lv_obj_remove_flag(obj, LV_OBJ_FLAG_PRESS_LOCK);
+}
+
 lv_obj_t *app_ui_add_icon_button(lv_obj_t *parent, uint32_t image_id,
                                  const char *fallback_symbol,
                                  lv_event_cb_t callback, void *user_data)
@@ -528,6 +537,7 @@ lv_obj_t *app_ui_add_icon_button(lv_obj_t *parent, uint32_t image_id,
     {
         return NULL;
     }
+    app_ui_click_only(button);
     lv_obj_set_width(button, 0);
     lv_obj_set_height(button, 56);
     lv_obj_set_flex_grow(button, 1);

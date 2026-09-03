@@ -61,6 +61,7 @@ typedef struct lv_draw_buf
 #define LV_OBJ_FLAG_SCROLL_ELASTIC   32
 #define LV_OBJ_FLAG_SCROLL_MOMENTUM  64
 #define LV_OBJ_FLAG_HIDDEN            128
+#define LV_OBJ_FLAG_PRESS_LOCK        256
 #define LV_OPA_COVER                 255
 #define LV_OPA_TRANSP                  0
 #define LV_PART_MAIN                   0

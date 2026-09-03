@@ -170,6 +170,17 @@ lv_obj_t *app_ui_chip_create(lv_obj_t *row, const char *text,
 void app_ui_chip_set_selected(lv_obj_t *chip, bool selected);
 
 /**
+ * @brief Cancel a press once the finger leaves the control.
+ *
+ * Removes LV_OBJ_FLAG_PRESS_LOCK so LV_EVENT_CLICKED fires only when the
+ * release point is still on the control; moving off sends LV_EVENT_PRESS_LOST
+ * and the activation is dropped. Apply to every click-activated control.
+ *
+ * @param obj is a clickable control activated by LV_EVENT_CLICKED.
+ */
+void app_ui_click_only(lv_obj_t *obj);
+
+/**
  * @brief Add a fixed-size semantic icon button.
  * @param parent is the row or container that owns the button.
  * @param image_id is the semantic image ID, or zero to skip image lookup.

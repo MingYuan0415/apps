@@ -18,7 +18,6 @@
 #include <string.h>
 
 #define SETTINGS_PAGE_DISPLAY       "display"
-#define SETTINGS_PAGE_POLICY        "policy"
 #define SETTINGS_PAGE_DEVICE        "device"
 #define SETTINGS_PAGE_POWER         "power"
 #define SETTINGS_PAGE_ABOUT         "about"
@@ -28,7 +27,6 @@
 
 extern const app_manager_page_definition_t settings_root_page_definition;
 extern const app_manager_page_definition_t settings_display_page_definition;
-extern const app_manager_page_definition_t settings_policy_page_definition;
 extern const app_manager_page_definition_t settings_device_page_definition;
 extern const app_manager_page_definition_t settings_power_page_definition;
 extern const app_manager_page_definition_t settings_about_page_definition;

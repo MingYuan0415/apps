@@ -16,7 +16,6 @@ typedef struct settings_root_state
 {
     app_ui_page_t page;
     lv_obj_t *display_summary;
-    lv_obj_t *policy_summary;
     lv_obj_t *device_summary;
     lv_obj_t *power_summary;
     lv_obj_t *about_summary;
@@ -103,16 +102,13 @@ static void _settings_root_render(settings_root_state_t *state)
 {
     char text[96];
     const uint8_t brightness = app_manager_screen_get_brightness();
-    (void)snprintf(text, sizeof(text), "%u%%",
-                   (unsigned)(((unsigned)brightness * 100U + 127U) / 255U));
-    lv_label_set_text(state->display_summary, text);
-
-    (void)snprintf(text, sizeof(text), "熄屏 %s · 待机 %s",
+    (void)snprintf(text, sizeof(text), "%u%% · 熄屏 %s · 待机 %s",
+                   (unsigned)(((unsigned)brightness * 100U + 127U) / 255U),
                    settings_ui_screen_timeout_text(
                        app_manager_pm_get_timeout_ms()),
                    settings_ui_standby_timeout_text(
                        app_manager_pm_get_standby_delay_ms()));
-    lv_label_set_text(state->policy_summary, text);
+    lv_label_set_text(state->display_summary, text);
 
     const char *wifi = "未连接";
     connectivity_manager_status_snapshot_t wifi_status;
@@ -130,8 +126,7 @@ static void _settings_root_render(settings_root_state_t *state)
         bt = bluetooth.bound ? "已绑定" : (bluetooth.active ? "绑定中" :
                                               "未绑定");
     }
-    (void)snprintf(text, sizeof(text), "Wi-Fi %s · 蓝牙 %s · SD %s", wifi, bt,
-                   sd_storage_service_is_mounted() ? "已挂载" : "未挂载");
+    (void)snprintf(text, sizeof(text), "Wi-Fi %s · 蓝牙 %s", wifi, bt);
     lv_label_set_text(state->device_summary, text);
 
     power_service_snapshot_t power;
@@ -164,14 +159,10 @@ static void _settings_root_mount(const app_manager_page_context_t *context)
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
     lv_obj_remove_flag(state->page.content, LV_OBJ_FLAG_SCROLLABLE);
 
-    (void)app_ui_add_entry_row(state->page.content, "显示与亮度",
+    (void)app_ui_add_entry_row(state->page.content, "显示与电源",
                                &state->display_summary,
                                _settings_open_page_event,
                                (void *)SETTINGS_PAGE_DISPLAY);
-    (void)app_ui_add_entry_row(state->page.content, "电源策略",
-                               &state->policy_summary,
-                               _settings_open_page_event,
-                               (void *)SETTINGS_PAGE_POLICY);
     (void)app_ui_add_entry_row(state->page.content, "设备状态",
                                &state->device_summary,
                                _settings_open_page_event,
@@ -197,7 +188,6 @@ static void _settings_root_unmount(const app_manager_page_context_t *context)
     settings_root_state_t *state = context->state;
     app_ui_page_destroy(&state->page);
     state->display_summary = NULL;
-    state->policy_summary = NULL;
     state->device_summary = NULL;
     state->power_summary = NULL;
     state->about_summary = NULL;
@@ -362,7 +352,7 @@ static void _settings_info_refresh(settings_info_state_t *state)
                                APP_UI_STATUS_WARNING);
         lv_label_set_text(state->detail_value,
                           mounted ? sd_storage_service_get_mount_path() :
-                          "可在重新插入 SD 卡后重试");
+                          "重新插入后重试");
         return;
     }
     const time_service_quality_t quality = time_service_get_quality();
@@ -409,7 +399,7 @@ static void _settings_info_mount(const app_manager_page_context_t *context)
     if (storage)
     {
         app_ui_add_body_label(state->page.content,
-                              "安全卸载将在录音停止后由存储服务执行。");
+                              "停止录音后将自动安全卸载");
     }
     else
     {
@@ -477,6 +467,7 @@ static void _settings_about_mount(const app_manager_page_context_t *context)
     const esp_app_desc_t *description = esp_app_get_description();
 
     lv_obj_t *name_button = lv_button_create(state->page.content);
+    app_ui_click_only(name_button);
     lv_obj_set_width(name_button, LV_PCT(100));
     lv_obj_set_height(name_button, 72);
     lv_obj_set_style_bg_opa(name_button, LV_OPA_TRANSP, 0);
@@ -591,11 +582,6 @@ static const app_manager_page_route_t s_settings_routes[] =
     {
         .page_id = SETTINGS_PAGE_DISPLAY,
         .definition = &settings_display_page_definition,
-        .user_data = NULL,
-    },
-    {
-        .page_id = SETTINGS_PAGE_POLICY,
-        .definition = &settings_policy_page_definition,
         .user_data = NULL,
     },
     {

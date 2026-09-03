@@ -52,6 +52,7 @@ static lv_obj_t *_menu_add_tile(menu_page_state_t *state,
                                 const app_manager_app_desc_t *app)
 {
     lv_obj_t *card = lv_button_create(state->page.content);
+    app_ui_click_only(card);
     lv_obj_set_width(card, 168);
     lv_obj_set_height(card, 136);
     lv_obj_set_style_radius(card, 8, 0);

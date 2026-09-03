@@ -262,6 +262,7 @@ static void _recorder_root_mount(const app_manager_page_context_t *context)
     app_ui_make_passive(record_row, false);
 
     state->record_button = lv_button_create(record_row);
+    app_ui_click_only(state->record_button);
     lv_obj_set_size(state->record_button, 96, 96);
     lv_obj_set_style_radius(state->record_button, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(state->record_button,
@@ -299,6 +300,7 @@ static void _recorder_root_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_align(state->space_label, LV_TEXT_ALIGN_CENTER, 0);
 
     lv_obj_t *entry = lv_button_create(state->page.content);
+    app_ui_click_only(entry);
     lv_obj_set_width(entry, LV_PCT(100));
     lv_obj_set_height(entry, 56);
     lv_obj_set_style_radius(entry, 8, 0);

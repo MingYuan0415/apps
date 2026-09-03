@@ -117,6 +117,7 @@ static lv_obj_t *_weather_alert_add_action(weather_alerts_state_t *state,
     const weather_service_alert_t *alert =
         &state->snapshot->alerts.items[index];
     lv_obj_t *button = lv_button_create(state->list);
+    app_ui_click_only(button);
     lv_obj_set_size(button, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_radius(button, 6, 0);
     lv_obj_set_style_bg_color(button, lv_color_hex(WEATHER_COLOR_SURFACE), 0);

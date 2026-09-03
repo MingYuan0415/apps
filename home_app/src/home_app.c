@@ -620,6 +620,7 @@ static void _home_build_dial(home_page_state_t *state, lv_obj_t *clock)
 static void _home_build_weather(home_page_state_t *state, lv_obj_t *content)
 {
     state->weather_panel = lv_button_create(content);
+    app_ui_click_only(state->weather_panel);
     lv_obj_set_width(state->weather_panel, LV_PCT(100));
     lv_obj_set_height(state->weather_panel, HOME_WEATHER_HEIGHT);
     lv_obj_set_style_radius(state->weather_panel, 12, 0);
@@ -687,6 +688,7 @@ static void _home_build_weather(home_page_state_t *state, lv_obj_t *content)
 static lv_obj_t *_home_tile_button(lv_obj_t *parent)
 {
     lv_obj_t *button = lv_button_create(parent);
+    app_ui_click_only(button);
     lv_obj_remove_style_all(button);
     lv_obj_set_width(button, 0);
     lv_obj_set_height(button, HOME_TILE_SIZE);

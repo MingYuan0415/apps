@@ -248,6 +248,7 @@ static void _setup_render_auto_connect(setup_root_state_t *state)
     lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_label_set_text(label, "自动连接");
     lv_obj_t *toggle = lv_switch_create(row);
+    app_ui_click_only(toggle);
     lv_obj_set_style_bg_color(toggle, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
                               0);
     lv_obj_set_style_bg_color(toggle, lv_color_hex(APP_UI_COLOR_RAIN),

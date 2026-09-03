@@ -29,6 +29,7 @@ static void _files_add_row(recorder_files_state_t *state,
     const bool selected = state->selected[0] != '\0' &&
                           strcmp(state->selected, file->name) == 0;
     lv_obj_t *row = lv_button_create(state->list);
+    app_ui_click_only(row);
     lv_obj_set_user_data(row, (void *)(uintptr_t)(file_index + 1U));
     lv_obj_set_width(row, LV_PCT(100));
     lv_obj_set_height(row, 56);
