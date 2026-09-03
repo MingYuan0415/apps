@@ -94,8 +94,6 @@ static void _device_mount(const app_manager_page_context_t *context)
     app_ui_page_create(&state->page, "设备状态", true);
     app_ui_page_set_subtitle(&state->page, "电量与存储");
     lv_obj_set_style_pad_row(state->page.content, 8, 0);
-    lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
-    lv_obj_remove_flag(state->page.content, LV_OBJ_FLAG_SCROLLABLE);
 
     app_ui_add_value_row(state->page.content, "电量", "读取中",
                          &state->battery_value);
