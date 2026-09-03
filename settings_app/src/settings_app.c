@@ -91,7 +91,7 @@ static void _settings_root_render(settings_root_state_t *state)
 {
     char text[96];
     const uint8_t brightness = app_manager_screen_get_brightness();
-    (void)snprintf(text, sizeof(text), "%u%% · 熄屏 %s · 待机 %s",
+    (void)snprintf(text, sizeof(text), "%u%%·熄屏 %s·待机 %s",
                    (unsigned)(((unsigned)brightness * 100U + 127U) / 255U),
                    settings_ui_screen_timeout_text(
                        app_manager_pm_get_timeout_ms()),
