@@ -18,8 +18,9 @@
 #include <string.h>
 
 #define SETTINGS_PAGE_DISPLAY       "display"
+#define SETTINGS_PAGE_WIFI          "wifi"
+#define SETTINGS_PAGE_BLUETOOTH     "bluetooth"
 #define SETTINGS_PAGE_DEVICE        "device"
-#define SETTINGS_PAGE_POWER         "power"
 #define SETTINGS_PAGE_ABOUT         "about"
 #define SETTINGS_PAGE_FACTORY_RESET "factory-reset"
 #define SETTINGS_PAGE_TIME          "time"
@@ -27,8 +28,9 @@
 
 extern const app_manager_page_definition_t settings_root_page_definition;
 extern const app_manager_page_definition_t settings_display_page_definition;
+extern const app_manager_page_definition_t settings_wifi_page_definition;
+extern const app_manager_page_definition_t settings_bluetooth_page_definition;
 extern const app_manager_page_definition_t settings_device_page_definition;
-extern const app_manager_page_definition_t settings_power_page_definition;
 extern const app_manager_page_definition_t settings_about_page_definition;
 extern const app_manager_page_definition_t settings_time_page_definition;
 extern const app_manager_page_definition_t settings_storage_page_definition;

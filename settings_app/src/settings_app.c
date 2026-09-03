@@ -16,20 +16,11 @@ typedef struct settings_root_state
 {
     app_ui_page_t page;
     lv_obj_t *display_summary;
+    lv_obj_t *wifi_summary;
+    lv_obj_t *bluetooth_summary;
     lv_obj_t *device_summary;
-    lv_obj_t *power_summary;
     lv_obj_t *about_summary;
 } settings_root_state_t;
-
-typedef struct settings_power_state
-{
-    app_ui_page_t page;
-    lv_obj_t *battery_value;
-    lv_obj_t *voltage_value;
-    lv_obj_t *source_value;
-    lv_obj_t *sample_value;
-    event_bus_sub_handle_t power_subscription;
-} settings_power_state_t;
 
 typedef struct settings_about_state
 {
@@ -49,8 +40,6 @@ typedef struct settings_info_state
 
 _Static_assert(sizeof(settings_root_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Settings root state exceeds the lifecycle arena slot");
-_Static_assert(sizeof(settings_power_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
-               "Settings power state exceeds the lifecycle arena slot");
 _Static_assert(sizeof(settings_about_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Settings about state exceeds the lifecycle arena slot");
 _Static_assert(sizeof(settings_info_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -114,35 +103,39 @@ static void _settings_root_render(settings_root_state_t *state)
     connectivity_manager_status_snapshot_t wifi_status;
     if (connectivity_manager_get_status(&wifi_status) == ESP_OK)
     {
-        wifi = wifi_status.state == CONNECTIVITY_MANAGER_STATE_IP_READY ?
-               "已连接" : (wifi_status.state ==
-                              CONNECTIVITY_MANAGER_STATE_CONNECTING ? "连接中" :
-                              "未连接");
+        if (wifi_status.manual_hold)
+        {
+            wifi = "已关闭";
+        }
+        else
+        {
+            wifi = wifi_status.state == CONNECTIVITY_MANAGER_STATE_IP_READY ?
+                   "已连接" :
+                   (wifi_status.state == CONNECTIVITY_MANAGER_STATE_CONNECTING ?
+                    "连接中" : "未连接");
+        }
     }
-    device_link_service_status_t bluetooth;
+    lv_label_set_text(state->wifi_summary, wifi);
+
     const char *bt = "不可用";
+    device_link_service_status_t bluetooth;
     if (device_link_service_get_status(&bluetooth) == ESP_OK)
     {
-        bt = bluetooth.bound ? "已绑定" : (bluetooth.active ? "绑定中" :
-                                              "未绑定");
+        bt = !bluetooth.enabled ? "已关闭" : (bluetooth.bound ? "已绑定" :
+             (bluetooth.active ? "配对中" : "未绑定"));
     }
-    (void)snprintf(text, sizeof(text), "Wi-Fi %s · 蓝牙 %s", wifi, bt);
-    lv_label_set_text(state->device_summary, text);
+    lv_label_set_text(state->bluetooth_summary, bt);
 
     power_service_snapshot_t power;
-    if (power_service_get_snapshot(&power) == ESP_OK && power.valid &&
-            power.info.battery_percent >= 0)
-    {
-        (void)snprintf(text, sizeof(text), "%d%% %s",
-                       power.info.battery_percent,
-                       power.info.is_charging ? "充电中" :
-                       (power.info.is_vbus_connected ? "USB 供电" : "电池"));
-    }
-    else
-    {
-        (void)snprintf(text, sizeof(text), "读取中");
-    }
-    lv_label_set_text(state->power_summary, text);
+    const bool power_valid = power_service_get_snapshot(&power) == ESP_OK &&
+                             power.valid && power.info.battery_percent >= 0;
+    (void)snprintf(text, sizeof(text), "%s · SD %s",
+                   power_valid ?
+                   (power.info.is_charging ? "充电中" :
+                    (power.info.is_vbus_connected ? "USB 供电" : "电池")) :
+                   "电池未知",
+                   sd_storage_service_is_mounted() ? "已挂载" : "未挂载");
+    lv_label_set_text(state->device_summary, text);
 
     const esp_app_desc_t *description = esp_app_get_description();
     lv_label_set_text(state->about_summary,
@@ -163,14 +156,18 @@ static void _settings_root_mount(const app_manager_page_context_t *context)
                                &state->display_summary,
                                _settings_open_page_event,
                                (void *)SETTINGS_PAGE_DISPLAY);
+    (void)app_ui_add_entry_row(state->page.content, "Wi-Fi",
+                               &state->wifi_summary,
+                               _settings_open_page_event,
+                               (void *)SETTINGS_PAGE_WIFI);
+    (void)app_ui_add_entry_row(state->page.content, "蓝牙",
+                               &state->bluetooth_summary,
+                               _settings_open_page_event,
+                               (void *)SETTINGS_PAGE_BLUETOOTH);
     (void)app_ui_add_entry_row(state->page.content, "设备状态",
                                &state->device_summary,
                                _settings_open_page_event,
                                (void *)SETTINGS_PAGE_DEVICE);
-    (void)app_ui_add_entry_row(state->page.content, "电源状态",
-                               &state->power_summary,
-                               _settings_open_page_event,
-                               (void *)SETTINGS_PAGE_POWER);
     (void)app_ui_add_entry_row(state->page.content, "关于与维护",
                                &state->about_summary,
                                _settings_open_page_event,
@@ -188,157 +185,10 @@ static void _settings_root_unmount(const app_manager_page_context_t *context)
     settings_root_state_t *state = context->state;
     app_ui_page_destroy(&state->page);
     state->display_summary = NULL;
+    state->wifi_summary = NULL;
+    state->bluetooth_summary = NULL;
     state->device_summary = NULL;
-    state->power_summary = NULL;
     state->about_summary = NULL;
-}
-
-static void _settings_power_render(settings_power_state_t *state,
-                                   const power_service_snapshot_t *snapshot)
-{
-    if (!snapshot->valid)
-    {
-        app_ui_set_status_text(state->battery_value, "不可用",
-                               APP_UI_STATUS_ERROR);
-        lv_label_set_text(state->voltage_value, "--");
-        lv_label_set_text(state->source_value, "PMU 离线");
-        lv_label_set_text(state->sample_value, "无有效采样");
-        return;
-    }
-    if (snapshot->info.battery_percent >= 0)
-    {
-        char percent[8];
-        (void)snprintf(percent, sizeof(percent), "%d%%",
-                       snapshot->info.battery_percent);
-        app_ui_set_status_text(
-            state->battery_value, percent,
-            snapshot->info.is_charging ? APP_UI_STATUS_SUCCESS :
-            APP_UI_STATUS_NEUTRAL);
-    }
-    else
-    {
-        app_ui_set_status_text(state->battery_value, "未知",
-                               APP_UI_STATUS_WARNING);
-    }
-    lv_label_set_text_fmt(state->voltage_value, "%u mV",
-                          (unsigned)snapshot->info.battery_voltage_mv);
-    lv_label_set_text(state->source_value,
-                      snapshot->info.is_charging ? "充电中" :
-                      (snapshot->info.is_vbus_connected ? "USB 供电" :
-                       "电池供电"));
-    lv_label_set_text_fmt(state->sample_value, "%lld ms",
-                          (long long)snapshot->sampled_at_ms);
-}
-
-static void _settings_power_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
-                                  const void *payload, size_t payload_size,
-                                  void *user_data)
-{
-    settings_power_state_t *state = user_data;
-    if (msg_id != POWER_SERVICE_MSG ||
-            sub_type != POWER_SERVICE_MSG_SUB_TYPE_SNAPSHOT_UPDATE ||
-            payload == NULL ||
-            payload_size != sizeof(power_service_snapshot_t) ||
-            state->page.root == NULL)
-    {
-        return;
-    }
-    power_service_snapshot_t snapshot;
-    memcpy(&snapshot, payload, sizeof(snapshot));
-    _settings_power_render(state, &snapshot);
-}
-
-static void _settings_screen_off_event(lv_event_t *event)
-{
-    (void)event;
-    esp_err_t result = app_manager_pm_request_screen_off();
-    if (result != ESP_OK)
-    {
-        LOG_W("screen-off request failed: %s", esp_err_to_name(result));
-    }
-}
-
-static void _settings_power_mount(const app_manager_page_context_t *context)
-{
-    settings_power_state_t *state = context->state;
-    memset(state, 0, sizeof(*state));
-    state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-    app_ui_page_create(&state->page, "电源状态", true);
-    app_ui_page_set_subtitle(&state->page, "电池与熄屏");
-    lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
-    lv_obj_remove_flag(state->page.content, LV_OBJ_FLAG_SCROLLABLE);
-
-    app_ui_add_value_row(state->page.content, "电量", "读取中",
-                         &state->battery_value);
-    app_ui_add_value_row(state->page.content, "电压", "--",
-                         &state->voltage_value);
-    app_ui_add_value_row(state->page.content, "供电来源", "--",
-                         &state->source_value);
-    app_ui_add_value_row(state->page.content, "采样时刻", "--",
-                         &state->sample_value);
-    app_ui_add_command(state->page.content, LV_SYMBOL_POWER, "立即熄屏",
-                       "熄屏或待机后使用 HOME 恢复",
-                       _settings_screen_off_event, NULL);
-
-    power_service_snapshot_t snapshot;
-    if (power_service_get_snapshot(&snapshot) != ESP_OK)
-    {
-        snapshot = (power_service_snapshot_t)
-        {
-            0
-        };
-    }
-    _settings_power_render(state, &snapshot);
-}
-
-static void _settings_power_resume(const app_manager_page_context_t *context)
-{
-    settings_power_state_t *state = context->state;
-    if (state->power_subscription == EVENT_BUS_SUB_HANDLE_INVALID)
-    {
-        esp_err_t result = event_bus_subscribe(
-                               POWER_SERVICE_MSG,
-                               POWER_SERVICE_MSG_SUB_TYPE_SNAPSHOT_UPDATE,
-                               _settings_power_event, state,
-                               EVENT_BUS_DISPATCH_UI,
-                               &state->power_subscription);
-        if (result != ESP_OK)
-        {
-            state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-            LOG_W("power subscription failed: %s", esp_err_to_name(result));
-        }
-    }
-    power_service_snapshot_t snapshot;
-    if (power_service_get_snapshot(&snapshot) == ESP_OK)
-    {
-        _settings_power_render(state, &snapshot);
-    }
-}
-
-static esp_err_t _settings_power_pause(const app_manager_page_context_t *context)
-{
-    settings_power_state_t *state = context->state;
-    if (state->power_subscription == EVENT_BUS_SUB_HANDLE_INVALID)
-    {
-        return ESP_OK;
-    }
-    esp_err_t result = event_bus_unsubscribe(state->power_subscription);
-    if (result == ESP_OK || result == ESP_ERR_NOT_FOUND)
-    {
-        state->power_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        return ESP_OK;
-    }
-    return result;
-}
-
-static void _settings_power_unmount(const app_manager_page_context_t *context)
-{
-    settings_power_state_t *state = context->state;
-    app_ui_page_destroy(&state->page);
-    state->battery_value = NULL;
-    state->voltage_value = NULL;
-    state->source_value = NULL;
-    state->sample_value = NULL;
 }
 
 static void _settings_info_refresh(settings_info_state_t *state)
@@ -520,14 +370,6 @@ static const app_manager_page_ops_t s_settings_root_ops =
     .unmount = _settings_root_unmount,
 };
 
-static const app_manager_page_ops_t s_settings_power_ops =
-{
-    .mount = _settings_power_mount,
-    .resume = _settings_power_resume,
-    .pause = _settings_power_pause,
-    .unmount = _settings_power_unmount,
-};
-
 static const app_manager_page_ops_t s_settings_about_ops =
 {
     .mount = _settings_about_mount,
@@ -546,12 +388,6 @@ const app_manager_page_definition_t settings_root_page_definition =
 {
     .ops = &s_settings_root_ops,
     .memory_size = sizeof(settings_root_state_t),
-};
-
-const app_manager_page_definition_t settings_power_page_definition =
-{
-    .ops = &s_settings_power_ops,
-    .memory_size = sizeof(settings_power_state_t),
 };
 
 const app_manager_page_definition_t settings_about_page_definition =
@@ -585,13 +421,18 @@ static const app_manager_page_route_t s_settings_routes[] =
         .user_data = NULL,
     },
     {
-        .page_id = SETTINGS_PAGE_DEVICE,
-        .definition = &settings_device_page_definition,
+        .page_id = SETTINGS_PAGE_WIFI,
+        .definition = &settings_wifi_page_definition,
         .user_data = NULL,
     },
     {
-        .page_id = SETTINGS_PAGE_POWER,
-        .definition = &settings_power_page_definition,
+        .page_id = SETTINGS_PAGE_BLUETOOTH,
+        .definition = &settings_bluetooth_page_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = SETTINGS_PAGE_DEVICE,
+        .definition = &settings_device_page_definition,
         .user_data = NULL,
     },
     {

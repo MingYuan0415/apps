@@ -44,6 +44,7 @@ typedef struct lv_draw_buf
 #define LV_ALIGN_TOP_LEFT           0
 #define LV_DIR_VER                  1
 #define LV_EVENT_CLICKED            1
+#define LV_EVENT_VALUE_CHANGED      2
 #define LV_FLEX_ALIGN_CENTER        1
 #define LV_FLEX_ALIGN_SPACE_BETWEEN 2
 #define LV_FLEX_ALIGN_START         0
@@ -71,6 +72,7 @@ typedef struct lv_draw_buf
 #define LV_SIZE_CONTENT              (-1)
 #define LV_STATE_DISABLED            2
 #define LV_STATE_PRESSED             1
+#define LV_STATE_CHECKED             4
 #define LV_TEXT_ALIGN_CENTER         0
 #define LV_TEXT_ALIGN_RIGHT          1
 #define LV_PCT(value)                (value)
@@ -96,6 +98,8 @@ lv_obj_t *lv_label_create(lv_obj_t *parent);
 lv_obj_t *lv_image_create(lv_obj_t *parent);
 /** @brief Create a fake arc. */
 lv_obj_t *lv_arc_create(lv_obj_t *parent);
+/** @brief Create a fake switch. */
+lv_obj_t *lv_switch_create(lv_obj_t *parent);
 /** @brief Set fake arc background angles. */
 void lv_arc_set_bg_angles(lv_obj_t *object, int32_t start, int32_t end);
 /** @brief Set fake arc indicator angles. */

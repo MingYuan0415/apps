@@ -167,6 +167,11 @@ lv_obj_t *lv_arc_create(lv_obj_t *parent)
     return _test_object_create(parent, false, false);
 }
 
+lv_obj_t *lv_switch_create(lv_obj_t *parent)
+{
+    return _test_object_create(parent, false, false);
+}
+
 void lv_arc_set_bg_angles(lv_obj_t *object, int32_t start, int32_t end)
 {
     (void)object;

@@ -213,6 +213,19 @@ lv_obj_t *app_ui_ring_create(lv_obj_t *parent, int32_t size, int32_t width,
 lv_obj_t *app_ui_add_value_row(lv_obj_t *parent, const char *name,
                                const char *value, lv_obj_t **value_label);
 /**
+ * @brief Add a title/subtitle row with a right-aligned on/off switch.
+ * @param parent is the page content owning the row.
+ * @param title is the primary row text.
+ * @param subtitle is the optional secondary text (NULL hides it).
+ * @param callback receives the switch LV_EVENT_VALUE_CHANGED.
+ * @param user_data is retained as LVGL event user data.
+ * @param switch_out optionally receives the created switch for state updates.
+ * @return Created row object.
+ */
+lv_obj_t *app_ui_add_switch_row(lv_obj_t *parent, const char *title,
+                                const char *subtitle, lv_event_cb_t callback,
+                                void *user_data, lv_obj_t **switch_out);
+/**
  * @brief Add a wrapped body-text label.
  * @param parent is the LVGL parent object.
  * @param text is the body text.

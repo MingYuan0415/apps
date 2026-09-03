@@ -21,6 +21,8 @@ set(APP_SRCS
     "menu_app/src/menu_app.c"
     "settings_app/src/settings_app.c"
     "settings_app/src/settings_display_page.c"
+    "settings_app/src/settings_wifi_page.c"
+    "settings_app/src/settings_bluetooth_page.c"
     "settings_app/src/settings_device_page.c"
     "settings_app/src/settings_factory_reset_page.c"
     "setup_app/src/setup_app.c"
