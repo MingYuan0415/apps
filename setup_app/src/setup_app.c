@@ -5,6 +5,7 @@
 #include "app_manager.h"
 #include "app_image_ids.h"
 #include "app_ui.h"
+#include "app_ui_theme.h"
 #include "device_link_service.h"
 #include "setup_wifi_adapter.h"
 #include "onboarding_service.h"
@@ -15,10 +16,7 @@
 #include <string.h>
 
 #define SETUP_PAGE_PROVISIONING "provisioning"
-#define SETUP_COLOR_TEXT  0xF2F5F6
-#define SETUP_COLOR_MUTED 0x91A0A8
-#define SETUP_ACCEPT_COLOR 0x2E7D32
-#define SETUP_DENY_COLOR  0xB71C1C
+#define SETUP_WINDOW_TOTAL_MS 120000U
 
 typedef struct setup_root_state
 {
@@ -26,6 +24,8 @@ typedef struct setup_root_state
     lv_obj_t *status_label;
     lv_obj_t *detail_label;
     lv_obj_t *controls;
+    lv_obj_t *wifi_arcs[3];
+    lv_obj_t *wifi_dot;
     setup_wifi_adapter_t wifi;
     event_bus_sub_handle_t device_link_subscription;
     connectivity_manager_status_snapshot_t connectivity;
@@ -48,6 +48,7 @@ typedef struct setup_provisioning_state
     lv_obj_t *confirm_row;
     lv_obj_t *confirm_button;
     lv_obj_t *deny_button;
+    lv_obj_t *window_ring;
     event_bus_sub_handle_t subscription;
     uint64_t device_link_generation;
     device_link_confirmation_token_t confirmation_token;
@@ -243,10 +244,16 @@ static void _setup_render_auto_connect(setup_root_state_t *state)
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     app_ui_make_passive(row, false);
     lv_obj_t *label = lv_label_create(row);
-    lv_obj_set_style_text_color(label, lv_color_hex(SETUP_COLOR_TEXT), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_label_set_text(label, "自动连接");
     lv_obj_t *toggle = lv_switch_create(row);
+    lv_obj_set_style_bg_color(toggle, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
+                              0);
+    lv_obj_set_style_bg_color(toggle, lv_color_hex(APP_UI_COLOR_RAIN),
+                              LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(toggle, lv_color_hex(APP_UI_COLOR_TEXT),
+                              LV_PART_KNOB);
     if (state->connectivity.auto_connect)
     {
         lv_obj_add_state(toggle, LV_STATE_CHECKED);
@@ -282,6 +289,53 @@ static void _setup_render_management(setup_root_state_t *state)
                                  "删除保存配置并断开连接",
                                  _setup_forget_event);
     }
+}
+
+static void _setup_wifi_glyph(lv_obj_t *parent, lv_obj_t **arcs,
+                              lv_obj_t **dot)
+{
+    static const int32_t sizes[3] = { 56, 40, 24 };
+    lv_obj_t *glyph = lv_obj_create(parent);
+    lv_obj_remove_style_all(glyph);
+    lv_obj_set_size(glyph, 56, 44);
+    app_ui_make_passive(glyph, false);
+    lv_obj_add_flag(glyph, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    for (size_t index = 0U; index < 3U; ++index)
+    {
+        const int32_t size = sizes[index];
+        lv_obj_t *arc = lv_arc_create(glyph);
+        lv_obj_set_size(arc, size, size);
+        lv_obj_remove_style(arc, NULL, LV_PART_KNOB);
+        lv_obj_set_style_bg_opa(arc, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_arc_width(arc, 3, LV_PART_MAIN);
+        lv_obj_set_style_arc_color(arc, lv_color_hex(APP_UI_COLOR_MUTED),
+                                   LV_PART_MAIN);
+        lv_obj_set_style_arc_opa(arc, LV_OPA_TRANSP, LV_PART_INDICATOR);
+        lv_arc_set_bg_angles(arc, 225, 315);
+        lv_arc_set_angles(arc, 225, 315);
+        lv_obj_set_pos(arc, 28 - size / 2, 36 - size / 2);
+        app_ui_make_passive(arc, false);
+        arcs[index] = arc;
+    }
+    *dot = lv_obj_create(glyph);
+    lv_obj_remove_style_all(*dot);
+    lv_obj_set_size(*dot, 6, 6);
+    lv_obj_set_style_bg_color(*dot, lv_color_hex(APP_UI_COLOR_MUTED), 0);
+    lv_obj_set_style_bg_opa(*dot, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(*dot, LV_RADIUS_CIRCLE, 0);
+    app_ui_make_passive(*dot, false);
+    lv_obj_set_pos(*dot, 25, 33);
+}
+
+static void _setup_wifi_glyph_color(lv_obj_t **arcs, lv_obj_t *dot,
+                                    uint32_t color)
+{
+    for (size_t index = 0U; index < 3U; ++index)
+    {
+        lv_obj_set_style_arc_color(arcs[index], lv_color_hex(color),
+                                   LV_PART_MAIN);
+    }
+    lv_obj_set_style_bg_color(dot, lv_color_hex(color), 0);
 }
 
 static void _setup_root_render(setup_root_state_t *state)
@@ -416,6 +470,18 @@ static void _setup_root_render(setup_root_state_t *state)
         lv_label_set_text(state->detail_label,
                           "手机绑定进行中，本机网络管理已锁定");
     }
+    uint32_t glyph_color = APP_UI_COLOR_MUTED;
+    if (status->state == CONNECTIVITY_MANAGER_STATE_IP_READY)
+    {
+        glyph_color = APP_UI_COLOR_RAIN;
+    }
+    else if (status->state == CONNECTIVITY_MANAGER_STATE_CONNECTING ||
+             status->state == CONNECTIVITY_MANAGER_STATE_WAITING_IP ||
+             status->state == CONNECTIVITY_MANAGER_STATE_SCANNING)
+    {
+        glyph_color = APP_UI_COLOR_SUN;
+    }
+    _setup_wifi_glyph_color(state->wifi_arcs, state->wifi_dot, glyph_color);
     if (status->state == CONNECTIVITY_MANAGER_STATE_IP_READY)
     {
         if (state->onboarding_state != ONBOARDING_SERVICE_COMPLETED)
@@ -476,20 +542,46 @@ static void _setup_root_provisioning_event(
 
 static void _setup_root_mount(setup_root_state_t *state)
 {
+    memset(state, 0, sizeof(*state));
     app_ui_page_create(&state->page, "网络设置", true);
-    (void)app_ui_add_section(state->page.content, "WI-FI");
-    state->status_label = lv_label_create(state->page.content);
+    app_ui_page_set_subtitle(&state->page, "Wi-Fi 与手机绑定");
+
+    lv_obj_t *card = lv_obj_create(state->page.content);
+    lv_obj_remove_style_all(card);
+    lv_obj_set_width(card, LV_PCT(100));
+    lv_obj_set_height(card, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_color(card, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(card, 8, 0);
+    lv_obj_set_style_pad_all(card, 14, 0);
+    lv_obj_set_style_pad_column(card, 12, 0);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    app_ui_make_passive(card, false);
+    _setup_wifi_glyph(card, state->wifi_arcs, &state->wifi_dot);
+
+    lv_obj_t *text = lv_obj_create(card);
+    lv_obj_remove_style_all(text);
+    lv_obj_set_width(text, 0);
+    lv_obj_set_flex_grow(text, 1);
+    lv_obj_set_height(text, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(text, 2, 0);
+    app_ui_make_passive(text, false);
+    state->status_label = lv_label_create(text);
     lv_obj_set_width(state->status_label, LV_PCT(100));
+    lv_label_set_long_mode(state->status_label, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_color(state->status_label,
-                                lv_color_hex(SETUP_COLOR_TEXT), 0);
+                                lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(state->status_label,
-                               app_ui_font(APP_THEME_FONT_BIGL), 0);
+                               app_ui_font(APP_THEME_FONT_HEAD), 0);
     lv_label_set_text(state->status_label, "正在加载");
-    state->detail_label = lv_label_create(state->page.content);
+    state->detail_label = lv_label_create(text);
     lv_obj_set_width(state->detail_label, LV_PCT(100));
-    lv_label_set_long_mode(state->detail_label, LV_LABEL_LONG_WRAP);
+    lv_label_set_long_mode(state->detail_label, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_color(state->detail_label,
-                                lv_color_hex(SETUP_COLOR_MUTED), 0);
+                                lv_color_hex(APP_UI_COLOR_MUTED), 0);
     lv_obj_set_style_text_font(state->detail_label,
                                app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_label_set_text(state->detail_label, "正在读取网络状态");
@@ -589,6 +681,11 @@ static void _setup_root_unmount(const app_manager_page_context_t *context)
     state->status_label = NULL;
     state->detail_label = NULL;
     state->controls = NULL;
+    for (size_t index = 0U; index < 3U; ++index)
+    {
+        state->wifi_arcs[index] = NULL;
+    }
+    state->wifi_dot = NULL;
 }
 
 static void _setup_provisioning_scrub(setup_provisioning_state_t *state)
@@ -656,6 +753,25 @@ static void _setup_provisioning_render(
     (void)snprintf(remaining, sizeof(remaining), "剩余 %u:%02u",
                    (unsigned)(seconds / 60U), (unsigned)(seconds % 60U));
     lv_label_set_text(state->remaining_label, remaining);
+
+    uint32_t clamped = status->window_remaining_ms;
+    if (clamped > SETUP_WINDOW_TOTAL_MS)
+    {
+        clamped = SETUP_WINDOW_TOTAL_MS;
+    }
+    const uint32_t span = status->active ? 360U * clamped /
+                          SETUP_WINDOW_TOTAL_MS : 0U;
+    lv_obj_set_style_arc_opa(state->window_ring,
+                             span > 0U ? LV_OPA_COVER : LV_OPA_TRANSP,
+                             LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(state->window_ring,
+                               lv_color_hex(APP_UI_COLOR_RAIN),
+                               LV_PART_INDICATOR);
+    if (span > 0U)
+    {
+        lv_arc_set_angles(state->window_ring, 0,
+                          (lv_value_precise_t)span);
+    }
 }
 
 static void _setup_provisioning_event(
@@ -715,24 +831,43 @@ static void _setup_provisioning_deny_event(lv_event_t *event)
 
 static void _setup_provisioning_mount(setup_provisioning_state_t *state)
 {
+    memset(state, 0, sizeof(*state));
     app_ui_page_create(&state->page, "手机绑定", true);
+    app_ui_page_set_subtitle(&state->page, "BLE 数字比对");
+
+    lv_obj_t *ring_row = lv_obj_create(state->page.content);
+    lv_obj_remove_style_all(ring_row);
+    lv_obj_set_width(ring_row, LV_PCT(100));
+    lv_obj_set_height(ring_row, 120);
+    lv_obj_set_flex_flow(ring_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ring_row, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    app_ui_make_passive(ring_row, false);
+    state->window_ring = app_ui_ring_create(ring_row, 120, 6,
+                                            APP_UI_COLOR_SURFACE_HI);
+
     state->passkey_label = lv_label_create(state->page.content);
     lv_obj_set_width(state->passkey_label, LV_PCT(100));
     lv_obj_set_style_text_align(state->passkey_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(state->passkey_label,
                                app_ui_font(APP_THEME_FONT_BIGL), 0);
+    lv_obj_set_style_text_color(state->passkey_label,
+                                lv_color_hex(APP_UI_COLOR_RAIN), 0);
     lv_label_set_text(state->passkey_label, "");
-    state->device_label = lv_label_create(state->page.content);
+    state->device_label = lv_label_create(state->window_ring);
     lv_obj_set_width(state->device_label, LV_PCT(100));
     lv_obj_set_style_text_align(state->device_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(state->device_label,
                                app_ui_font(APP_THEME_FONT_BIGL), 0);
+    lv_obj_set_style_text_color(state->device_label,
+                                lv_color_hex(APP_UI_COLOR_TEXT), 0);
+    lv_obj_center(state->device_label);
     state->status_label = lv_label_create(state->page.content);
     lv_obj_set_width(state->status_label, LV_PCT(100));
     lv_label_set_long_mode(state->status_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(state->status_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(state->status_label,
-                                lv_color_hex(SETUP_COLOR_TEXT), 0);
+                                lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(state->status_label,
                                app_ui_font(APP_THEME_FONT_BODY), 0);
     state->remaining_label = lv_label_create(state->page.content);
@@ -740,55 +875,31 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
     lv_obj_set_style_text_align(state->remaining_label,
                                 LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(state->remaining_label,
-                                lv_color_hex(SETUP_COLOR_MUTED), 0);
+                                lv_color_hex(APP_UI_COLOR_MUTED), 0);
     lv_obj_set_style_text_font(state->remaining_label,
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
     /* Binding confirmation row: hidden until a commit is pending. */
     state->confirm_row = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(state->confirm_row);
     lv_obj_set_width(state->confirm_row, LV_PCT(100));
-    lv_obj_set_height(state->confirm_row, LV_SIZE_CONTENT);
+    lv_obj_set_height(state->confirm_row, 44);
     lv_obj_set_flex_flow(state->confirm_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_pad_row(state->confirm_row, 8, 0);
+    lv_obj_set_flex_align(state->confirm_row, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(state->confirm_row, 8, 0);
     app_ui_make_passive(state->confirm_row, false);
     lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
-    state->confirm_button = lv_button_create(state->confirm_row);
-    lv_obj_set_height(state->confirm_button, 44);
-    lv_obj_set_flex_grow(state->confirm_button, 1);
-    lv_obj_set_style_radius(state->confirm_button, 5, 0);
-    lv_obj_set_style_bg_color(state->confirm_button,
-                              lv_color_hex(SETUP_ACCEPT_COLOR), 0);
-    lv_obj_set_style_shadow_width(state->confirm_button, 0, 0);
-    lv_obj_add_event_cb(state->confirm_button,
-                        _setup_provisioning_confirm_event,
-                        LV_EVENT_CLICKED, state);
-    lv_obj_t *confirm_label = lv_label_create(state->confirm_button);
-
-    lv_obj_set_style_text_color(confirm_label,
-                                lv_color_hex(SETUP_COLOR_TEXT), 0);
-    lv_obj_set_style_text_font(confirm_label,
-                               app_ui_font(APP_THEME_FONT_SMALL), 0);
-    lv_label_set_text(confirm_label, "确认绑定");
-    lv_obj_center(confirm_label);
-    state->deny_button = lv_button_create(state->confirm_row);
-    lv_obj_set_height(state->deny_button, 44);
-    lv_obj_set_flex_grow(state->deny_button, 1);
-    lv_obj_set_style_radius(state->deny_button, 5, 0);
-    lv_obj_set_style_bg_color(state->deny_button,
-                              lv_color_hex(SETUP_DENY_COLOR), 0);
-    lv_obj_set_style_shadow_width(state->deny_button, 0, 0);
-    lv_obj_add_event_cb(state->deny_button,
-                        _setup_provisioning_deny_event,
-                        LV_EVENT_CLICKED, state);
-    lv_obj_t *deny_label = lv_label_create(state->deny_button);
-
-    lv_obj_set_style_text_color(deny_label,
-                                lv_color_hex(SETUP_COLOR_TEXT), 0);
-    lv_obj_set_style_text_font(deny_label,
-                               app_ui_font(APP_THEME_FONT_SMALL), 0);
-    lv_label_set_text(deny_label, "拒绝");
-    lv_obj_center(deny_label);
+    state->confirm_button = app_ui_button_create(state->confirm_row,
+                            "确认绑定",
+                            _setup_provisioning_confirm_event,
+                            state);
+    lv_obj_set_style_text_color(lv_obj_get_child(state->confirm_button, 0),
+                                lv_color_hex(APP_UI_COLOR_RAIN), 0);
+    state->deny_button = app_ui_button_create(state->confirm_row, "拒绝",
+                         _setup_provisioning_deny_event,
+                         state);
+    lv_obj_set_style_text_color(lv_obj_get_child(state->deny_button, 0),
+                                lv_color_hex(APP_UI_COLOR_WARNING), 0);
 }
 
 static esp_err_t _setup_provisioning_release_foreground(
@@ -895,6 +1006,7 @@ static void _setup_provisioning_unmount(
     state->confirm_row = NULL;
     state->confirm_button = NULL;
     state->deny_button = NULL;
+    state->window_ring = NULL;
 }
 
 static const app_manager_page_ops_t s_setup_root_ops =
