@@ -200,6 +200,12 @@ void lv_obj_remove_state(lv_obj_t *object, uint32_t state)
     object->state &= ~state;
 }
 
+void lv_obj_add_flag(lv_obj_t *object, uint32_t flag)
+{
+    assert(object != NULL);
+    object->flags |= flag;
+}
+
 void lv_obj_remove_flag(lv_obj_t *object, uint32_t flag)
 {
     assert(object != NULL);

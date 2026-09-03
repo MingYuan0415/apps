@@ -28,15 +28,19 @@ void app_ui_make_passive(lv_obj_t *object, bool scrollable)
     {
         return;
     }
-    uint32_t passive_flags = LV_OBJ_FLAG_CLICKABLE |
-                             LV_OBJ_FLAG_CLICK_FOCUSABLE |
+    uint32_t passive_flags = LV_OBJ_FLAG_CLICK_FOCUSABLE |
                              LV_OBJ_FLAG_GESTURE_BUBBLE |
-                             LV_OBJ_FLAG_SCROLL_CHAIN |
                              LV_OBJ_FLAG_SCROLL_ELASTIC |
                              LV_OBJ_FLAG_SCROLL_MOMENTUM;
     lv_obj_remove_flag(object, passive_flags);
-    if (!scrollable)
+    if (scrollable)
     {
+        lv_obj_add_flag(object, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(object, LV_OBJ_FLAG_SCROLLABLE);
+    }
+    else
+    {
+        lv_obj_remove_flag(object, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_remove_flag(object, LV_OBJ_FLAG_SCROLLABLE);
     }
 }

@@ -100,6 +100,8 @@ void lv_obj_add_event_cb(lv_obj_t *object, lv_event_cb_t callback,
 void lv_obj_add_state(lv_obj_t *object, uint32_t state);
 /** @brief Remove a state bit from a fake object. */
 void lv_obj_remove_state(lv_obj_t *object, uint32_t state);
+/** @brief Add a behavior flag to a fake object. */
+void lv_obj_add_flag(lv_obj_t *object, uint32_t flag);
 /** @brief Remove a behavior flag from a fake object. */
 void lv_obj_remove_flag(lv_obj_t *object, uint32_t flag);
 /** @brief Return a fake event code. */

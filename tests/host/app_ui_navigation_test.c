@@ -122,6 +122,12 @@ void lv_obj_add_event_cb(lv_obj_t *object, lv_event_cb_t callback,
     (void)user_data;
 }
 
+void lv_obj_add_flag(lv_obj_t *object, uint32_t flag)
+{
+    assert(object != NULL);
+    object->flags |= flag;
+}
+
 void lv_obj_remove_flag(lv_obj_t *object, uint32_t flag)
 {
     assert(object != NULL);

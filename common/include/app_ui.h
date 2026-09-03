@@ -146,7 +146,9 @@ const lv_font_t *app_ui_font(app_theme_font_id_t id);
 /**
  * @brief Configure a generic object as a passive layout container.
  * @param object is the object to configure.
- * @param scrollable keeps vertical scrolling when true.
+ * @param scrollable keeps the object a hit-testable scroll owner
+ * (CLICKABLE|SCROLLABLE) when true, otherwise removes both so it never
+ * intercepts taps. Scroll-chain bits are always preserved.
  */
 void app_ui_make_passive(lv_obj_t *object, bool scrollable);
 /** @brief Queue navigation back from an LVGL event callback. */
