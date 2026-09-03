@@ -2,277 +2,389 @@
 #define DBG_LVL DBG_INFO
 #include "mt_log.h"
 
-#include "app_image_ids.h"
-#include "app_manager.h"
-#include "app_ui.h"
-#include "time_service.h"
-#include "timer_service.h"
+#include "clock_app_internal.h"
 
-#include <stdio.h>
-#include <stdint.h>
 #include <string.h>
 #include <time.h>
 
 typedef enum
 {
-    CLOCK_VIEW_CLOCK = 0,
-    CLOCK_VIEW_COUNTDOWN,
-    CLOCK_VIEW_STOPWATCH,
-    CLOCK_VIEW_FOCUS,
-} clock_view_t;
+    CLOCK_CARD_COUNTDOWN = 0,
+    CLOCK_CARD_STOPWATCH,
+    CLOCK_CARD_FOCUS,
+    CLOCK_CARD_COUNT
+} clock_card_t;
 
-typedef struct clock_page_state clock_page_state_t;
-
-typedef struct clock_action_context
-{
-    clock_page_state_t *state;
-    uintptr_t action;
-} clock_action_context_t;
-
-struct clock_page_state
+typedef struct clock_root_state
 {
     app_ui_page_t page;
     lv_obj_t *time_label;
-    lv_obj_t *detail_label;
-    lv_obj_t *status_label;
+    lv_obj_t *seconds_label;
+    lv_obj_t *date_label;
+    lv_obj_t *source_label;
+    lv_obj_t *card_summary[CLOCK_CARD_COUNT];
+    lv_obj_t *card_ring[CLOCK_CARD_COUNT];
     lv_timer_t *refresh_timer;
-    clock_view_t view;
-    uint32_t countdown_minutes;
-    clock_action_context_t actions[3];
-};
+    char last_summary[CLOCK_CARD_COUNT][32];
+    uint32_t last_span[CLOCK_CARD_COUNT];
+    uint32_t last_color[CLOCK_CARD_COUNT];
+} clock_root_state_t;
 
-_Static_assert(sizeof(clock_page_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
-               "Clock page state exceeds lifecycle arena slot");
+_Static_assert(sizeof(clock_root_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
+               "Clock root state exceeds the lifecycle arena slot");
 
-static void _clock_render(clock_page_state_t *state)
-{
-    timer_service_snapshot_t snapshot;
-    char text[64];
-    if (state->view == CLOCK_VIEW_CLOCK)
-    {
-        struct tm local_time;
-        if (time_service_get_local(&local_time) == ESP_OK)
-        {
-            (void)strftime(text, sizeof(text), "%H:%M:%S", &local_time);
-            lv_label_set_text(state->time_label, text);
-            (void)snprintf(text, sizeof(text), "%d月%d日", local_time.tm_mon + 1,
-                           local_time.tm_mday);
-            lv_label_set_text(state->detail_label, text);
-        }
-        else
-        {
-            lv_label_set_text(state->time_label, "--:--:--");
-            lv_label_set_text(state->detail_label, "等待有效时间");
-        }
-        lv_label_set_text(state->status_label, "时钟");
-        return;
-    }
-    if (timer_service_get_snapshot(&snapshot) != ESP_OK)
-    {
-        return;
-    }
-    if (state->view == CLOCK_VIEW_COUNTDOWN)
-    {
-        const uint32_t seconds = snapshot.countdown_remaining_ms / 1000U;
-        (void)snprintf(text, sizeof(text), "%02u:%02u",
-                       (unsigned)(seconds / 60U), (unsigned)(seconds % 60U));
-        lv_label_set_text(state->time_label, text);
-        lv_label_set_text(state->detail_label,
-                          snapshot.countdown_state == TIMER_SERVICE_COMPLETED ?
-                          "已完成" : "倒计时");
-    }
-    else if (state->view == CLOCK_VIEW_STOPWATCH)
-    {
-        (void)snprintf(text, sizeof(text), "%02llu:%02llu",
-                       (unsigned long long)(snapshot.stopwatch_elapsed_ms / 60000U),
-                       (unsigned long long)((snapshot.stopwatch_elapsed_ms / 1000U) % 60U));
-        lv_label_set_text(state->time_label, text);
-        lv_label_set_text(state->detail_label, "秒表");
-    }
-    else
-    {
-        const uint32_t seconds = snapshot.focus_remaining_ms / 1000U;
-        (void)snprintf(text, sizeof(text), "%02u:%02u",
-                       (unsigned)(seconds / 60U), (unsigned)(seconds % 60U));
-        lv_label_set_text(state->time_label, text);
-        lv_label_set_text(state->detail_label,
-                          snapshot.focus_phase == TIMER_SERVICE_FOCUS_WORK ?
-                          "专注" : "休息");
-    }
-    app_ui_set_status_text(state->status_label, "运行状态",
-                           snapshot.countdown_state == TIMER_SERVICE_COMPLETED ?
-                           APP_UI_STATUS_SUCCESS : APP_UI_STATUS_ACCENT);
-}
-
-static void _clock_refresh(lv_timer_t *timer)
-{
-    _clock_render(lv_timer_get_user_data(timer));
-}
-
-static void _clock_set_view(clock_page_state_t *state, clock_view_t view)
-{
-    state->view = view;
-    _clock_render(state);
-}
-
-static void _clock_view_clock(lv_event_t *event)
-{
-    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
-    {
-        _clock_set_view(lv_event_get_user_data(event), CLOCK_VIEW_CLOCK);
-    }
-}
-
-static void _clock_view_countdown(lv_event_t *event)
-{
-    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
-    {
-        _clock_set_view(lv_event_get_user_data(event), CLOCK_VIEW_COUNTDOWN);
-    }
-}
-
-static void _clock_view_stopwatch(lv_event_t *event)
-{
-    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
-    {
-        _clock_set_view(lv_event_get_user_data(event), CLOCK_VIEW_STOPWATCH);
-    }
-}
-
-static void _clock_view_focus(lv_event_t *event)
-{
-    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
-    {
-        _clock_set_view(lv_event_get_user_data(event), CLOCK_VIEW_FOCUS);
-    }
-}
-
-static void _clock_action_event(lv_event_t *event)
-{
-    const clock_action_context_t *action_context = lv_event_get_user_data(event);
-    clock_page_state_t *state = action_context->state;
-    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
-    {
-        return;
-    }
-    const uintptr_t action = action_context->action;
-    esp_err_t result = ESP_OK;
-    timer_service_snapshot_t snapshot;
-    const bool snapshot_valid = timer_service_get_snapshot(&snapshot) == ESP_OK;
-    if (state->view == CLOCK_VIEW_COUNTDOWN)
-    {
-        if (action == 1U)
-        {
-            result = snapshot_valid &&
-                     snapshot.countdown_state == TIMER_SERVICE_PAUSED ?
-                     timer_service_countdown_resume() :
-                     timer_service_countdown_start(
-                         state->countdown_minutes * 60000U);
-        }
-        else if (action == 2U)
-        {
-            result = timer_service_countdown_pause();
-        }
-        else
-        {
-            result = timer_service_countdown_reset();
-        }
-    }
-    else if (state->view == CLOCK_VIEW_STOPWATCH)
-    {
-        result = action == 1U ? timer_service_stopwatch_start() :
-                 (action == 2U ? timer_service_stopwatch_pause() :
-                  timer_service_stopwatch_reset());
-    }
-    else if (state->view == CLOCK_VIEW_FOCUS)
-    {
-        result = action == 1U ?
-                 (snapshot_valid && snapshot.focus_state == TIMER_SERVICE_PAUSED ?
-                  timer_service_focus_resume() :
-                  timer_service_focus_start(25U * 60000U, 5U * 60000U)) :
-                 (action == 2U ? timer_service_focus_pause() :
-                  timer_service_focus_reset());
-    }
-    if (result != ESP_OK)
-    {
-        app_ui_set_status_text(state->status_label, "当前状态不可执行",
-                               APP_UI_STATUS_WARNING);
-    }
-    _clock_render(state);
-}
-
-static lv_obj_t *_clock_button(lv_obj_t *parent, const char *text,
-                               void *user_data, lv_event_cb_t callback)
+lv_obj_t *clock_ui_action_button(lv_obj_t *parent, const char *text,
+                                 lv_event_cb_t callback, void *user_data)
 {
     lv_obj_t *button = lv_button_create(parent);
-    lv_obj_set_width(button, LV_PCT(24));
+    lv_obj_set_width(button, 0);
+    lv_obj_set_flex_grow(button, 1);
     lv_obj_set_height(button, 52);
     lv_obj_set_style_radius(button, 6, 0);
+    lv_obj_set_style_bg_color(button, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_color(button, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
+                              LV_STATE_PRESSED);
     lv_obj_set_style_shadow_width(button, 0, 0);
     lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
     lv_obj_t *label = lv_label_create(button);
-    lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_label_set_text(label, text);
     lv_obj_center(label);
     return button;
 }
 
-static void _clock_mount(const app_manager_page_context_t *context)
+void clock_ui_button_set_text(lv_obj_t *button, const char *text)
 {
-    clock_page_state_t *state = context->state;
-    app_ui_page_create(&state->page, "时钟", false);
-    app_ui_page_set_subtitle(&state->page, "时间与计时");
-    state->time_label = lv_label_create(state->page.content);
-    lv_obj_set_width(state->time_label, LV_PCT(100));
-    lv_obj_set_style_text_align(state->time_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_font(state->time_label, app_ui_font(APP_THEME_FONT_TITLE), 0);
-    state->detail_label = app_ui_add_body_label(state->page.content, "");
-    lv_obj_set_style_text_align(state->detail_label, LV_TEXT_ALIGN_CENTER, 0);
-    state->status_label = app_ui_add_body_label(state->page.content, "");
-
-    lv_obj_t *views = lv_obj_create(state->page.content);
-    lv_obj_remove_style_all(views);
-    lv_obj_set_width(views, LV_PCT(100));
-    lv_obj_set_height(views, 58);
-    lv_obj_set_flex_flow(views, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(views, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    app_ui_make_passive(views, false);
-    _clock_button(views, "时钟", state, _clock_view_clock);
-    _clock_button(views, "倒计时", state, _clock_view_countdown);
-    _clock_button(views, "秒表", state, _clock_view_stopwatch);
-    _clock_button(views, "专注", state, _clock_view_focus);
-
-    lv_obj_t *actions = lv_obj_create(state->page.content);
-    lv_obj_remove_style_all(actions);
-    lv_obj_set_width(actions, LV_PCT(100));
-    lv_obj_set_height(actions, 58);
-    lv_obj_set_flex_flow(actions, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(actions, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    app_ui_make_passive(actions, false);
-    for (size_t index = 0U; index < 3U; ++index)
+    lv_obj_t *label = lv_obj_get_child(button, 0);
+    if (label != NULL)
     {
-        state->actions[index].state = state;
-        state->actions[index].action = index + 1U;
+        lv_label_set_text(label, text);
     }
-    _clock_button(actions, "开始", &state->actions[0], _clock_action_event);
-    _clock_button(actions, "暂停", &state->actions[1], _clock_action_event);
-    _clock_button(actions, "重置", &state->actions[2], _clock_action_event);
-    state->refresh_timer = lv_timer_create(_clock_refresh, 250U, state);
-    _clock_render(state);
 }
 
-static void _clock_start(const app_manager_page_context_t *context)
+lv_obj_t *clock_ui_chip(lv_obj_t *parent, const char *text,
+                        lv_event_cb_t callback, void *user_data)
 {
-    clock_page_state_t *state = context->state;
-    state->view = CLOCK_VIEW_CLOCK;
-    state->countdown_minutes = 5U;
+    lv_obj_t *chip = lv_button_create(parent);
+    lv_obj_set_width(chip, 0);
+    lv_obj_set_flex_grow(chip, 1);
+    lv_obj_set_height(chip, 40);
+    lv_obj_set_style_radius(chip, 6, 0);
+    lv_obj_set_style_bg_color(chip, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_color(chip, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
+                              LV_STATE_PRESSED);
+    lv_obj_set_style_shadow_width(chip, 0, 0);
+    lv_obj_add_event_cb(chip, callback, LV_EVENT_CLICKED, user_data);
+    lv_obj_t *label = lv_label_create(chip);
+    lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(APP_UI_COLOR_MUTED), 0);
+    lv_label_set_text(label, text);
+    lv_obj_center(label);
+    return chip;
 }
 
-static esp_err_t _clock_pause(const app_manager_page_context_t *context)
+void clock_ui_chip_set_selected(lv_obj_t *chip, bool selected)
 {
-    clock_page_state_t *state = context->state;
+    lv_obj_t *label = lv_obj_get_child(chip, 0);
+    if (label == NULL)
+    {
+        return;
+    }
+    lv_obj_set_style_text_color(label,
+                                lv_color_hex(selected ? APP_UI_COLOR_RAIN :
+                                        APP_UI_COLOR_MUTED), 0);
+}
+
+void clock_ui_format_mmss(uint32_t milliseconds, char *output,
+                          size_t output_size)
+{
+    (void)snprintf(output, output_size, "%u:%02u",
+                   (unsigned)(milliseconds / 60000U),
+                   (unsigned)((milliseconds / 1000U) % 60U));
+}
+
+void clock_ui_ring_update(lv_obj_t *ring, bool active, uint32_t remaining_ms,
+                          uint32_t total_ms, uint32_t color)
+{
+    if (ring == NULL)
+    {
+        return;
+    }
+    lv_obj_set_style_arc_color(ring, lv_color_hex(color), LV_PART_INDICATOR);
+    if (!active)
+    {
+        lv_arc_set_angles(ring, 0, 0);
+        lv_obj_set_style_arc_opa(ring, LV_OPA_TRANSP, LV_PART_INDICATOR);
+        return;
+    }
+    lv_obj_set_style_arc_opa(ring, LV_OPA_COVER, LV_PART_INDICATOR);
+    const uint32_t span = (total_ms > 0U && remaining_ms <= total_ms) ?
+                          360U * remaining_ms / total_ms : 360U;
+    lv_arc_set_angles(ring, 0, (lv_value_precise_t)span);
+}
+
+static void _clock_root_set_summary(clock_root_state_t *state,
+                                    clock_card_t card, const char *text,
+                                    uint32_t color, uint32_t span,
+                                    bool active, uint32_t total_ms,
+                                    uint32_t remaining_ms)
+{
+    if (strcmp(state->last_summary[card], text) != 0)
+    {
+        (void)snprintf(state->last_summary[card],
+                       sizeof(state->last_summary[card]), "%s", text);
+        lv_label_set_text(state->card_summary[card], text);
+        lv_obj_set_style_text_color(state->card_summary[card],
+                                    lv_color_hex(color), 0);
+    }
+    if (state->last_span[card] != span || state->last_color[card] != color)
+    {
+        state->last_span[card] = span;
+        state->last_color[card] = color;
+        clock_ui_ring_update(state->card_ring[card], active, remaining_ms,
+                             total_ms, color);
+    }
+}
+
+static void _clock_root_render(clock_root_state_t *state)
+{
+    static const char *const weekdays[7] = {"日", "一", "二", "三", "四",
+                                            "五", "六"
+                                           };
+    char text[64];
+    struct tm local_time;
+    if (time_service_get_local(&local_time) == ESP_OK)
+    {
+        (void)strftime(text, sizeof(text), "%H:%M", &local_time);
+        lv_label_set_text(state->time_label, text);
+        (void)strftime(text, sizeof(text), ":%S", &local_time);
+        lv_label_set_text(state->seconds_label, text);
+        (void)snprintf(text, sizeof(text), "%d月%d日 周%s",
+                       local_time.tm_mon + 1, local_time.tm_mday,
+                       weekdays[(unsigned)local_time.tm_wday % 7U]);
+        lv_label_set_text(state->date_label, text);
+    }
+    else
+    {
+        lv_label_set_text(state->time_label, "--:--");
+        lv_label_set_text(state->seconds_label, "");
+        lv_label_set_text(state->date_label, "等待有效时间");
+    }
+    switch (time_service_get_quality())
+    {
+    case TIME_SERVICE_QUALITY_NTP:
+        lv_label_set_text(state->source_label, "来源：NTP 校时");
+        break;
+    case TIME_SERVICE_QUALITY_RTC:
+        lv_label_set_text(state->source_label, "来源：RTC 恢复");
+        break;
+    case TIME_SERVICE_QUALITY_MANUAL:
+        lv_label_set_text(state->source_label, "来源：手动设置");
+        break;
+    default:
+        lv_label_set_text(state->source_label, "来源：未就绪");
+        break;
+    }
+
+    timer_service_snapshot_t snapshot;
+    if (timer_service_get_snapshot(&snapshot) != ESP_OK)
+    {
+        return;
+    }
+    char mmss[12];
+    char summary[24];
+    switch (snapshot.countdown_state)
+    {
+    case TIMER_SERVICE_IDLE:
+        _clock_root_set_summary(state, CLOCK_CARD_COUNTDOWN,
+                                "1 / 5 / 10 / 25 分钟",
+                                APP_UI_COLOR_MUTED, 0U, false, 0U, 0U);
+        break;
+    case TIMER_SERVICE_COMPLETED:
+        _clock_root_set_summary(state, CLOCK_CARD_COUNTDOWN, "已完成",
+                                APP_UI_COLOR_SUN, 0U, false, 0U, 0U);
+        break;
+    default:
+        clock_ui_format_mmss(snapshot.countdown_remaining_ms, mmss,
+                             sizeof(mmss));
+        (void)snprintf(summary, sizeof(summary),
+                       snapshot.countdown_state == TIMER_SERVICE_PAUSED ?
+                       "暂停 %s" : "剩余 %s", mmss);
+        _clock_root_set_summary(state, CLOCK_CARD_COUNTDOWN, summary,
+                                snapshot.countdown_state ==
+                                TIMER_SERVICE_PAUSED ?
+                                APP_UI_COLOR_MUTED : APP_UI_COLOR_RAIN,
+                                snapshot.countdown_remaining_ms, true,
+                                snapshot.countdown_duration_ms,
+                                snapshot.countdown_remaining_ms);
+        break;
+    }
+    if (snapshot.stopwatch_state == TIMER_SERVICE_IDLE)
+    {
+        _clock_root_set_summary(state, CLOCK_CARD_STOPWATCH, "未开始",
+                                APP_UI_COLOR_MUTED, 0U, false, 0U, 0U);
+    }
+    else
+    {
+        clock_ui_format_mmss((uint32_t)(snapshot.stopwatch_elapsed_ms /
+                                        1000U * 1000U), mmss, sizeof(mmss));
+        const uint32_t seconds_part = (uint32_t)(snapshot.stopwatch_elapsed_ms
+                                      % 60000ULL);
+        _clock_root_set_summary(state, CLOCK_CARD_STOPWATCH, mmss,
+                                snapshot.stopwatch_state ==
+                                TIMER_SERVICE_PAUSED ? APP_UI_COLOR_MUTED :
+                                APP_UI_COLOR_TEXT,
+                                seconds_part, true, 60000U,
+                                60000U - seconds_part);
+    }
+    if (snapshot.focus_state == TIMER_SERVICE_IDLE)
+    {
+        _clock_root_set_summary(state, CLOCK_CARD_FOCUS,
+                                "25/5 · 45/10 · 50/10", APP_UI_COLOR_MUTED,
+                                0U, false, 0U, 0U);
+    }
+    else
+    {
+        clock_ui_format_mmss(snapshot.focus_remaining_ms, mmss,
+                             sizeof(mmss));
+        const bool paused = snapshot.focus_state == TIMER_SERVICE_PAUSED;
+        (void)snprintf(summary, sizeof(summary),
+                       paused ? "暂停 %s" :
+                       (snapshot.focus_phase == TIMER_SERVICE_FOCUS_WORK ?
+                        "专注 %s" : "休息 %s"), mmss);
+        _clock_root_set_summary(state, CLOCK_CARD_FOCUS, summary,
+                                paused ? APP_UI_COLOR_MUTED :
+                                APP_UI_COLOR_SUN,
+                                snapshot.focus_remaining_ms, true, 0U,
+                                snapshot.focus_remaining_ms);
+    }
+}
+
+static void _clock_root_refresh(lv_timer_t *timer)
+{
+    _clock_root_render(lv_timer_get_user_data(timer));
+}
+
+static void _clock_open_card(lv_event_t *event)
+{
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+    const char *page_id = (const char *)lv_event_get_user_data(event);
+    app_ui_request_open_page(APP_MANAGER_ID_CLOCK, page_id);
+}
+
+static void _clock_root_add_card(clock_root_state_t *state, const char *name,
+                                 const char *page_id, clock_card_t card)
+{
+    lv_obj_t *row = lv_button_create(state->page.content);
+    lv_obj_set_width(row, LV_PCT(100));
+    lv_obj_set_height(row, 68);
+    lv_obj_set_style_radius(row, 8, 0);
+    lv_obj_set_style_bg_color(row, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_color(row, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
+                              LV_STATE_PRESSED);
+    lv_obj_set_style_shadow_width(row, 0, 0);
+    lv_obj_set_style_pad_left(row, 14, 0);
+    lv_obj_set_style_pad_right(row, 10, 0);
+    lv_obj_set_style_pad_column(row, 10, 0);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_add_event_cb(row, _clock_open_card, LV_EVENT_CLICKED,
+                        (void *)page_id);
+
+    lv_obj_t *text = lv_obj_create(row);
+    lv_obj_remove_style_all(text);
+    lv_obj_set_width(text, 0);
+    lv_obj_set_flex_grow(text, 1);
+    lv_obj_set_height(text, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(text, 2, 0);
+    app_ui_make_passive(text, false);
+
+    lv_obj_t *title = lv_label_create(text);
+    lv_obj_set_width(title, LV_PCT(100));
+    lv_obj_set_style_text_color(title, lv_color_hex(APP_UI_COLOR_TEXT), 0);
+    lv_obj_set_style_text_font(title, app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_label_set_text(title, name);
+
+    lv_obj_t *summary = lv_label_create(text);
+    lv_obj_set_width(summary, LV_PCT(100));
+    lv_label_set_long_mode(summary, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_color(summary, lv_color_hex(APP_UI_COLOR_MUTED), 0);
+    lv_obj_set_style_text_font(summary, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_text(summary, "");
+    state->card_summary[card] = summary;
+
+    state->card_ring[card] = app_ui_ring_create(row, 44, 4,
+                             APP_UI_COLOR_SURFACE_HI);
+}
+
+static void _clock_root_mount(const app_manager_page_context_t *context)
+{
+    clock_root_state_t *state = context->state;
+    memset(state, 0, sizeof(*state));
+    app_ui_page_create(&state->page, "时钟", true);
+    app_ui_page_set_subtitle(&state->page, "时间与计时");
+
+    lv_obj_t *clock_row = lv_obj_create(state->page.content);
+    lv_obj_remove_style_all(clock_row);
+    lv_obj_set_width(clock_row, LV_PCT(100));
+    lv_obj_set_height(clock_row, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(clock_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(clock_row, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    app_ui_make_passive(clock_row, false);
+
+    state->time_label = lv_label_create(clock_row);
+    lv_obj_set_style_text_color(state->time_label,
+                                lv_color_hex(APP_UI_COLOR_TEXT), 0);
+    lv_obj_set_style_text_font(state->time_label,
+                               app_ui_font(APP_THEME_FONT_TITLE), 0);
+    lv_label_set_text(state->time_label, "--:--");
+
+    state->seconds_label = lv_label_create(clock_row);
+    lv_obj_set_style_text_color(state->seconds_label,
+                                lv_color_hex(APP_UI_COLOR_RAIN), 0);
+    lv_obj_set_style_text_font(state->seconds_label,
+                               app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_obj_set_style_pad_top(state->seconds_label, 10, 0);
+    lv_label_set_text(state->seconds_label, "");
+
+    state->date_label = lv_label_create(state->page.content);
+    lv_obj_set_width(state->date_label, LV_PCT(100));
+    lv_obj_set_style_text_align(state->date_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(state->date_label,
+                                lv_color_hex(APP_UI_COLOR_TEXT), 0);
+    lv_obj_set_style_text_font(state->date_label,
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_label_set_text(state->date_label, "");
+
+    state->source_label = lv_label_create(state->page.content);
+    lv_obj_set_width(state->source_label, LV_PCT(100));
+    lv_obj_set_style_text_align(state->source_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(state->source_label,
+                                lv_color_hex(APP_UI_COLOR_MUTED), 0);
+    lv_obj_set_style_text_font(state->source_label,
+                               app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_text(state->source_label, "");
+
+    _clock_root_add_card(state, "倒计时", CLOCK_PAGE_COUNTDOWN,
+                         CLOCK_CARD_COUNTDOWN);
+    _clock_root_add_card(state, "秒表", CLOCK_PAGE_STOPWATCH,
+                         CLOCK_CARD_STOPWATCH);
+    _clock_root_add_card(state, "专注", CLOCK_PAGE_FOCUS, CLOCK_CARD_FOCUS);
+
+    state->refresh_timer = lv_timer_create(_clock_root_refresh, 250U, state);
+    _clock_root_render(state);
+}
+
+static esp_err_t _clock_root_pause(const app_manager_page_context_t *context)
+{
+    clock_root_state_t *state = context->state;
     if (state->refresh_timer != NULL)
     {
         lv_timer_pause(state->refresh_timer);
@@ -280,19 +392,19 @@ static esp_err_t _clock_pause(const app_manager_page_context_t *context)
     return ESP_OK;
 }
 
-static void _clock_resume(const app_manager_page_context_t *context)
+static void _clock_root_resume(const app_manager_page_context_t *context)
 {
-    clock_page_state_t *state = context->state;
+    clock_root_state_t *state = context->state;
     if (state->refresh_timer != NULL)
     {
         lv_timer_resume(state->refresh_timer);
     }
-    _clock_render(state);
+    _clock_root_render(state);
 }
 
-static void _clock_unmount(const app_manager_page_context_t *context)
+static void _clock_root_unmount(const app_manager_page_context_t *context)
 {
-    clock_page_state_t *state = context->state;
+    clock_root_state_t *state = context->state;
     if (state->refresh_timer != NULL)
     {
         lv_timer_delete(state->refresh_timer);
@@ -300,28 +412,52 @@ static void _clock_unmount(const app_manager_page_context_t *context)
     }
     app_ui_page_destroy(&state->page);
     state->time_label = NULL;
-    state->detail_label = NULL;
-    state->status_label = NULL;
+    state->seconds_label = NULL;
+    state->date_label = NULL;
+    state->source_label = NULL;
+    for (size_t index = 0U; index < CLOCK_CARD_COUNT; ++index)
+    {
+        state->card_summary[index] = NULL;
+        state->card_ring[index] = NULL;
+    }
 }
 
-static const app_manager_page_ops_t s_clock_ops =
+static const app_manager_page_ops_t s_clock_root_ops =
 {
-    .start = _clock_start,
-    .mount = _clock_mount,
-    .resume = _clock_resume,
-    .pause = _clock_pause,
-    .unmount = _clock_unmount,
+    .mount = _clock_root_mount,
+    .resume = _clock_root_resume,
+    .pause = _clock_root_pause,
+    .unmount = _clock_root_unmount,
 };
 
-static const app_manager_page_definition_t s_clock_definition =
+const app_manager_page_definition_t clock_root_page_definition =
 {
-    .ops = &s_clock_ops,
-    .memory_size = sizeof(clock_page_state_t),
+    .ops = &s_clock_root_ops,
+    .memory_size = sizeof(clock_root_state_t),
 };
 
 static const app_manager_page_route_t s_clock_routes[] =
 {
-    {.page_id = "root", .definition = &s_clock_definition, .user_data = NULL},
+    {
+        .page_id = "root",
+        .definition = &clock_root_page_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = CLOCK_PAGE_COUNTDOWN,
+        .definition = &clock_countdown_page_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = CLOCK_PAGE_STOPWATCH,
+        .definition = &clock_stopwatch_page_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = CLOCK_PAGE_FOCUS,
+        .definition = &clock_focus_page_definition,
+        .user_data = NULL,
+    },
 };
 
 APP_MANAGER_APP_EXPORT_META(clock, APP_IMAGE_CLOCK_ICON, "时钟",
