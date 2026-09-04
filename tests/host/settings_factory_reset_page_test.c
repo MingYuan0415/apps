@@ -30,6 +30,7 @@ struct lv_event_t
 {
     lv_event_code_t code;
     void *user_data;
+    lv_obj_t *target;
 };
 
 typedef union test_page_state
@@ -255,6 +256,16 @@ void lv_obj_remove_state(lv_obj_t *object, uint32_t state)
     object->state &= ~state;
 }
 
+bool lv_obj_has_state(const lv_obj_t *object, uint32_t state)
+{
+    return object != NULL && (object->state & state) != 0U;
+}
+
+bool lv_obj_is_valid(const lv_obj_t *object)
+{
+    return object != NULL && object->live;
+}
+
 void lv_obj_add_flag(lv_obj_t *object, uint32_t flag)
 {
     assert(object != NULL);
@@ -277,6 +288,36 @@ void *lv_event_get_user_data(lv_event_t *event)
 {
     assert(event != NULL);
     return event->user_data;
+}
+
+lv_obj_t *lv_event_get_target(lv_event_t *event)
+{
+    assert(event != NULL);
+    return event->target;
+}
+
+lv_obj_t *lv_event_get_current_target(lv_event_t *event)
+{
+    return lv_event_get_target(event);
+}
+
+lv_result_t lv_obj_send_event(lv_obj_t *object, lv_event_code_t code,
+                              void *param)
+{
+    (void)param;
+    assert(object != NULL);
+    if (object->callback != NULL &&
+            object->callback_code == code)
+    {
+        lv_event_t event =
+        {
+            .code = code,
+            .user_data = object->callback_user_data,
+            .target = object,
+        };
+        object->callback(&event);
+    }
+    return LV_RESULT_OK;
 }
 
 void lv_label_set_text(lv_obj_t *label, const char *text)

@@ -442,7 +442,6 @@ lv_obj_t *app_ui_button_row_create(lv_obj_t *parent, int32_t height)
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(row, 8, 0);
     app_ui_make_passive(row, false);
     return row;
 }
@@ -483,7 +482,7 @@ void app_ui_button_set_text(lv_obj_t *button, const char *text)
 
 lv_obj_t *app_ui_chip_row_create(lv_obj_t *parent)
 {
-    return app_ui_button_row_create(parent, 40);
+    return app_ui_button_row_create(parent, 44);
 }
 
 lv_obj_t *app_ui_chip_create(lv_obj_t *row, const char *text,
@@ -638,6 +637,32 @@ lv_obj_t *app_ui_add_value_row(lv_obj_t *parent, const char *name,
     return row;
 }
 
+static void _app_ui_switch_row_event(lv_event_t *event)
+{
+    /* Only react when the row itself was pressed; a CLICKED bubbling up from
+     * the switch would otherwise toggle it back. */
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED ||
+            lv_event_get_target(event) != lv_event_get_current_target(event))
+    {
+        return;
+    }
+    lv_obj_t *toggle = lv_event_get_user_data(event);
+    if (toggle != NULL && lv_obj_is_valid(toggle))
+    {
+        if (lv_obj_has_state(toggle, LV_STATE_CHECKED))
+        {
+            lv_obj_remove_state(toggle, LV_STATE_CHECKED);
+        }
+        else
+        {
+            lv_obj_add_state(toggle, LV_STATE_CHECKED);
+        }
+        /* LVGL only emits VALUE_CHANGED from the widget's own RELEASED path;
+         * a programmatic toggle must notify the page callback explicitly. */
+        (void)lv_obj_send_event(toggle, LV_EVENT_VALUE_CHANGED, NULL);
+    }
+}
+
 lv_obj_t *app_ui_add_switch_row(lv_obj_t *parent, const char *title,
                                 const char *subtitle, lv_event_cb_t callback,
                                 void *user_data, lv_obj_t **switch_out)
@@ -658,6 +683,12 @@ lv_obj_t *app_ui_add_switch_row(lv_obj_t *parent, const char *title,
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     app_ui_make_passive(row, false);
+    /* The whole row is the touch target; it forwards to the switch so the
+     * small toggle never becomes a dead-zone hit. */
+    lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_PRESS_LOCK);
+    lv_obj_set_style_bg_color(row, lv_color_hex(COLOR_SURFACE_HI),
+                              LV_STATE_PRESSED);
 
     lv_obj_t *text = lv_obj_create(row);
     lv_obj_remove_style_all(text);
@@ -675,6 +706,8 @@ lv_obj_t *app_ui_add_switch_row(lv_obj_t *parent, const char *title,
     lv_obj_set_style_text_font(title_label,
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_label_set_text(title_label, title != NULL ? title : "");
+    /* Passive so the row (not the label) receives the click. */
+    app_ui_make_passive(title_label, false);
 
     if (subtitle != NULL)
     {
@@ -686,6 +719,7 @@ lv_obj_t *app_ui_add_switch_row(lv_obj_t *parent, const char *title,
         lv_obj_set_style_text_font(subtitle_label,
                                    app_ui_font(APP_THEME_FONT_BODY), 0);
         lv_label_set_text(subtitle_label, subtitle);
+        app_ui_make_passive(subtitle_label, false);
     }
 
     lv_obj_t *toggle = lv_switch_create(row);
@@ -699,6 +733,8 @@ lv_obj_t *app_ui_add_switch_row(lv_obj_t *parent, const char *title,
         lv_obj_add_event_cb(toggle, callback, LV_EVENT_VALUE_CHANGED,
                             user_data);
     }
+    lv_obj_add_event_cb(row, _app_ui_switch_row_event, LV_EVENT_CLICKED,
+                        toggle);
     if (switch_out != NULL)
     {
         *switch_out = toggle;

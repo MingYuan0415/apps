@@ -121,6 +121,8 @@ void lv_obj_add_event_cb(lv_obj_t *object, lv_event_cb_t callback,
 void lv_obj_add_state(lv_obj_t *object, uint32_t state);
 /** @brief Remove a state bit from a fake object. */
 void lv_obj_remove_state(lv_obj_t *object, uint32_t state);
+bool lv_obj_has_state(const lv_obj_t *object, uint32_t state);
+bool lv_obj_is_valid(const lv_obj_t *object);
 /** @brief Add a behavior flag to a fake object. */
 void lv_obj_add_flag(lv_obj_t *object, uint32_t flag);
 /** @brief Remove a behavior flag from a fake object. */
@@ -129,6 +131,13 @@ void lv_obj_remove_flag(lv_obj_t *object, uint32_t flag);
 lv_event_code_t lv_event_get_code(lv_event_t *event);
 /** @brief Return fake callback user data. */
 void *lv_event_get_user_data(lv_event_t *event);
+/** @brief Return the event target (the same object; no bubbling). */
+lv_obj_t *lv_event_get_target(lv_event_t *event);
+/** @brief Return the event's current target (the same object). */
+lv_obj_t *lv_event_get_current_target(lv_event_t *event);
+/** @brief Dispatch an event to an object's stored callback (if matching). */
+lv_result_t lv_obj_send_event(lv_obj_t *object, lv_event_code_t code,
+                              void *param);
 /** @brief Set fake label text. */
 void lv_label_set_text(lv_obj_t *label, const char *text);
 /** @brief Record an explicitly assigned fake text font. */

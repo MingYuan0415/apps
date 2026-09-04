@@ -14,6 +14,7 @@ struct lv_obj_t
     bool label;
     bool explicit_font;
     uint32_t flags;
+    uint32_t state;
     lv_obj_t *parent;
     const lv_font_t *font;
     char text[32];
@@ -22,6 +23,8 @@ struct lv_obj_t
 struct lv_event_t
 {
     lv_event_code_t code;
+    lv_obj_t *target;
+    void *user_data;
 };
 
 typedef struct test_command
@@ -171,10 +174,29 @@ void lv_obj_delete(lv_obj_t *object)
 void lv_obj_add_event_cb(lv_obj_t *object, lv_event_cb_t callback,
                          lv_event_code_t code, void *user_data)
 {
-    (void)object;
     (void)callback;
     (void)code;
     (void)user_data;
+    assert(object != NULL);
+}
+
+lv_obj_t *lv_event_get_target(lv_event_t *event)
+{
+    return event->target;
+}
+
+lv_obj_t *lv_event_get_current_target(lv_event_t *event)
+{
+    return event->target;
+}
+
+lv_result_t lv_obj_send_event(lv_obj_t *object, lv_event_code_t code,
+                              void *param)
+{
+    (void)object;
+    (void)code;
+    (void)param;
+    return LV_RESULT_OK;
 }
 
 void lv_obj_add_flag(lv_obj_t *object, uint32_t flag)
@@ -187,6 +209,28 @@ void lv_obj_remove_flag(lv_obj_t *object, uint32_t flag)
 {
     assert(object != NULL);
     object->flags &= ~flag;
+}
+
+void lv_obj_add_state(lv_obj_t *object, uint32_t state)
+{
+    assert(object != NULL);
+    object->state |= state;
+}
+
+void lv_obj_remove_state(lv_obj_t *object, uint32_t state)
+{
+    assert(object != NULL);
+    object->state &= ~state;
+}
+
+bool lv_obj_has_state(const lv_obj_t *object, uint32_t state)
+{
+    return object != NULL && (object->state & state) != 0U;
+}
+
+bool lv_obj_is_valid(const lv_obj_t *object)
+{
+    return object != NULL && object->live;
 }
 
 lv_event_code_t lv_event_get_code(lv_event_t *event)

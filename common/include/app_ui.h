@@ -147,7 +147,7 @@ lv_obj_t *app_ui_button_create(lv_obj_t *row, const char *text,
  */
 void app_ui_button_set_text(lv_obj_t *button, const char *text);
 /**
- * @brief Create a 40 px selectable chip row.
+ * @brief Create a 44 px selectable chip row.
  * @param parent is the page content or card owning the row.
  * @return Created passive row container for app_ui_chip_create.
  */
@@ -220,7 +220,8 @@ lv_obj_t *app_ui_add_value_row(lv_obj_t *parent, const char *name,
  * @param callback receives the switch LV_EVENT_VALUE_CHANGED.
  * @param user_data is retained as LVGL event user data.
  * @param switch_out optionally receives the created switch for state updates.
- * @return Created row object.
+ * @return Created row object; the whole row is clickable and toggles the
+ *         switch (which then fires @p callback).
  */
 lv_obj_t *app_ui_add_switch_row(lv_obj_t *parent, const char *title,
                                 const char *subtitle, lv_event_cb_t callback,
