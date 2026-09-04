@@ -123,7 +123,9 @@ bool clock_ui_take_minutes_argument(uint32_t *minutes)
 {
     const app_manager_typed_blob_t *arguments =
         app_manager_this_page_arguments();
-    if (arguments == NULL || arguments->type != CLOCK_ARGUMENT_MINUTES ||
+    if (arguments == NULL ||
+            arguments->version != APP_MANAGER_TYPED_BLOB_VERSION ||
+            arguments->type != CLOCK_ARGUMENT_MINUTES ||
             arguments->size != sizeof(clock_duration_arguments_t))
     {
         return false;

@@ -64,7 +64,6 @@ typedef struct home_page_state
     event_bus_sub_handle_t power_subscription;
     event_bus_sub_handle_t wifi_subscription;
     event_bus_sub_handle_t weather_subscription;
-    bool wifi_initialization_elapsed;
 } home_page_state_t;
 
 _Static_assert(sizeof(home_page_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -186,8 +185,8 @@ static void _home_render_clock(home_page_state_t *state)
     struct tm local_time;
     if (time_service_get_local(&local_time) != ESP_OK)
     {
-        lv_label_set_text(state->time_label, "--:--");
-        lv_label_set_text(state->date_label, "等待有效时间");
+        app_ui_label_set_text_if(state->time_label, "--:--");
+        app_ui_label_set_text_if(state->date_label, "等待有效时间");
         app_ui_set_status_text(state->quality_label, "时间不可用",
                                APP_UI_STATUS_WARNING);
         lv_obj_add_flag(state->hand_hour, LV_OBJ_FLAG_HIDDEN);
@@ -203,14 +202,14 @@ static void _home_render_clock(home_page_state_t *state)
     {
         (void)snprintf(text, sizeof(text), "--:--");
     }
-    lv_label_set_text(state->time_label, text);
+    app_ui_label_set_text_if(state->time_label, text);
     static const char *const weekdays[] = { "日", "一", "二", "三", "四", "五", "六" };
     const int weekday = local_time.tm_wday >= 0 && local_time.tm_wday < 7 ?
                         local_time.tm_wday : 0;
     (void)snprintf(text, sizeof(text), "%d月%d日  周%s",
                    local_time.tm_mon + 1, local_time.tm_mday,
                    weekdays[weekday]);
-    lv_label_set_text(state->date_label, text);
+    app_ui_label_set_text_if(state->date_label, text);
     const time_service_quality_t quality = time_service_get_quality();
     app_ui_set_status_text(state->quality_label,
                            _home_time_quality_text(quality),
@@ -235,7 +234,7 @@ static void _home_render_power(home_page_state_t *state)
     power_service_snapshot_t snapshot;
     if (power_service_get_snapshot(&snapshot) != ESP_OK || !snapshot.valid)
     {
-        lv_label_set_text(state->battery_status, "--");
+        app_ui_label_set_text_if(state->battery_status, "--");
         lv_obj_set_width(state->battery_fill, 0);
         lv_obj_set_style_bg_color(state->battery_fill,
                                   lv_color_hex(APP_UI_COLOR_WARNING), 0);
@@ -263,7 +262,7 @@ static void _home_render_power(home_page_state_t *state)
         }
         (void)snprintf(text, sizeof(text), "%.1fV", (double)mv / 1000.0);
     }
-    lv_label_set_text(state->battery_status, text);
+    app_ui_label_set_text_if(state->battery_status, text);
     const uint32_t fill_color = snapshot.info.is_charging ? APP_UI_COLOR_RAIN :
                                 (percent <= 15 ? APP_UI_COLOR_WARNING :
                                  APP_UI_COLOR_TEXT);
@@ -273,6 +272,12 @@ static void _home_render_power(home_page_state_t *state)
                     snapshot.info.is_charging ? APP_UI_COLOR_RAIN :
                     APP_UI_COLOR_MUTED);
 }
+
+/* The connectivity manager takes a moment to initialize after boot; a
+ * not-yet-available manager renders as waiting, and only a stuck one as a
+ * warning. Counted across mounts at the 1 Hz refresh cadence. */
+#define HOME_WIFI_GRACE_TICKS 30U
+static uint32_t s_wifi_grace_ticks;
 
 static void _home_render_wifi(home_page_state_t *state)
 {
@@ -284,8 +289,15 @@ static void _home_render_wifi(home_page_state_t *state)
     }
     else if (!snapshot.available)
     {
-        color = state->wifi_initialization_elapsed ? APP_UI_COLOR_WARNING :
-                APP_UI_COLOR_SUN;
+        if (s_wifi_grace_ticks < HOME_WIFI_GRACE_TICKS)
+        {
+            s_wifi_grace_ticks++;
+            color = APP_UI_COLOR_SUN;
+        }
+        else
+        {
+            color = APP_UI_COLOR_WARNING;
+        }
     }
     else if (snapshot.state == CONNECTIVITY_MANAGER_STATE_IP_READY)
     {
@@ -328,10 +340,10 @@ static void _home_render_weather(home_page_state_t *state)
     if (weather_service_snapshot_acquire(&snapshot) != ESP_OK || snapshot == NULL)
     {
         _home_set_weather_image(state, 0U, true);
-        lv_label_set_text(state->weather_city, "天气");
-        lv_label_set_text(state->weather_value, "--");
-        lv_label_set_text(state->weather_condition, "服务不可用");
-        lv_label_set_text(state->weather_sub, "");
+        app_ui_label_set_text_if(state->weather_city, "天气");
+        app_ui_label_set_text_if(state->weather_value, "--");
+        app_ui_label_set_text_if(state->weather_condition, "服务不可用");
+        app_ui_label_set_text_if(state->weather_sub, "");
         lv_obj_add_flag(state->weather_sub, LV_OBJ_FLAG_HIDDEN);
         _home_set_color(state->weather_value, APP_UI_COLOR_WARNING);
         return;
@@ -351,11 +363,11 @@ static void _home_render_weather(home_page_state_t *state)
             (void)snprintf(title, sizeof(title), "%s",
                            snapshot->location.city);
         }
-        lv_label_set_text(state->weather_city, title);
+        app_ui_label_set_text_if(state->weather_city, title);
     }
     else
     {
-        lv_label_set_text(state->weather_city, "天气");
+        app_ui_label_set_text_if(state->weather_city, "天气");
     }
     char sub[48];
     sub[0] = '\0';
@@ -372,10 +384,10 @@ static void _home_render_weather(home_page_state_t *state)
         char temp[24];
         (void)snprintf(temp, sizeof(temp), "%.1f°",
                        snapshot->current.temperature_tenths_c / 10.0f);
-        lv_label_set_text(state->weather_value, temp);
-        lv_label_set_text(state->weather_condition,
-                          snapshot->current.condition_text[0] != '\0' ?
-                          snapshot->current.condition_text : "天气已更新");
+        app_ui_label_set_text_if(state->weather_value, temp);
+        app_ui_label_set_text_if(state->weather_condition,
+                                 snapshot->current.condition_text[0] != '\0' ?
+                                 snapshot->current.condition_text : "天气已更新");
         _home_set_color(state->weather_value, APP_UI_COLOR_SUN);
         _home_set_weather_image(state, snapshot->current.condition_code, true);
         if (sub[0] != '\0')
@@ -388,15 +400,15 @@ static void _home_render_weather(home_page_state_t *state)
     }
     else
     {
-        lv_label_set_text(state->weather_value, "--");
+        app_ui_label_set_text_if(state->weather_value, "--");
         weather_service_status_snapshot_t status;
         const char *condition = weather_service_get_status(&status) == ESP_OK &&
                                 !status.configured ? "未配置" : "等待天气";
-        lv_label_set_text(state->weather_condition, condition);
+        app_ui_label_set_text_if(state->weather_condition, condition);
         _home_set_color(state->weather_value, APP_UI_COLOR_MUTED);
         _home_set_weather_image(state, 0U, true);
     }
-    lv_label_set_text(state->weather_sub, sub);
+    app_ui_label_set_text_if(state->weather_sub, sub);
     if (sub[0] != '\0')
     {
         lv_obj_remove_flag(state->weather_sub, LV_OBJ_FLAG_HIDDEN);
@@ -448,7 +460,7 @@ static void _home_render_timer_tile(home_page_state_t *state)
     {
         (void)snprintf(text, sizeof(text), "时钟");
     }
-    lv_label_set_text(state->clock_tile_caption, text);
+    app_ui_label_set_text_if(state->clock_tile_caption, text);
     _home_set_color(state->clock_tile_caption,
                     active ? accent : APP_UI_COLOR_MUTED);
     lv_obj_set_style_arc_color(state->clock_tile_ring, lv_color_hex(accent),
@@ -477,7 +489,6 @@ static void _home_refresh(home_page_state_t *state)
     {
         return;
     }
-    state->wifi_initialization_elapsed = true;
     _home_render_clock(state);
     _home_render_power(state);
     _home_render_wifi(state);

@@ -243,6 +243,13 @@ void app_ui_set_status_text(lv_obj_t *label, const char *text,
                             app_ui_status_t status);
 
 /**
+ * @brief Update a label's text only when it differs from the current one.
+ * @param label is the LVGL label to update.
+ * @param text is the desired label text.
+ */
+void app_ui_label_set_text_if(lv_obj_t *label, const char *text);
+
+/**
  * @brief Return a loaded theme font, falling back to the LVGL default.
  * @param id selects the theme font role.
  * @return Loaded font or LV_FONT_DEFAULT.

@@ -10,6 +10,9 @@
 #include "device_link_service.h"
 #include "setup_wifi_adapter.h"
 #include "onboarding_service.h"
+#include "chore_service.h"
+
+#include <stdatomic.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -37,6 +40,7 @@ typedef struct setup_root_state
     bool connectivity_valid;
     bool device_link_valid;
     bool revoke_armed;
+    lv_timer_t *onboard_timer;
     onboarding_service_state_t onboarding_state;
 } setup_root_state_t;
 
@@ -220,6 +224,51 @@ static void _setup_revoke_binding_event(lv_event_t *event)
     }
 }
 
+/* Onboarding completion stores NVS state inline; keep the write off the UI
+ * worker. The bounded job reports through app-scope atomics so it may
+ * outlive PAUSE/UNMOUNT; a 100 ms poll timer (foreground only) settles it. */
+static atomic_bool s_onboard_busy;
+static atomic_bool s_onboard_ready;
+static atomic_int s_onboard_result;
+
+static void _setup_onboard_job(const chore_service_cancel_token_t *cancel,
+                               void *arg)
+{
+    (void)cancel;
+    const esp_err_t result = ((bool)(uintptr_t)arg ?
+                              onboarding_service_complete() :
+                              onboarding_service_defer());
+    atomic_store(&s_onboard_result, (int)result);
+    atomic_store(&s_onboard_ready, true);
+    atomic_store(&s_onboard_busy, false);
+}
+
+static void _setup_settle_onboarding(setup_root_state_t *state)
+{
+    if (atomic_load(&s_onboard_busy) ||
+            !atomic_exchange(&s_onboard_ready, false))
+    {
+        return;
+    }
+    if (state->onboard_timer != NULL)
+    {
+        lv_timer_delete(state->onboard_timer);
+        state->onboard_timer = NULL;
+    }
+    const esp_err_t result = (esp_err_t)atomic_load(&s_onboard_result);
+    if (result == ESP_OK)
+    {
+        app_ui_request_run(APP_MANAGER_ID_HOME);
+        return;
+    }
+    _setup_set_status(state, "设置状态未保存", _setup_command_error(result));
+}
+
+static void _setup_onboard_timer_cb(lv_timer_t *timer)
+{
+    _setup_settle_onboarding(lv_timer_get_user_data(timer));
+}
+
 static void _setup_finish_event(lv_event_t *event)
 {
     setup_root_state_t *state = lv_event_get_user_data(event);
@@ -228,18 +277,30 @@ static void _setup_finish_event(lv_event_t *event)
         app_ui_request_run(APP_MANAGER_ID_HOME);
         return;
     }
-    esp_err_t result = state->connectivity.state ==
-                       CONNECTIVITY_MANAGER_STATE_IP_READY ?
-                       onboarding_service_complete() :
-                       onboarding_service_defer();
-    if (result == ESP_OK)
+    if (atomic_load(&s_onboard_busy))
     {
-        app_ui_request_run(APP_MANAGER_ID_HOME);
+        return;
     }
-    else
+    atomic_store(&s_onboard_ready, false);
+    atomic_store(&s_onboard_busy, true);
+    const chore_service_job_t job =
     {
-        _setup_set_status(state, "设置状态未保存",
-                          _setup_command_error(result));
+        .run = _setup_onboard_job,
+        .arg = (void *)(uintptr_t)(state->connectivity.state ==
+                                   CONNECTIVITY_MANAGER_STATE_IP_READY),
+    };
+    chore_service_handle_t handle;
+    if (chore_service_submit(&job, &handle) != ESP_OK)
+    {
+        atomic_store(&s_onboard_busy, false);
+        _setup_set_status(state, "设置状态未保存", "服务繁忙");
+        return;
+    }
+    _setup_set_status(state, "正在保存…", "");
+    if (state->onboard_timer == NULL)
+    {
+        state->onboard_timer = lv_timer_create(_setup_onboard_timer_cb, 100U,
+                                               state);
     }
 }
 
@@ -647,6 +708,11 @@ static esp_err_t _setup_root_resume(setup_root_state_t *state)
     else
     {
         _setup_root_render(state);
+        if (state->onboard_timer != NULL)
+        {
+            lv_timer_resume(state->onboard_timer);
+        }
+        _setup_settle_onboarding(state);
     }
     return result;
 }
@@ -654,13 +720,21 @@ static esp_err_t _setup_root_resume(setup_root_state_t *state)
 static esp_err_t _setup_root_pause(setup_root_state_t *state)
 {
     esp_err_t result = ESP_OK;
+    if (state->onboard_timer != NULL)
+    {
+        lv_timer_pause(state->onboard_timer);
+    }
     if (state->device_link_subscription != EVENT_BUS_SUB_HANDLE_INVALID)
     {
-        result = event_bus_unsubscribe(state->device_link_subscription);
-        state->device_link_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        if (result == ESP_ERR_NOT_FOUND)
+        const esp_err_t unsub = event_bus_unsubscribe(
+                                    state->device_link_subscription);
+        if (unsub == ESP_OK || unsub == ESP_ERR_NOT_FOUND)
         {
-            result = ESP_OK;
+            state->device_link_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+        }
+        else
+        {
+            result = unsub;
         }
     }
     const esp_err_t close_result = setup_wifi_adapter_close(&state->wifi);
@@ -694,6 +768,11 @@ static void _setup_root_unmount(const app_manager_page_context_t *context)
         state->device_link_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     }
     (void)setup_wifi_adapter_close(&state->wifi);
+    if (state->onboard_timer != NULL)
+    {
+        lv_timer_delete(state->onboard_timer);
+        state->onboard_timer = NULL;
+    }
     app_ui_page_destroy(&state->page);
     state->status_label = NULL;
     state->detail_label = NULL;
@@ -944,10 +1023,14 @@ static esp_err_t _setup_provisioning_release_foreground(
         const esp_err_t unsubscribe_result =
             event_bus_unsubscribe(state->subscription);
 
-        state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        if (unsubscribe_result != ESP_OK &&
-                unsubscribe_result != ESP_ERR_NOT_FOUND && result == ESP_OK)
+        if (unsubscribe_result == ESP_OK ||
+                unsubscribe_result == ESP_ERR_NOT_FOUND)
         {
+            state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+        }
+        else if (result == ESP_OK)
+        {
+            /* Keep the handle so a later lifecycle pass can retry. */
             result = unsubscribe_result;
         }
     }

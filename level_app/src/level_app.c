@@ -42,18 +42,25 @@ typedef struct level_page_state
     float filtered_roll;
     float filtered_pitch;
     bool filter_valid;
-    chore_service_handle_t calibration_job;
-    bool calibration_job_active;
+    uint32_t job_generation;
     bool calibration_op_save;
-    float pending_roll_offset;
-    float pending_pitch_offset;
-    atomic_bool calibration_done;
-    atomic_int calibration_result;
     bool calibration_error;
 } level_page_state_t;
 
 _Static_assert(sizeof(level_page_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Level page state exceeds lifecycle arena slot");
+
+/* Calibration jobs must never touch the page arena: the page can be
+ * unmapped and stopped while a job runs. Results land in this app-scope
+ * generation mailbox (single-instance app, submits from the UI worker only)
+ * and are consumed by the refresh timer on the next tick with the matching
+ * generation, so a stale job can never overwrite a newer attempt. */
+static uint32_t s_submit_sequence;
+static atomic_uint s_done_generation;
+static atomic_int s_done_result;
+static float s_done_roll;
+static float s_done_pitch;
+static atomic_uint s_latest_generation; /* only the newest job may publish */
 
 static void _level_set_status(level_page_state_t *state, const char *text,
                               app_ui_status_t status, uint32_t accent)
@@ -117,13 +124,14 @@ static void _level_render(level_page_state_t *state)
     char info[64];
     (void)snprintf(info, sizeof(info), "温度 %.1f °C",
                    snapshot.sample.temperature_c);
-    lv_label_set_text(state->info_label, info);
+    app_ui_label_set_text_if(state->info_label, info);
 
     const float magnitude = fmaxf(fabsf(roll), fabsf(pitch));
     const bool level = magnitude < LEVEL_LEVEL_DEGREES;
-    if (state->calibration_job_active)
+    if (state->job_generation != 0U)
     {
-        _level_set_status(state, "正在保存校准", APP_UI_STATUS_ACCENT, 0U);
+        _level_set_status(state, state->calibration_op_save ? "正在保存校准" :
+                          "读取校准", APP_UI_STATUS_ACCENT, 0U);
     }
     else if (state->calibration_error)
     {
@@ -188,10 +196,10 @@ typedef enum
 
 typedef struct level_calibration_job
 {
-    level_page_state_t *state;
     level_calibration_operation_t operation;
     float roll_offset;
     float pitch_offset;
+    uint32_t generation;
 } level_calibration_job_t;
 
 static void _level_calibration_job(const chore_service_cancel_token_t *cancel,
@@ -202,22 +210,31 @@ static void _level_calibration_job(const chore_service_cancel_token_t *cancel,
     {
         return;
     }
+    if (atomic_load_explicit(&s_latest_generation, memory_order_acquire) !=
+            job->generation)
+    {
+        return; /* a newer attempt exists; publishing would clobber it */
+    }
+    float roll = job->roll_offset;
+    float pitch = job->pitch_offset;
     esp_err_t result = ESP_FAIL;
     if (job->operation == LEVEL_CALIBRATION_LOAD)
     {
-        result = level_app_persistence_load(&job->roll_offset,
-                                            &job->pitch_offset);
+        result = level_app_persistence_load(&roll, &pitch);
     }
     else
     {
         result = level_app_persistence_save(job->roll_offset,
                                             job->pitch_offset);
     }
-    job->state->pending_roll_offset = job->roll_offset;
-    job->state->pending_pitch_offset = job->pitch_offset;
-    atomic_store_explicit(&job->state->calibration_result, result,
-                          memory_order_relaxed);
-    atomic_store_explicit(&job->state->calibration_done, true,
+    if (chore_service_cancel_pending(cancel))
+    {
+        return;
+    }
+    atomic_store_explicit(&s_done_result, (int)result, memory_order_relaxed);
+    s_done_roll = roll;
+    s_done_pitch = pitch;
+    atomic_store_explicit(&s_done_generation, job->generation,
                           memory_order_release);
 }
 
@@ -228,14 +245,16 @@ static void _level_calibration_release(void *argument)
 
 static void _level_calibration_apply_result(level_page_state_t *state)
 {
-    if (!atomic_load_explicit(&state->calibration_done, memory_order_acquire))
+    const uint32_t generation = state->job_generation;
+    if (generation == 0U ||
+            atomic_load_explicit(&s_done_generation,
+                                 memory_order_acquire) != generation)
     {
         return;
     }
-    const esp_err_t result = atomic_load_explicit(&state->calibration_result,
+    state->job_generation = 0U;
+    const esp_err_t result = (esp_err_t)atomic_load_explicit(&s_done_result,
                              memory_order_relaxed);
-    atomic_store_explicit(&state->calibration_done, false, memory_order_relaxed);
-    state->calibration_job_active = false;
     if (result != ESP_OK)
     {
         if (!state->calibration_op_save)
@@ -246,8 +265,8 @@ static void _level_calibration_apply_result(level_page_state_t *state)
         _level_set_status(state, "校准保存失败", APP_UI_STATUS_ERROR, 0U);
         return;
     }
-    state->roll_offset = state->pending_roll_offset;
-    state->pitch_offset = state->pending_pitch_offset;
+    state->roll_offset = s_done_roll;
+    state->pitch_offset = s_done_pitch;
     state->calibration_error = false;
     state->filter_valid = false;
 }
@@ -262,29 +281,28 @@ static esp_err_t _level_submit_calibration(level_page_state_t *state,
     {
         return ESP_ERR_NO_MEM;
     }
-    job->state = state;
     job->operation = operation;
+    job->generation = ++s_submit_sequence;
+    state->job_generation = job->generation;
     state->calibration_op_save = operation == LEVEL_CALIBRATION_SAVE;
     job->roll_offset = roll_offset;
     job->pitch_offset = pitch_offset;
-    atomic_store_explicit(&state->calibration_done, false, memory_order_relaxed);
     const chore_service_job_t chore =
     {
         .run = _level_calibration_job,
         .release = _level_calibration_release,
         .arg = job,
     };
-    const esp_err_t result = chore_service_submit(&chore,
-                             &state->calibration_job);
-    if (result == ESP_OK)
+    chore_service_handle_t handle;
+    atomic_store_explicit(&s_latest_generation, job->generation,
+                          memory_order_release);
+    if (chore_service_submit(&chore, &handle) != ESP_OK)
     {
-        state->calibration_job_active = true;
-    }
-    else
-    {
+        state->job_generation = 0U;
         free(job);
+        return ESP_ERR_NO_MEM;
     }
-    return result;
+    return ESP_OK;
 }
 
 static void _level_refresh(lv_timer_t *timer)
@@ -304,7 +322,7 @@ static void _level_calibrate(lv_event_t *event)
         return;
     }
     const imu_service_vector_t *acc = &snapshot.sample.acceleration_mps2;
-    if (state->calibration_job_active)
+    if (state->job_generation != 0U)
     {
         return;
     }
@@ -341,8 +359,6 @@ static void _level_mount(const app_manager_page_context_t *context)
     static const lv_point_precise_t vertical[] = {{ 80, 8 }, { 80, 152 }};
     level_page_state_t *state = context->state;
     memset(state, 0, sizeof(*state));
-    atomic_init(&state->calibration_done, false);
-    atomic_init(&state->calibration_result, ESP_OK);
     state->last_bubble_color = APP_UI_COLOR_RAIN;
     app_ui_page_create(&state->page, "水平仪", false);
     app_ui_page_set_subtitle(&state->page, "倾角与稳定性");
@@ -466,12 +482,9 @@ static void _level_unmount(const app_manager_page_context_t *context)
         lv_timer_delete(state->refresh_timer);
         state->refresh_timer = NULL;
     }
-    if (state->calibration_job_active)
-    {
-        (void)chore_service_cancel(&state->calibration_job,
-                                   CHORE_SERVICE_WAIT_FOREVER);
-        state->calibration_job_active = false;
-    }
+    /* No job cancel here: the bounded chore only writes the app-scope
+     * generation mailbox, never this arena. A result that arrives after
+     * unmount is consumed (or superseded) by the next mount's load. */
     app_ui_page_destroy(&state->page);
     state->angle_label = NULL;
     state->state_label = NULL;

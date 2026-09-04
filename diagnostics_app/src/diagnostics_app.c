@@ -185,6 +185,7 @@ static void _diagnostics_unmount(const app_manager_page_context_t *context)
         state->refresh_timer = NULL;
     }
     app_ui_page_destroy(&state->page);
+    memset(state->rows, 0, sizeof(state->rows));
     state->status = NULL;
 }
 

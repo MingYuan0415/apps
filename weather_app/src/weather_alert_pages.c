@@ -478,6 +478,7 @@ static void _weather_alert_detail_apply_arguments(
 {
     weather_alert_arguments_t decoded = {0};
     if (arguments != NULL &&
+            arguments->version == APP_MANAGER_TYPED_BLOB_VERSION &&
             arguments->type == WEATHER_ARGUMENT_ALERT_KEY &&
             arguments->size == sizeof(decoded))
     {

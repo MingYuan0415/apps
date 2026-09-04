@@ -136,3 +136,25 @@ target_include_directories(setup_wifi_adapter_test PRIVATE
 configure_apps_host_target(setup_wifi_adapter_test)
 
 add_apps_host_test(setup_wifi_adapter_test setup_wifi_adapter_test)
+
+add_executable(weather_icon_test
+    weather_icon_test.c
+    ../../common/src/app_weather_ui.c
+)
+
+target_include_directories(weather_icon_test PRIVATE
+    include
+    ../../common/include
+    ../../../app_manager/app_core/include
+)
+
+configure_apps_host_target(weather_icon_test)
+target_compile_options(weather_icon_test PRIVATE
+    -ffunction-sections
+    -fdata-sections
+)
+target_link_options(weather_icon_test PRIVATE
+    -Wl,--gc-sections
+)
+
+add_apps_host_test(weather_icon_test weather_icon_test)

@@ -1,5 +1,10 @@
 #define DBG_TAG "settings_wifi"
 #define DBG_LVL DBG_INFO
+
+/* The worker applies toggle requests asynchronously; the switches hold the
+ * user's intent until the snapshot catches up, and a wall-clock deadline
+ * (not refresh ticks) bounds the wait. */
+#define SETTINGS_WIFI_PENDING_MS 3000U
 #include "mt_log.h"
 
 #include "settings_app_internal.h"
@@ -22,10 +27,10 @@ typedef struct settings_wifi_state
     bool forget_armed;
     bool online_pending;
     bool online_desired;
-    uint8_t online_ticks;
+    uint32_t online_deadline;
     bool auto_pending;
     bool auto_desired;
-    uint8_t auto_ticks;
+    uint32_t auto_deadline;
 } settings_wifi_state_t;
 
 _Static_assert(sizeof(settings_wifi_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -195,9 +200,6 @@ static void _wifi_render_scan(settings_wifi_state_t *state)
     }
 }
 
-/* The connectivity worker applies requests asynchronously; hold the switches
- * at the user's intent until the snapshot catches up, or report after the
- * request window lapses. */
 static void _wifi_settle_pending(settings_wifi_state_t *state,
                                  const connectivity_manager_status_snapshot_t
                                  *status)
@@ -208,7 +210,7 @@ static void _wifi_settle_pending(settings_wifi_state_t *state,
         {
             state->online_pending = false;
         }
-        else if (--state->online_ticks == 0U)
+        else if ((int32_t)(lv_tick_get() - state->online_deadline) >= 0)
         {
             state->online_pending = false;
             lv_obj_remove_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
@@ -222,7 +224,7 @@ static void _wifi_settle_pending(settings_wifi_state_t *state,
         {
             state->auto_pending = false;
         }
-        else if (--state->auto_ticks == 0U)
+        else if ((int32_t)(lv_tick_get() - state->auto_deadline) >= 0)
         {
             state->auto_pending = false;
             lv_obj_remove_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
@@ -309,7 +311,7 @@ static void _wifi_online_event(lv_event_t *event)
     {
         state->online_pending = true;
         state->online_desired = on;
-        state->online_ticks = 3U;
+        state->online_deadline = lv_tick_get() + SETTINGS_WIFI_PENDING_MS;
         lv_obj_add_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
     }
     else
@@ -331,7 +333,7 @@ static void _wifi_auto_event(lv_event_t *event)
     {
         state->auto_pending = true;
         state->auto_desired = on;
-        state->auto_ticks = 3U;
+        state->auto_deadline = lv_tick_get() + SETTINGS_WIFI_PENDING_MS;
         lv_obj_add_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
     }
     else

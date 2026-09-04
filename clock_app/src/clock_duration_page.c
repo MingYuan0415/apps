@@ -176,6 +176,11 @@ static void _duration_new_intent(const app_manager_page_context_t *context)
         clock_ui_minutes_set(minutes);
     }
     minutes = clock_ui_minutes_get();
+    if (state->page.root == NULL)
+    {
+        /* Background instance: the value is stored; MOUNT renders it. */
+        return;
+    }
     lv_roller_set_selected(state->hour_roller, minutes / 60U, LV_ANIM_OFF);
     lv_roller_set_selected(state->minute_roller, minutes % 60U, LV_ANIM_OFF);
     _duration_render_summary(state);

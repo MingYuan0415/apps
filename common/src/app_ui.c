@@ -777,5 +777,21 @@ void app_ui_set_status_text(lv_obj_t *label, const char *text,
         break;
     }
     lv_obj_set_style_text_color(label, lv_color_hex(color), 0);
-    lv_label_set_text(label, text != NULL ? text : "");
+    app_ui_label_set_text_if(label, text != NULL ? text : "");
+}
+
+void app_ui_label_set_text_if(lv_obj_t *label, const char *text)
+{
+    if (label == NULL || text == NULL)
+    {
+        return;
+    }
+    /* lv_label_set_text always reallocates and re-renders; periodic
+     * refreshers compare against the current text instead. */
+    const char *current = lv_label_get_text(label);
+    if (current != NULL && strcmp(current, text) == 0)
+    {
+        return;
+    }
+    lv_label_set_text(label, text);
 }

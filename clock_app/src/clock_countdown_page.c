@@ -287,6 +287,7 @@ static void _countdown_unmount(const app_manager_page_context_t *context)
         state->refresh_timer = NULL;
     }
     app_ui_page_destroy(&state->page);
+    memset(state->chips, 0, sizeof(state->chips));
     state->ring = NULL;
     state->value_label = NULL;
     state->hint_label = NULL;

@@ -244,6 +244,12 @@ void lv_label_set_text(lv_obj_t *label, const char *text)
     (void)snprintf(label->text, sizeof(label->text), "%s", text);
 }
 
+const char *lv_label_get_text(const lv_obj_t *label)
+{
+    assert(label != NULL);
+    return label->text;
+}
+
 void lv_obj_set_style_text_font(lv_obj_t *object, const lv_font_t *font,
                                 int selector)
 {

@@ -140,6 +140,8 @@ lv_result_t lv_obj_send_event(lv_obj_t *object, lv_event_code_t code,
                               void *param);
 /** @brief Set fake label text. */
 void lv_label_set_text(lv_obj_t *label, const char *text);
+/** @brief Return fake label text. */
+const char *lv_label_get_text(const lv_obj_t *label);
 /** @brief Record an explicitly assigned fake text font. */
 void lv_obj_set_style_text_font(lv_obj_t *object, const lv_font_t *font,
                                 int selector);

@@ -4,10 +4,21 @@
 
 #include "settings_app_internal.h"
 #include "apps_device_link_window.h"
+#include "chore_service.h"
 #include "event_bus.h"
+
+#include <stdatomic.h>
 
 #define SETTINGS_BT_WINDOW_TOTAL_MS APPS_DEVICE_LINK_WINDOW_TOTAL_MS
 #define SETTINGS_BT_SET_TIMEOUT_MS  1500U
+
+/* The enable toggle stores an NVS policy and waits (up to the timeout) for
+ * NimBLE to apply; both must stay off the UI worker. The bounded job reports
+ * through app-scope atomics (never UI, never the page arena), so it may
+ * outlive PAUSE/UNMOUNT; the 1 s refresh timer settles the visible state. */
+static atomic_bool s_bt_busy;
+static atomic_bool s_bt_result_ready;
+static atomic_int s_bt_result;
 
 typedef struct settings_bluetooth_state
 {
@@ -73,7 +84,8 @@ static const char *_bluetooth_status_text(
 static void _bluetooth_render(settings_bluetooth_state_t *state,
                               const device_link_service_status_t *status)
 {
-    if (lv_obj_has_state(state->enable_switch, LV_STATE_CHECKED) !=
+    if (!atomic_load(&s_bt_busy) &&
+            lv_obj_has_state(state->enable_switch, LV_STATE_CHECKED) !=
             status->enabled)
     {
         if (status->enabled)
@@ -165,9 +177,29 @@ static void _bluetooth_refresh(settings_bluetooth_state_t *state)
     }
 }
 
+static void _bluetooth_settle_toggle(settings_bluetooth_state_t *state)
+{
+    if (atomic_load(&s_bt_busy) ||
+            !atomic_exchange(&s_bt_result_ready, false))
+    {
+        return;
+    }
+    const esp_err_t result = (esp_err_t)atomic_load(&s_bt_result);
+    _bluetooth_refresh(state);
+    if (result != ESP_OK)
+    {
+        /* Written after the refresh so the render cannot overwrite it. */
+        app_ui_set_status_text(state->status_value, "切换失败",
+                               APP_UI_STATUS_ERROR);
+        LOG_W("bluetooth enable failed: %s", esp_err_to_name(result));
+    }
+}
+
 static void _bluetooth_timer(lv_timer_t *timer)
 {
-    _bluetooth_refresh(lv_timer_get_user_data(timer));
+    settings_bluetooth_state_t *state = lv_timer_get_user_data(timer);
+    _bluetooth_refresh(state);
+    _bluetooth_settle_toggle(state);
 }
 
 static void _bluetooth_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
@@ -192,22 +224,42 @@ static void _bluetooth_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
     _bluetooth_render(state, status);
 }
 
+static void _bluetooth_set_job(const chore_service_cancel_token_t *cancel,
+                               void *arg)
+{
+    (void)cancel;
+    const esp_err_t result = device_link_service_set_enabled(
+                                 (bool)(uintptr_t)arg, SETTINGS_BT_SET_TIMEOUT_MS);
+    atomic_store(&s_bt_result, (int)result);
+    atomic_store(&s_bt_result_ready, true);
+    atomic_store(&s_bt_busy, false);
+}
+
 static void _bluetooth_enable_event(lv_event_t *event)
 {
     settings_bluetooth_state_t *state = lv_event_get_user_data(event);
     const bool enable = lv_obj_has_state(state->enable_switch, LV_STATE_CHECKED);
-    const esp_err_t result = device_link_service_set_enabled(
-                                 enable, SETTINGS_BT_SET_TIMEOUT_MS);
-    _bluetooth_refresh(state);
-    if (result != ESP_OK)
+    if (atomic_load(&s_bt_busy))
     {
-        /* Written after the refresh so the render cannot overwrite it. */
-        app_ui_set_status_text(state->status_value,
-                               result == ESP_ERR_TIMEOUT ? "切换中" : "切换失败",
-                               result == ESP_ERR_TIMEOUT ? APP_UI_STATUS_ACCENT :
-                               APP_UI_STATUS_ERROR);
-        LOG_W("bluetooth enable failed: %s", esp_err_to_name(result));
+        return;
     }
+    atomic_store(&s_bt_result_ready, false);
+    atomic_store(&s_bt_busy, true);
+    const chore_service_job_t job =
+    {
+        .run = _bluetooth_set_job,
+        .arg = (void *)(uintptr_t)enable,
+    };
+    chore_service_handle_t handle;
+    if (chore_service_submit(&job, &handle) != ESP_OK)
+    {
+        atomic_store(&s_bt_busy, false);
+        _bluetooth_refresh(state);
+        app_ui_set_status_text(state->status_value, "切换失败",
+                               APP_UI_STATUS_ERROR);
+        return;
+    }
+    app_ui_set_status_text(state->status_value, "切换中", APP_UI_STATUS_ACCENT);
 }
 
 static void _bluetooth_pair_event(lv_event_t *event)
@@ -358,6 +410,7 @@ static void _bluetooth_resume(const app_manager_page_context_t *context)
     }
     state->rendered_generation = 0U;
     _bluetooth_refresh(state);
+    _bluetooth_settle_toggle(state);
 }
 
 static esp_err_t _bluetooth_pause(const app_manager_page_context_t *context)
@@ -373,6 +426,10 @@ static esp_err_t _bluetooth_pause(const app_manager_page_context_t *context)
         if (result == ESP_OK || result == ESP_ERR_NOT_FOUND)
         {
             state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+        }
+        else
+        {
+            return result;
         }
     }
     return ESP_OK;
