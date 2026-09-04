@@ -169,12 +169,16 @@ static void _duration_mount(const app_manager_page_context_t *context)
 
 static void _duration_new_intent(const app_manager_page_context_t *context)
 {
-    (void)context;
+    clock_duration_state_t *state = context->state;
     uint32_t minutes = 0U;
     if (clock_ui_take_minutes_argument(&minutes))
     {
         clock_ui_minutes_set(minutes);
     }
+    minutes = clock_ui_minutes_get();
+    lv_roller_set_selected(state->hour_roller, minutes / 60U, LV_ANIM_OFF);
+    lv_roller_set_selected(state->minute_roller, minutes % 60U, LV_ANIM_OFF);
+    _duration_render_summary(state);
 }
 
 static void _duration_unmount(const app_manager_page_context_t *context)

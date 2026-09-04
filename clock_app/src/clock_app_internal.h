@@ -47,8 +47,9 @@ void clock_ui_open_page_with_minutes(const char *page_id, uint32_t minutes);
  */
 uint32_t clock_ui_minutes_get(void);
 /**
- * @brief Persist the app-wide countdown duration in minutes.
- * @param minutes is clamped to 1..779.
+ * @brief Set the app-wide countdown duration in minutes for this session.
+ * @param minutes is clamped to 1..779. RAM-only; reboots return to the
+ *        default duration.
  */
 void clock_ui_minutes_set(uint32_t minutes);
 /**

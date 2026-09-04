@@ -56,8 +56,10 @@ void clock_ui_ring_update(lv_obj_t *ring, bool active, uint32_t remaining_ms,
         return;
     }
     lv_obj_set_style_arc_opa(ring, LV_OPA_COVER, LV_PART_INDICATOR);
+    /* 64-bit: 360 * 779 min in ms would wrap a uint32 product. */
     const uint32_t span = (total_ms > 0U && remaining_ms <= total_ms) ?
-                          360U * remaining_ms / total_ms : 360U;
+                          (uint32_t)(((uint64_t)remaining_ms * 360U) /
+                                     total_ms) : 360U;
     lv_arc_set_angles(ring, 0, (lv_value_precise_t)span);
 }
 

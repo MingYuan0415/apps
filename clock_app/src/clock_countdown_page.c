@@ -79,6 +79,7 @@ static void _countdown_render(clock_countdown_state_t *state)
     if (state->last_state != view)
     {
         state->last_state = view;
+        lv_label_set_text(state->hint_label, "");
         switch (view)
         {
         case TIMER_SERVICE_IDLE:
@@ -118,10 +119,14 @@ static void _countdown_chip_event(lv_event_t *event)
     }
     clock_countdown_state_t *state = lv_event_get_user_data(event);
     timer_service_snapshot_t snapshot;
-    if (timer_service_get_snapshot(&snapshot) != ESP_OK ||
-            snapshot.countdown_state == TIMER_SERVICE_RUNNING ||
+    if (timer_service_get_snapshot(&snapshot) != ESP_OK)
+    {
+        return;
+    }
+    if (snapshot.countdown_state == TIMER_SERVICE_RUNNING ||
             snapshot.countdown_state == TIMER_SERVICE_PAUSED)
     {
+        lv_label_set_text(state->hint_label, "运行中不能切换时长");
         return;
     }
     const uint32_t index = lv_obj_get_index(lv_event_get_target(event));
@@ -149,19 +154,31 @@ static void _countdown_primary_event(lv_event_t *event)
     timer_service_snapshot_t snapshot;
     if (timer_service_get_snapshot(&snapshot) != ESP_OK)
     {
+        lv_label_set_text(state->hint_label, "状态读取失败");
         return;
     }
+    esp_err_t result = ESP_OK;
     switch (snapshot.countdown_state)
     {
     case TIMER_SERVICE_RUNNING:
-        (void)timer_service_countdown_pause();
+        result = timer_service_countdown_pause();
         break;
     case TIMER_SERVICE_PAUSED:
-        (void)timer_service_countdown_resume();
+        result = timer_service_countdown_resume();
         break;
     default:
-        (void)timer_service_countdown_start(state->minutes * 60000U);
+        result = timer_service_countdown_start(state->minutes * 60000U);
         break;
+    }
+    if (result == ESP_ERR_INVALID_STATE)
+    {
+        lv_label_set_text(state->hint_label, "专注进行中，无法开始倒计时");
+        return;
+    }
+    if (result != ESP_OK)
+    {
+        lv_label_set_text(state->hint_label, "操作失败");
+        return;
     }
     _countdown_render(state);
 }

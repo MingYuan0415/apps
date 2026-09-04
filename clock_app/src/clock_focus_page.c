@@ -27,6 +27,7 @@ typedef struct clock_focus_state
     lv_obj_t *value_label;
     lv_obj_t *phase_label;
     lv_obj_t *cycle_label;
+    lv_obj_t *hint_label;
     lv_obj_t *chips[3];
     lv_obj_t *btn_primary;
     lv_obj_t *btn_reset;
@@ -101,6 +102,11 @@ static void _focus_render(clock_focus_state_t *state)
     if (state->last_state != view)
     {
         state->last_state = view;
+        lv_label_set_text(state->hint_label, "");
+        /* No session is active: the in-ring phase text would lie. */
+        lv_label_set_text(state->phase_label, running ?
+                          (snapshot.focus_phase == TIMER_SERVICE_FOCUS_WORK ?
+                           "专注中" : "休息中") : "");
         switch (view)
         {
         case TIMER_SERVICE_RUNNING:
@@ -132,10 +138,15 @@ static void _focus_chip_event(lv_event_t *event)
     }
     clock_focus_state_t *state = lv_event_get_user_data(event);
     timer_service_snapshot_t snapshot;
-    if (timer_service_get_snapshot(&snapshot) != ESP_OK ||
-            snapshot.focus_state == TIMER_SERVICE_RUNNING ||
+    if (timer_service_get_snapshot(&snapshot) != ESP_OK)
+    {
+        lv_label_set_text(state->hint_label, "状态读取失败");
+        return;
+    }
+    if (snapshot.focus_state == TIMER_SERVICE_RUNNING ||
             snapshot.focus_state == TIMER_SERVICE_PAUSED)
     {
+        lv_label_set_text(state->hint_label, "运行中不能切换时长");
         return;
     }
     const uint32_t index = lv_obj_get_index(lv_event_get_target(event));
@@ -156,20 +167,32 @@ static void _focus_primary_event(lv_event_t *event)
     timer_service_snapshot_t snapshot;
     if (timer_service_get_snapshot(&snapshot) != ESP_OK)
     {
+        lv_label_set_text(state->hint_label, "状态读取失败");
         return;
     }
+    esp_err_t result = ESP_OK;
     switch (snapshot.focus_state)
     {
     case TIMER_SERVICE_RUNNING:
-        (void)timer_service_focus_pause();
+        result = timer_service_focus_pause();
         break;
     case TIMER_SERVICE_PAUSED:
-        (void)timer_service_focus_resume();
+        result = timer_service_focus_resume();
         break;
     default:
-        (void)timer_service_focus_start(k_presets[state->preset].work_ms,
-                                        k_presets[state->preset].break_ms);
+        result = timer_service_focus_start(k_presets[state->preset].work_ms,
+                                           k_presets[state->preset].break_ms);
         break;
+    }
+    if (result == ESP_ERR_INVALID_STATE)
+    {
+        lv_label_set_text(state->hint_label, "倒计时进行中，无法开始专注");
+        return;
+    }
+    if (result != ESP_OK)
+    {
+        lv_label_set_text(state->hint_label, "操作失败");
+        return;
     }
     _focus_render(state);
 }
@@ -228,7 +251,7 @@ static void _focus_mount(const app_manager_page_context_t *context)
                                 lv_color_hex(APP_UI_COLOR_SUN), 0);
     lv_obj_set_style_text_font(state->phase_label,
                                app_ui_font(APP_THEME_FONT_BODY), 0);
-    lv_label_set_text(state->phase_label, "专注中");
+    lv_label_set_text(state->phase_label, "");
 
     state->cycle_label = lv_label_create(state->page.content);
     lv_obj_set_width(state->cycle_label, LV_PCT(100));
@@ -238,6 +261,15 @@ static void _focus_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_font(state->cycle_label,
                                app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_label_set_text(state->cycle_label, "已完成 0 轮");
+
+    state->hint_label = lv_label_create(state->page.content);
+    lv_obj_set_width(state->hint_label, LV_PCT(100));
+    lv_obj_set_style_text_align(state->hint_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(state->hint_label,
+                                lv_color_hex(APP_UI_COLOR_MUTED), 0);
+    lv_obj_set_style_text_font(state->hint_label,
+                               app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_text(state->hint_label, "");
 
     lv_obj_t *chip_row = app_ui_chip_row_create(state->page.content);
     for (size_t index = 0U; index < 3U; ++index)
