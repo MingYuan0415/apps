@@ -147,10 +147,14 @@ static void _level_render(level_page_state_t *state)
                         clamp;
     float bx = roll;
     float by = pitch;
-    if (bx > clamp) bx = clamp;
-    if (bx < -clamp) bx = -clamp;
-    if (by > clamp) by = clamp;
-    if (by < -clamp) by = -clamp;
+    /* Radial clamp keeps the bubble on the circular board instead of letting
+     * a combined tilt park it in a square corner outside the ring. */
+    const float tilt = sqrtf(bx * bx + by * by);
+    if (tilt > clamp)
+    {
+        bx *= clamp / tilt;
+        by *= clamp / tilt;
+    }
     const int32_t center = LEVEL_BOARD_SIZE / 2 - LEVEL_BUBBLE_SIZE / 2;
     const int32_t x = center + (int32_t)(bx * scale);
     const int32_t y = center + (int32_t)(by * scale);
@@ -170,9 +174,9 @@ static void _level_render(level_page_state_t *state)
     {
         state->last_bubble_color = color;
         lv_obj_set_style_bg_color(state->bubble, lv_color_hex(color), 0);
-        lv_obj_set_style_bg_color(state->target, lv_color_hex(
-                                      level ? APP_UI_COLOR_SUN : APP_UI_COLOR_SURFACE_HI),
-                                  LV_PART_MAIN);
+        lv_obj_set_style_border_color(state->target, lv_color_hex(
+                                          level ? APP_UI_COLOR_SUN : APP_UI_COLOR_SURFACE_HI),
+                                      0);
     }
 }
 

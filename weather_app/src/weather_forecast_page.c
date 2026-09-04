@@ -116,6 +116,14 @@ static void _weather_forecast_add_meta(
     _weather_forecast_add_service_status(parent);
 }
 
+static const char *_weather_forecast_provider(
+    const weather_forecast_state_t *state)
+{
+    const char *provider = state->snapshot->location.provider;
+
+    return provider[0] != '\0' ? provider : "未提供";
+}
+
 static void _weather_forecast_render_current(weather_forecast_state_t *state)
 {
     if (state->snapshot == NULL || !state->snapshot->current.meta.available)
@@ -153,7 +161,8 @@ static void _weather_forecast_render_current(weather_forecast_state_t *state)
                    current->visibility_tenths_km / 10.0);
     _weather_forecast_metric_pair(state->body, "气压", left, "能见度",
                                   right);
-    _weather_forecast_add_meta(state->body, &current->meta, "QWeather");
+    _weather_forecast_add_meta(state->body, &current->meta,
+                               _weather_forecast_provider(state));
 }
 
 static void _weather_forecast_render_chart(weather_forecast_state_t *state)
@@ -309,7 +318,8 @@ static void _weather_forecast_render_hourly(weather_forecast_state_t *state)
                                     lv_color_hex(WEATHER_COLOR_MUTED), 0);
         lv_label_set_text(details, text);
     }
-    _weather_forecast_add_meta(state->body, &hourly->meta, "QWeather");
+    _weather_forecast_add_meta(state->body, &hourly->meta,
+                               _weather_forecast_provider(state));
 }
 
 static unsigned _weather_forecast_weekday(const char *date)
@@ -446,7 +456,8 @@ static void _weather_forecast_render_daily(weather_forecast_state_t *state)
                                     lv_color_hex(WEATHER_COLOR_MUTED), 0);
         lv_label_set_text(details, text);
     }
-    _weather_forecast_add_meta(state->body, &daily->meta, "QWeather");
+    _weather_forecast_add_meta(state->body, &daily->meta,
+                               _weather_forecast_provider(state));
 }
 
 static void _weather_forecast_render(weather_forecast_state_t *state)
@@ -520,7 +531,7 @@ static void _weather_forecast_build(weather_forecast_state_t *state)
 {
     app_ui_page_create(&state->page, "详细预报", true);
     lv_obj_t *segments = weather_ui_container(
-                             state->page.content, 42, LV_FLEX_FLOW_ROW);
+                             state->page.content, 50, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_bg_color(segments, lv_color_hex(WEATHER_COLOR_SURFACE), 0);
     lv_obj_set_style_bg_opa(segments, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(segments, 6, 0);

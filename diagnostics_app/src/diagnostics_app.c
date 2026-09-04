@@ -131,7 +131,9 @@ static void _diagnostics_add_row(diagnostics_page_state_t *state,
     row->text = lv_label_create(line);
     lv_obj_set_width(row->text, 0);
     lv_obj_set_flex_grow(row->text, 1);
-    lv_label_set_long_mode(row->text, LV_LABEL_LONG_DOT);
+    /* Diagnostics exists to show exact values: long SSIDs/paths scroll
+     * circularly instead of being silently truncated. */
+    lv_label_set_long_mode(row->text, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_color(row->text, lv_color_hex(APP_UI_COLOR_TEXT),
                                 0);
     lv_obj_set_style_text_font(row->text,

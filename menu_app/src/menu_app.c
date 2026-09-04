@@ -117,6 +117,11 @@ static void _menu_page_build(menu_page_state_t *state)
                           LV_FLEX_ALIGN_START);
     lv_obj_set_style_pad_column(content, 8, 0);
     lv_obj_set_style_pad_row(content, 8, 0);
+    /* Six tiles fit the viewport exactly; a seventh launcher app must stay
+     * reachable instead of rendering below a dead edge. */
+    lv_obj_add_flag(content, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(content, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(content, LV_SCROLLBAR_MODE_AUTO);
 
     size_t registry_count = 0U;
     const app_manager_app_desc_t *scan = app_manager_builtin_list_open();

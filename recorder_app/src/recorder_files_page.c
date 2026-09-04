@@ -11,8 +11,10 @@ typedef struct recorder_files_state
     lv_obj_t *bar;
     lv_obj_t *btn_play;
     lv_obj_t *btn_delete;
+    lv_obj_t *status_label;
     lv_timer_t *refresh_timer;
     char selected[64];
+    char pending_delete[64];
     uint32_t last_generation;
     recorder_service_state_t last_state;
 } recorder_files_state_t;
@@ -101,12 +103,49 @@ static void _files_rebuild(recorder_files_state_t *state)
     }
 }
 
+static void _files_rebuild_async(void *user_data)
+{
+    recorder_files_state_t *state = user_data;
+
+    if (state->page.root != NULL)
+    {
+        _files_rebuild(state);
+    }
+}
+
+static void _files_set_status(recorder_files_state_t *state, const char *text,
+                              uint32_t color)
+{
+    if (state->status_label != NULL && state->page.root != NULL)
+    {
+        app_ui_set_status_text(state->status_label, text, color);
+    }
+}
+
 static void _files_render(recorder_files_state_t *state)
 {
     recorder_service_snapshot_t snapshot;
     if (recorder_service_get_snapshot(&snapshot) != ESP_OK)
     {
         return;
+    }
+    if (state->pending_delete[0] != '\0' && !snapshot.operation_pending &&
+            snapshot.state != RECORDER_SERVICE_PLAYING)
+    {
+        /* Stop-then-delete queued by the delete button: run it once the
+         * worker has finished stopping playback. */
+        const esp_err_t result = recorder_service_delete(
+                                     state->pending_delete);
+        state->pending_delete[0] = '\0';
+        if (result == ESP_OK)
+        {
+            state->selected[0] = '\0';
+            _files_set_status(state, "已删除", APP_UI_STATUS_SUCCESS);
+        }
+        else
+        {
+            _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
+        }
     }
     if (snapshot.generation != state->last_generation ||
             snapshot.state != state->last_state)
@@ -149,11 +188,17 @@ static void _files_play_event(lv_event_t *event)
     }
     if (snapshot.state == RECORDER_SERVICE_PLAYING)
     {
-        (void)recorder_service_stop_playback();
+        if (recorder_service_stop_playback() != ESP_OK)
+        {
+            _files_set_status(state, "停止播放失败", APP_UI_STATUS_ERROR);
+        }
     }
     else if (state->selected[0] != '\0')
     {
-        (void)recorder_service_play(state->selected);
+        if (recorder_service_play(state->selected) != ESP_OK)
+        {
+            _files_set_status(state, "播放失败", APP_UI_STATUS_ERROR);
+        }
     }
     _files_render(state);
 }
@@ -171,14 +216,36 @@ static void _files_delete_event(lv_event_t *event)
     {
         return;
     }
+    if (snapshot.state == RECORDER_SERVICE_RECORDING ||
+            snapshot.state == RECORDER_SERVICE_PAUSED)
+    {
+        _files_set_status(state, "录音中无法删除", APP_UI_STATUS_WARNING);
+        return;
+    }
     if (snapshot.state == RECORDER_SERVICE_PLAYING)
     {
-        (void)recorder_service_stop_playback();
+        /* stop_playback only queues; deleting now would be rejected. Queue
+         * the delete and let the 250 ms poller run it after the stop. */
+        (void)snprintf(state->pending_delete, sizeof(state->pending_delete),
+                       "%s", state->selected);
+        if (recorder_service_stop_playback() != ESP_OK)
+        {
+            state->pending_delete[0] = '\0';
+            _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
+        }
+        return;
     }
-    (void)recorder_service_delete(state->selected);
-    state->selected[0] = '\0';
-    _files_rebuild(state);
-    _files_render(state);
+    const esp_err_t result = recorder_service_delete(state->selected);
+    if (result == ESP_OK)
+    {
+        state->selected[0] = '\0';
+        _files_set_status(state, "已删除", APP_UI_STATUS_SUCCESS);
+    }
+    else
+    {
+        _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
+    }
+    (void)lv_async_call(_files_rebuild_async, state);
 }
 
 static void _files_row_event(lv_event_t *event)
@@ -200,7 +267,10 @@ static void _files_row_event(lv_event_t *event)
     }
     (void)snprintf(state->selected, sizeof(state->selected), "%s",
                    files[index].name);
-    _files_rebuild(state);
+    _files_set_status(state, "", APP_UI_STATUS_NEUTRAL);
+    /* The row being selected is inside the list being rebuilt: defer so the
+     * CLICKED handler never frees its own event target. */
+    (void)lv_async_call(_files_rebuild_async, state);
 }
 
 static void _files_mount(const app_manager_page_context_t *context)
@@ -235,6 +305,10 @@ static void _files_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_radius(state->bar, 3, 0);
     app_ui_make_passive(state->bar, false);
     recorder_ui_set_visible(state->bar, false);
+
+    state->status_label = app_ui_add_body_label(state->page.content, "");
+    lv_obj_set_width(state->status_label, LV_PCT(100));
+    lv_obj_set_style_text_align(state->status_label, LV_TEXT_ALIGN_CENTER, 0);
 
     lv_obj_t *controls = app_ui_button_row_create(state->page.content, 52);
     state->btn_play = app_ui_button_create(controls, "播放",
@@ -281,6 +355,7 @@ static void _files_unmount(const app_manager_page_context_t *context)
     state->bar = NULL;
     state->btn_play = NULL;
     state->btn_delete = NULL;
+    state->status_label = NULL;
 }
 
 static const app_manager_page_ops_t s_recorder_files_ops =

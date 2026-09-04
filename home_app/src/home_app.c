@@ -199,7 +199,10 @@ static void _home_render_clock(home_page_state_t *state)
     lv_obj_remove_flag(state->hand_minute, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(state->hand_second, LV_OBJ_FLAG_HIDDEN);
     char text[48];
-    (void)strftime(text, sizeof(text), "%H:%M", &local_time);
+    if (strftime(text, sizeof(text), "%H:%M", &local_time) == 0U)
+    {
+        (void)snprintf(text, sizeof(text), "--:--");
+    }
     lv_label_set_text(state->time_label, text);
     static const char *const weekdays[] = { "日", "一", "二", "三", "四", "五", "六" };
     const int weekday = local_time.tm_wday >= 0 && local_time.tm_wday < 7 ?
@@ -258,7 +261,7 @@ static void _home_render_power(home_page_state_t *state)
         {
             percent = 100;
         }
-        (void)snprintf(text, sizeof(text), "%umV", (unsigned)mv);
+        (void)snprintf(text, sizeof(text), "%.1fV", (double)mv / 1000.0);
     }
     lv_label_set_text(state->battery_status, text);
     const uint32_t fill_color = snapshot.info.is_charging ? APP_UI_COLOR_RAIN :
@@ -460,9 +463,11 @@ static void _home_render_timer_tile(home_page_state_t *state)
     lv_obj_set_style_arc_opa(state->clock_tile_ring, LV_OPA_COVER,
                              LV_PART_INDICATOR);
     /* Focus snapshots expose no phase total, so a missing duration renders a
-     * full-strength ring instead of a misleading sweep. */
+     * full-strength ring instead of a misleading sweep. 64-bit product: the
+     * countdown can run up to 779 minutes. */
     const uint32_t span = (total_ms > 0U && remaining_ms <= total_ms) ?
-                          360U * remaining_ms / total_ms : 360U;
+                          (uint32_t)(((uint64_t)remaining_ms * 360U) /
+                                     total_ms) : 360U;
     lv_arc_set_angles(state->clock_tile_ring, 0, (lv_value_precise_t)span);
 }
 

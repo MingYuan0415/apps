@@ -235,8 +235,9 @@ static void _recorder_root_mount(const app_manager_page_context_t *context)
     memset(state, 0, sizeof(*state));
     app_ui_page_create(&state->page, "录音", true);
     app_ui_page_set_subtitle(&state->page, "语音备忘");
-    lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
-    lv_obj_remove_flag(state->page.content, LV_OBJ_FLAG_SCROLLABLE);
+    /* The recording-state stack (duration + pause/stop + secondary rows) can
+     * exceed one screen with CJK line heights; keep the fallback scroll. */
+    lv_obj_set_scroll_dir(state->page.content, LV_DIR_VER);
 
     state->duration_label = lv_label_create(state->page.content);
     lv_obj_set_width(state->duration_label, LV_PCT(100));
