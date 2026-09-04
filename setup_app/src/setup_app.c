@@ -6,6 +6,7 @@
 #include "app_image_ids.h"
 #include "app_ui.h"
 #include "app_ui_theme.h"
+#include "apps_device_link_window.h"
 #include "device_link_service.h"
 #include "setup_wifi_adapter.h"
 #include "onboarding_service.h"
@@ -16,7 +17,7 @@
 #include <string.h>
 
 #define SETUP_PAGE_PROVISIONING "provisioning"
-#define SETUP_WINDOW_TOTAL_MS 120000U
+#define SETUP_WINDOW_TOTAL_MS APPS_DEVICE_LINK_WINDOW_TOTAL_MS
 
 typedef struct setup_root_state
 {
@@ -35,6 +36,7 @@ typedef struct setup_root_state
     uint64_t device_link_generation;
     bool connectivity_valid;
     bool device_link_valid;
+    bool revoke_armed;
     onboarding_service_state_t onboarding_state;
 } setup_root_state_t;
 
@@ -201,6 +203,14 @@ static void _setup_open_provisioning_event(lv_event_t *event)
 static void _setup_revoke_binding_event(lv_event_t *event)
 {
     setup_root_state_t *state = lv_event_get_user_data(event);
+
+    if (!state->revoke_armed)
+    {
+        state->revoke_armed = true;
+        _setup_set_status(state, "再次点击“解除绑定”以确认", "");
+        return;
+    }
+    state->revoke_armed = false;
     const esp_err_t result = device_link_service_revoke_binding();
 
     if (result != ESP_OK)
@@ -647,17 +657,15 @@ static esp_err_t _setup_root_pause(setup_root_state_t *state)
     if (state->device_link_subscription != EVENT_BUS_SUB_HANDLE_INVALID)
     {
         result = event_bus_unsubscribe(state->device_link_subscription);
-        if (result == ESP_OK || result == ESP_ERR_NOT_FOUND)
+        state->device_link_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+        if (result == ESP_ERR_NOT_FOUND)
         {
-            state->device_link_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
             result = ESP_OK;
         }
     }
-    if (result == ESP_OK)
-    {
-        result = setup_wifi_adapter_close(&state->wifi);
-    }
-    return result;
+    const esp_err_t close_result = setup_wifi_adapter_close(&state->wifi);
+
+    return result != ESP_OK ? result : close_result;
 }
 
 static void _setup_root_mount_op(const app_manager_page_context_t *context)
@@ -678,6 +686,14 @@ static esp_err_t _setup_root_pause_op(const app_manager_page_context_t *context)
 static void _setup_root_unmount(const app_manager_page_context_t *context)
 {
     setup_root_state_t *state = context->state;
+    /* Back-stop release: ignore errors so a half-failed pause cannot orphan
+     * a subscription whose user_data points at this arena slot. */
+    if (state->device_link_subscription != EVENT_BUS_SUB_HANDLE_INVALID)
+    {
+        (void)event_bus_unsubscribe(state->device_link_subscription);
+        state->device_link_subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+    }
+    (void)setup_wifi_adapter_close(&state->wifi);
     app_ui_page_destroy(&state->page);
     state->status_label = NULL;
     state->detail_label = NULL;
@@ -714,6 +730,9 @@ static void _setup_provisioning_render(
                           status->active ? "蓝牙关闭失败，需要重启" :
                           "绑定服务发生错误");
         lv_label_set_text(state->remaining_label, "");
+        lv_arc_set_angles(state->window_ring, 0, 0);
+        lv_obj_set_style_arc_opa(state->window_ring, LV_OPA_TRANSP,
+                                 LV_PART_INDICATOR);
         return;
     }
     if (!status->active)
@@ -721,6 +740,9 @@ static void _setup_provisioning_render(
         _setup_provisioning_scrub(state);
         lv_label_set_text(state->status_label, "绑定窗口已关闭");
         lv_label_set_text(state->remaining_label, "");
+        lv_arc_set_angles(state->window_ring, 0, 0);
+        lv_obj_set_style_arc_opa(state->window_ring, LV_OPA_TRANSP,
+                                 LV_PART_INDICATOR);
         return;
     }
     if (status->pending_confirmation && status->confirmation_token != 0U)
@@ -907,7 +929,6 @@ static esp_err_t _setup_provisioning_release_foreground(
     setup_provisioning_state_t *state)
 {
     esp_err_t result = ESP_OK;
-    esp_err_t unsubscribe_result = ESP_OK;
 
     if (state->window_held)
     {
@@ -920,23 +941,17 @@ static esp_err_t _setup_provisioning_release_foreground(
     }
     if (state->subscription != EVENT_BUS_SUB_HANDLE_INVALID)
     {
-        unsubscribe_result = event_bus_unsubscribe(state->subscription);
-        if (unsubscribe_result == ESP_OK ||
-                unsubscribe_result == ESP_ERR_NOT_FOUND)
+        const esp_err_t unsubscribe_result =
+            event_bus_unsubscribe(state->subscription);
+
+        state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+        if (unsubscribe_result != ESP_OK &&
+                unsubscribe_result != ESP_ERR_NOT_FOUND && result == ESP_OK)
         {
-            state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-            unsubscribe_result = ESP_OK;
+            result = unsubscribe_result;
         }
     }
-    if (result != ESP_OK)
-    {
-        return result;
-    }
-    if (unsubscribe_result != ESP_OK)
-    {
-        return unsubscribe_result;
-    }
-    return ESP_OK;
+    return result;
 }
 
 static esp_err_t _setup_provisioning_resume(
@@ -999,6 +1014,7 @@ static void _setup_provisioning_unmount(
 {
     setup_provisioning_state_t *state = context->state;
     _setup_provisioning_scrub(state);
+    (void)_setup_provisioning_release_foreground(state);
     app_ui_page_destroy(&state->page);
     state->device_label = NULL;
     state->status_label = NULL;
