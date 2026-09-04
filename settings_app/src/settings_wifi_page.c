@@ -20,6 +20,12 @@ typedef struct settings_wifi_state
     connectivity_manager_scan_snapshot_t scan;
     uint64_t rendered_scan_generation;
     bool forget_armed;
+    bool online_pending;
+    bool online_desired;
+    uint8_t online_ticks;
+    bool auto_pending;
+    bool auto_desired;
+    uint8_t auto_ticks;
 } settings_wifi_state_t;
 
 _Static_assert(sizeof(settings_wifi_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -72,7 +78,8 @@ static void _wifi_render_status(
     {
         lv_label_set_text(state->ip_value, "--");
     }
-    if (lv_obj_has_state(state->online_switch, LV_STATE_CHECKED) !=
+    if (!state->online_pending &&
+            lv_obj_has_state(state->online_switch, LV_STATE_CHECKED) !=
             (!status->manual_hold))
     {
         if (status->manual_hold)
@@ -84,7 +91,8 @@ static void _wifi_render_status(
             lv_obj_add_state(state->online_switch, LV_STATE_CHECKED);
         }
     }
-    if (lv_obj_has_state(state->auto_switch, LV_STATE_CHECKED) !=
+    if (!state->auto_pending &&
+            lv_obj_has_state(state->auto_switch, LV_STATE_CHECKED) !=
             status->auto_connect)
     {
         if (status->auto_connect)
@@ -114,12 +122,21 @@ static void _wifi_row_event(lv_event_t *event)
     const connectivity_manager_scan_record_t *record = &state->scan.records[index];
     if (!record->saved)
     {
+        app_ui_set_status_text(state->scan_hint, "新网络需从手机配网后连接",
+                               APP_UI_STATUS_NEUTRAL);
         return;
     }
     connectivity_manager_operation_id_t op = 0U;
-    (void)connectivity_manager_request_reconnect_saved(&op);
-    app_ui_set_status_text(state->scan_hint, "正在连接已保存网络",
-                           APP_UI_STATUS_ACCENT);
+    if (connectivity_manager_request_reconnect_saved(&op) == ESP_OK)
+    {
+        app_ui_set_status_text(state->scan_hint, "正在连接已保存网络",
+                               APP_UI_STATUS_ACCENT);
+    }
+    else
+    {
+        app_ui_set_status_text(state->scan_hint, "连接请求提交失败",
+                               APP_UI_STATUS_ERROR);
+    }
 }
 
 static void _wifi_render_scan(settings_wifi_state_t *state)
@@ -178,11 +195,49 @@ static void _wifi_render_scan(settings_wifi_state_t *state)
     }
 }
 
+/* The connectivity worker applies requests asynchronously; hold the switches
+ * at the user's intent until the snapshot catches up, or report after the
+ * request window lapses. */
+static void _wifi_settle_pending(settings_wifi_state_t *state,
+                                 const connectivity_manager_status_snapshot_t
+                                 *status)
+{
+    if (state->online_pending)
+    {
+        if ((!status->manual_hold) == state->online_desired)
+        {
+            state->online_pending = false;
+        }
+        else if (--state->online_ticks == 0U)
+        {
+            state->online_pending = false;
+            lv_obj_remove_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+            app_ui_set_status_text(state->forget_status, "Wi-Fi 开关设置未生效",
+                                   APP_UI_STATUS_ERROR);
+        }
+    }
+    if (state->auto_pending)
+    {
+        if (status->auto_connect == state->auto_desired)
+        {
+            state->auto_pending = false;
+        }
+        else if (--state->auto_ticks == 0U)
+        {
+            state->auto_pending = false;
+            lv_obj_remove_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+            app_ui_set_status_text(state->forget_status, "自动连接设置未生效",
+                                   APP_UI_STATUS_ERROR);
+        }
+    }
+}
+
 static void _wifi_refresh(settings_wifi_state_t *state)
 {
     connectivity_manager_status_snapshot_t status;
     if (connectivity_manager_get_status(&status) == ESP_OK)
     {
+        _wifi_settle_pending(state, &status);
         _wifi_render_status(state, &status);
     }
     else
@@ -231,22 +286,37 @@ static void _wifi_online_event(lv_event_t *event)
 {
     settings_wifi_state_t *state = lv_event_get_user_data(event);
     connectivity_manager_operation_id_t op = 0U;
-    if (lv_obj_has_state(state->online_switch, LV_STATE_CHECKED))
+    const bool on = lv_obj_has_state(state->online_switch, LV_STATE_CHECKED);
+    esp_err_t result;
+    if (on)
     {
         connectivity_manager_status_snapshot_t status;
         if (connectivity_manager_get_status(&status) == ESP_OK &&
                 status.saved_profile)
         {
-            (void)connectivity_manager_request_reconnect_saved(&op);
+            result = connectivity_manager_request_reconnect_saved(&op);
         }
         else
         {
-            (void)connectivity_manager_request_scan(&op);
+            result = connectivity_manager_request_scan(&op);
         }
     }
     else
     {
-        (void)connectivity_manager_request_disconnect(&op);
+        result = connectivity_manager_request_disconnect(&op);
+    }
+    if (result == ESP_OK)
+    {
+        state->online_pending = true;
+        state->online_desired = on;
+        state->online_ticks = 3U;
+        lv_obj_add_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+    }
+    else
+    {
+        lv_obj_remove_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+        app_ui_set_status_text(state->forget_status, "请求提交失败",
+                               APP_UI_STATUS_ERROR);
     }
     _wifi_refresh(state);
 }
@@ -255,8 +325,21 @@ static void _wifi_auto_event(lv_event_t *event)
 {
     settings_wifi_state_t *state = lv_event_get_user_data(event);
     connectivity_manager_operation_id_t op = 0U;
-    (void)connectivity_manager_set_auto_connect(
-        lv_obj_has_state(state->auto_switch, LV_STATE_CHECKED), &op);
+    const bool on = lv_obj_has_state(state->auto_switch, LV_STATE_CHECKED);
+    const esp_err_t result = connectivity_manager_set_auto_connect(on, &op);
+    if (result == ESP_OK)
+    {
+        state->auto_pending = true;
+        state->auto_desired = on;
+        state->auto_ticks = 3U;
+        lv_obj_add_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+    }
+    else
+    {
+        lv_obj_remove_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+        app_ui_set_status_text(state->forget_status, "请求提交失败",
+                               APP_UI_STATUS_ERROR);
+    }
     _wifi_refresh(state);
 }
 
@@ -295,9 +378,16 @@ static void _wifi_rescan_event(lv_event_t *event)
 {
     settings_wifi_state_t *state = lv_event_get_user_data(event);
     connectivity_manager_operation_id_t op = 0U;
-    (void)connectivity_manager_request_scan(&op);
-    app_ui_set_status_text(state->scan_hint, "正在扫描附近网络…",
-                           APP_UI_STATUS_ACCENT);
+    if (connectivity_manager_request_scan(&op) == ESP_OK)
+    {
+        app_ui_set_status_text(state->scan_hint, "正在扫描附近网络…",
+                               APP_UI_STATUS_ACCENT);
+    }
+    else
+    {
+        app_ui_set_status_text(state->scan_hint, "扫描请求提交失败",
+                               APP_UI_STATUS_ERROR);
+    }
 }
 
 static void _wifi_mount(const app_manager_page_context_t *context)

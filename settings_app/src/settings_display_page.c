@@ -180,6 +180,8 @@ static void _display_mount(const app_manager_page_context_t *context)
                               LV_PART_KNOB);
     lv_obj_set_style_radius(state->slider, LV_RADIUS_CIRCLE, LV_PART_KNOB);
     lv_obj_set_style_pad_all(state->slider, 7, LV_PART_KNOB);
+    /* 16 px bar + 14 px each side keeps the drag band at the 44 px target. */
+    lv_obj_set_ext_click_area(state->slider, 14);
     lv_obj_add_event_cb(state->slider, _display_event, LV_EVENT_VALUE_CHANGED,
                         state);
     lv_obj_add_event_cb(state->slider, _display_event, LV_EVENT_RELEASED,

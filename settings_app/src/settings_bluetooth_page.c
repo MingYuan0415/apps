@@ -3,10 +3,11 @@
 #include "mt_log.h"
 
 #include "settings_app_internal.h"
+#include "apps_device_link_window.h"
 #include "event_bus.h"
 
-#define SETTINGS_BT_WINDOW_TOTAL_MS 120000U
-#define SETTINGS_BT_SET_TIMEOUT_MS  5000U
+#define SETTINGS_BT_WINDOW_TOTAL_MS APPS_DEVICE_LINK_WINDOW_TOTAL_MS
+#define SETTINGS_BT_SET_TIMEOUT_MS  1500U
 
 typedef struct settings_bluetooth_state
 {
@@ -197,25 +198,28 @@ static void _bluetooth_enable_event(lv_event_t *event)
     const bool enable = lv_obj_has_state(state->enable_switch, LV_STATE_CHECKED);
     const esp_err_t result = device_link_service_set_enabled(
                                  enable, SETTINGS_BT_SET_TIMEOUT_MS);
+    _bluetooth_refresh(state);
     if (result != ESP_OK)
     {
-        app_ui_set_status_text(state->status_value, "切换失败",
+        /* Written after the refresh so the render cannot overwrite it. */
+        app_ui_set_status_text(state->status_value,
+                               result == ESP_ERR_TIMEOUT ? "切换中" : "切换失败",
+                               result == ESP_ERR_TIMEOUT ? APP_UI_STATUS_ACCENT :
                                APP_UI_STATUS_ERROR);
         LOG_W("bluetooth enable failed: %s", esp_err_to_name(result));
     }
-    _bluetooth_refresh(state);
 }
 
 static void _bluetooth_pair_event(lv_event_t *event)
 {
     settings_bluetooth_state_t *state = lv_event_get_user_data(event);
     const esp_err_t result = device_link_service_open_window();
+    _bluetooth_refresh(state);
     if (result != ESP_OK)
     {
         app_ui_set_status_text(state->detail_value, "无法开启配对窗口",
                                APP_UI_STATUS_ERROR);
     }
-    _bluetooth_refresh(state);
 }
 
 static void _bluetooth_apply_confirmation(settings_bluetooth_state_t *state,

@@ -111,7 +111,8 @@ static void _settings_root_render(settings_root_state_t *state)
         {
             wifi = wifi_status.state == CONNECTIVITY_MANAGER_STATE_IP_READY ?
                    "已连接" :
-                   (wifi_status.state == CONNECTIVITY_MANAGER_STATE_CONNECTING ?
+                   (wifi_status.state == CONNECTIVITY_MANAGER_STATE_CONNECTING ||
+                    wifi_status.state == CONNECTIVITY_MANAGER_STATE_WAITING_IP ?
                     "连接中" : "未连接");
         }
     }
