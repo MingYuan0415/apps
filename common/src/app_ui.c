@@ -11,10 +11,6 @@
 #define COLOR_SURFACE_HI APP_UI_COLOR_SURFACE_HI
 #define COLOR_TEXT       APP_UI_COLOR_TEXT
 #define COLOR_MUTED      APP_UI_COLOR_MUTED
-#define COLOR_ACCENT     APP_UI_COLOR_RAIN
-#define COLOR_SUCCESS    0x65D18A
-#define COLOR_WARNING    APP_UI_COLOR_SUN
-#define COLOR_ERROR      APP_UI_COLOR_WARNING
 
 const lv_font_t *app_ui_font(app_theme_font_id_t id)
 {
@@ -289,7 +285,7 @@ static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, const char *symbol,
     lv_obj_t *icon = lv_label_create(button);
     lv_obj_set_width(icon, 28);
     lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(icon, lv_color_hex(COLOR_ACCENT), 0);
+    lv_obj_set_style_text_color(icon, lv_color_hex(APP_UI_COLOR_RAIN), 0);
     lv_obj_set_style_text_font(icon, LV_FONT_DEFAULT, 0);
     app_ui_make_passive(icon, false);
     lv_label_set_text(icon, symbol != NULL ? symbol : LV_SYMBOL_RIGHT);
@@ -428,7 +424,7 @@ lv_obj_t *app_ui_add_danger_action(lv_obj_t *parent, const char *symbol,
     if (title_label != NULL)
     {
         lv_obj_set_style_text_color(title_label,
-                                    lv_color_hex(COLOR_ERROR), 0);
+                                    lv_color_hex(APP_UI_COLOR_WARNING), 0);
     }
     return button;
 }
@@ -518,7 +514,7 @@ void app_ui_chip_set_selected(lv_obj_t *chip, bool selected)
         return;
     }
     lv_obj_set_style_text_color(label,
-                                lv_color_hex(selected ? COLOR_ACCENT :
+                                lv_color_hex(selected ? APP_UI_COLOR_RAIN :
                                         COLOR_MUTED), 0);
 }
 
@@ -725,9 +721,11 @@ lv_obj_t *app_ui_add_switch_row(lv_obj_t *parent, const char *title,
     lv_obj_t *toggle = lv_switch_create(row);
     app_ui_click_only(toggle);
     lv_obj_set_style_bg_color(toggle, lv_color_hex(COLOR_SURFACE_HI), 0);
-    lv_obj_set_style_bg_color(toggle, lv_color_hex(COLOR_ACCENT),
+    lv_obj_set_style_bg_color(toggle, lv_color_hex(APP_UI_COLOR_RAIN),
                               LV_PART_INDICATOR | LV_STATE_CHECKED);
     lv_obj_set_style_bg_color(toggle, lv_color_hex(COLOR_TEXT), LV_PART_KNOB);
+    lv_obj_set_style_bg_color(toggle, lv_color_hex(APP_UI_COLOR_ON_ACCENT),
+                              LV_PART_KNOB | LV_STATE_CHECKED);
     if (callback != NULL)
     {
         lv_obj_add_event_cb(toggle, callback, LV_EVENT_VALUE_CHANGED,
@@ -761,16 +759,16 @@ void app_ui_set_status_text(lv_obj_t *label, const char *text,
     switch (status)
     {
     case APP_UI_STATUS_ACCENT:
-        color = COLOR_ACCENT;
+        color = APP_UI_COLOR_RAIN;
         break;
     case APP_UI_STATUS_SUCCESS:
-        color = COLOR_SUCCESS;
+        color = APP_UI_COLOR_SUCCESS;
         break;
     case APP_UI_STATUS_WARNING:
-        color = COLOR_WARNING;
+        color = APP_UI_COLOR_SUN;
         break;
     case APP_UI_STATUS_ERROR:
-        color = COLOR_ERROR;
+        color = APP_UI_COLOR_WARNING;
         break;
     case APP_UI_STATUS_NEUTRAL:
     default:

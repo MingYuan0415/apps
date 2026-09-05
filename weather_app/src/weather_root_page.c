@@ -478,7 +478,12 @@ static void _weather_root_build(weather_root_state_t *state)
     lv_obj_set_size(state->alert_button, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_radius(state->alert_button, 6, 0);
     lv_obj_set_style_bg_color(state->alert_button,
-                              lv_color_hex(WEATHER_COLOR_WARNING_BG), 0);
+                              lv_color_hex(WEATHER_COLOR_WARNING), 0);
+    lv_obj_set_style_bg_opa(state->alert_button, LV_OPA_20, 0);
+    lv_obj_set_style_border_width(state->alert_button, 1, 0);
+    lv_obj_set_style_border_color(state->alert_button,
+                                  lv_color_hex(WEATHER_COLOR_WARNING), 0);
+    lv_obj_set_style_border_opa(state->alert_button, LV_OPA_40, 0);
     lv_obj_set_style_shadow_width(state->alert_button, 0, 0);
     lv_obj_set_style_pad_all(state->alert_button, 10, 0);
     lv_obj_add_event_cb(state->alert_button, _weather_root_open_alerts,

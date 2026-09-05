@@ -68,6 +68,7 @@ target_include_directories(app_ui_navigation_test PRIVATE
     include
     ../../common/include
     ../../../app_manager/app_core/include
+    ../../../app_manager/app_theme/include
 )
 
 target_compile_definitions(app_ui_navigation_test PRIVATE _GNU_SOURCE)
@@ -94,6 +95,7 @@ target_include_directories(settings_factory_reset_page_test PRIVATE
     ../../common/include
     ../../settings_app/src
     ../../../app_manager/app_core/include
+    ../../../app_manager/app_theme/include
     ../../../middleware/components/factory_reset_service/include
 )
 
@@ -158,3 +160,16 @@ target_link_options(weather_icon_test PRIVATE
 )
 
 add_apps_host_test(weather_icon_test weather_icon_test)
+
+add_executable(theme_contrast_test
+    theme_contrast_test.c
+)
+
+target_include_directories(theme_contrast_test PRIVATE
+    ../../../app_manager/app_theme/include
+)
+
+configure_apps_host_target(theme_contrast_test)
+target_link_libraries(theme_contrast_test PRIVATE m)
+
+add_apps_host_test(theme_contrast_test theme_contrast_test)
