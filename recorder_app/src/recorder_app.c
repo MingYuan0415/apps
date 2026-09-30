@@ -28,7 +28,7 @@ const char *recorder_ui_display_name(const char *name)
 {
     const char *base = strrchr(name, '/');
     base = base != NULL ? base + 1 : name;
-    char *dot = strstr(base, ".wav");
+    const char *dot = strstr(base, ".wav");
     static char display[64];
     size_t keep = dot != NULL ? (size_t)(dot - base) : strlen(base);
     if (keep >= sizeof(display))
