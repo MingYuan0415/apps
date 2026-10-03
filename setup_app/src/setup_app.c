@@ -371,7 +371,7 @@ static void _setup_wifi_glyph(lv_obj_t *parent, lv_obj_t **arcs,
     lv_obj_remove_style_all(glyph);
     lv_obj_set_size(glyph, 56, 44);
     app_ui_make_passive(glyph, false);
-    lv_obj_add_flag(glyph, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    lv_obj_set_overflow_visible(glyph, true);
     for (size_t index = 0U; index < 3U; ++index)
     {
         const int32_t size = sizes[index];
@@ -793,7 +793,7 @@ static void _setup_provisioning_scrub(setup_provisioning_state_t *state)
     state->confirmation_token = 0U;
     if (state->confirm_row != NULL)
     {
-        lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->confirm_row, true);
     }
 }
 
@@ -829,7 +829,7 @@ static void _setup_provisioning_render(
         char passkey[8];
 
         state->confirmation_token = status->confirmation_token;
-        lv_obj_remove_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->confirm_row, false);
         (void)snprintf(passkey, sizeof(passkey), "%06u",
                        (unsigned)(status->numeric_comparison % 1000000U));
         if (state->passkey_label != NULL)
@@ -841,7 +841,7 @@ static void _setup_provisioning_render(
     else
     {
         state->confirmation_token = 0U;
-        lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->confirm_row, true);
         if (state->passkey_label != NULL)
         {
             lv_label_set_text(state->passkey_label, "");
@@ -990,7 +990,7 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(state->confirm_row, 8, 0);
     app_ui_make_passive(state->confirm_row, false);
-    lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(state->confirm_row, true);
     state->confirm_button = app_ui_button_create(state->confirm_row,
                             "确认绑定",
                             _setup_provisioning_confirm_event,

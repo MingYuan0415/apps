@@ -213,7 +213,7 @@ static void _wifi_settle_pending(settings_wifi_state_t *state,
         else if ((int32_t)(lv_tick_get() - state->online_deadline) >= 0)
         {
             state->online_pending = false;
-            lv_obj_remove_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->forget_status, false);
             app_ui_set_status_text(state->forget_status, "Wi-Fi 开关设置未生效",
                                    APP_UI_STATUS_ERROR);
         }
@@ -227,7 +227,7 @@ static void _wifi_settle_pending(settings_wifi_state_t *state,
         else if ((int32_t)(lv_tick_get() - state->auto_deadline) >= 0)
         {
             state->auto_pending = false;
-            lv_obj_remove_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->forget_status, false);
             app_ui_set_status_text(state->forget_status, "自动连接设置未生效",
                                    APP_UI_STATUS_ERROR);
         }
@@ -312,11 +312,11 @@ static void _wifi_online_event(lv_event_t *event)
         state->online_pending = true;
         state->online_desired = on;
         state->online_deadline = lv_tick_get() + SETTINGS_WIFI_PENDING_MS;
-        lv_obj_add_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->forget_status, true);
     }
     else
     {
-        lv_obj_remove_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->forget_status, false);
         app_ui_set_status_text(state->forget_status, "请求提交失败",
                                APP_UI_STATUS_ERROR);
     }
@@ -334,11 +334,11 @@ static void _wifi_auto_event(lv_event_t *event)
         state->auto_pending = true;
         state->auto_desired = on;
         state->auto_deadline = lv_tick_get() + SETTINGS_WIFI_PENDING_MS;
-        lv_obj_add_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->forget_status, true);
     }
     else
     {
-        lv_obj_remove_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->forget_status, false);
         app_ui_set_status_text(state->forget_status, "请求提交失败",
                                APP_UI_STATUS_ERROR);
     }
@@ -353,12 +353,12 @@ static void _wifi_forget_event(lv_event_t *event)
             !status.saved_profile)
     {
         state->forget_armed = false;
-        lv_obj_remove_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->forget_status, false);
         app_ui_set_status_text(state->forget_status, "当前没有已保存的网络",
                                APP_UI_STATUS_NEUTRAL);
         return;
     }
-    lv_obj_remove_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(state->forget_status, false);
     if (!state->forget_armed)
     {
         state->forget_armed = true;
@@ -419,7 +419,7 @@ static void _wifi_mount(const app_manager_page_context_t *context)
                                state->page.content, LV_SYMBOL_TRASH, "忘记网络",
                                "清除本机保存的凭据并断开", _wifi_forget_event, state);
     state->forget_status = app_ui_add_body_label(state->page.content, " ");
-    lv_obj_add_flag(state->forget_status, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(state->forget_status, true);
 
     app_ui_add_section(state->page.content, "可用网络");
     state->scan_hint = app_ui_add_body_label(state->page.content,

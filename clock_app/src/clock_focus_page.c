@@ -111,15 +111,15 @@ static void _focus_render(clock_focus_state_t *state)
         {
         case TIMER_SERVICE_RUNNING:
             app_ui_button_set_text(state->btn_primary, "暂停");
-            lv_obj_remove_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->btn_reset, false);
             break;
         case TIMER_SERVICE_PAUSED:
             app_ui_button_set_text(state->btn_primary, "继续");
-            lv_obj_remove_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->btn_reset, false);
             break;
         default:
             app_ui_button_set_text(state->btn_primary, "开始");
-            lv_obj_add_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->btn_reset, true);
             break;
         }
     }
@@ -283,7 +283,7 @@ static void _focus_mount(const app_manager_page_context_t *context)
                          _focus_primary_event, state);
     state->btn_reset = app_ui_button_create(controls, "重置",
                                             _focus_reset_event, state);
-    lv_obj_add_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(state->btn_reset, true);
 
     state->refresh_timer = lv_timer_create(_focus_refresh, 250U, state);
     _focus_render(state);

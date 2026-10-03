@@ -119,7 +119,7 @@ static void _menu_page_build(menu_page_state_t *state)
     lv_obj_set_style_pad_row(content, 8, 0);
     /* Six tiles fit the viewport exactly; a seventh launcher app must stay
      * reachable instead of rendering below a dead edge. */
-    lv_obj_add_flag(content, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(content, true);
     lv_obj_set_scroll_dir(content, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(content, LV_SCROLLBAR_MODE_AUTO);
 

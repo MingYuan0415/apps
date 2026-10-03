@@ -269,11 +269,11 @@ static void _weather_root_render(weather_root_state_t *state)
         lv_label_set_text(state->range_label, "体感--°  高--°  低--°");
         if (weather_ui_set_image(state->main_image, 0U, false))
         {
-            lv_obj_add_flag(state->image_fallback, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->image_fallback, true);
         }
         else
         {
-            lv_obj_remove_flag(state->image_fallback, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->image_fallback, false);
         }
     }
     else
@@ -304,11 +304,11 @@ static void _weather_root_render(weather_root_state_t *state)
         if (weather_ui_set_image(state->main_image,
                                  snapshot->current.condition_code, false))
         {
-            lv_obj_add_flag(state->image_fallback, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->image_fallback, true);
         }
         else
         {
-            lv_obj_remove_flag(state->image_fallback, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->image_fallback, false);
         }
     }
     if (state->snapshot != NULL && state->snapshot->alerts.meta.available &&
@@ -320,11 +320,11 @@ static void _weather_root_render(weather_root_state_t *state)
                        state->snapshot->alerts.meta.expired ? " · 已过期" :
                        (state->snapshot->alerts.meta.stale ? " · 缓存" : ""));
         lv_label_set_text(state->alert_label, text);
-        lv_obj_remove_flag(state->alert_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->alert_button, false);
     }
     else
     {
-        lv_obj_add_flag(state->alert_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->alert_button, true);
     }
     _weather_root_render_metrics(state);
     _weather_root_render_hourly(state);

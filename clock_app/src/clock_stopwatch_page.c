@@ -61,7 +61,7 @@ static void _stopwatch_render(clock_stopwatch_state_t *state)
         case TIMER_SERVICE_RUNNING:
             lv_label_set_text(state->hint_label, "计时中");
             app_ui_button_set_text(state->btn_primary, "暂停");
-            lv_obj_remove_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->btn_reset, false);
             lv_obj_set_style_text_color(state->value_label,
                                         lv_color_hex(APP_UI_COLOR_TEXT),
                                         0);
@@ -69,7 +69,7 @@ static void _stopwatch_render(clock_stopwatch_state_t *state)
         case TIMER_SERVICE_PAUSED:
             lv_label_set_text(state->hint_label, "已暂停");
             app_ui_button_set_text(state->btn_primary, "继续");
-            lv_obj_remove_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->btn_reset, false);
             lv_obj_set_style_text_color(state->value_label,
                                         lv_color_hex(APP_UI_COLOR_MUTED),
                                         0);
@@ -77,7 +77,7 @@ static void _stopwatch_render(clock_stopwatch_state_t *state)
         default:
             lv_label_set_text(state->hint_label, "未开始");
             app_ui_button_set_text(state->btn_primary, "开始");
-            lv_obj_add_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->btn_reset, true);
             lv_obj_set_style_text_color(state->value_label,
                                         lv_color_hex(APP_UI_COLOR_TEXT),
                                         0);
@@ -178,7 +178,7 @@ static void _stopwatch_mount(const app_manager_page_context_t *context)
                          state);
     state->btn_reset = app_ui_button_create(controls, "重置",
                                             _stopwatch_reset_event, state);
-    lv_obj_add_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(state->btn_reset, true);
 
     state->refresh_timer = lv_timer_create(_stopwatch_refresh, 250U, state);
     _stopwatch_render(state);

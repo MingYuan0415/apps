@@ -8,11 +8,11 @@ void recorder_ui_set_visible(lv_obj_t *control, bool visible)
 {
     if (visible)
     {
-        lv_obj_remove_flag(control, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(control, false);
     }
     else
     {
-        lv_obj_add_flag(control, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(control, true);
     }
 }
 

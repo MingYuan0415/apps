@@ -24,20 +24,19 @@ void app_ui_make_passive(lv_obj_t *object, bool scrollable)
     {
         return;
     }
-    uint32_t passive_flags = LV_OBJ_FLAG_CLICK_FOCUSABLE |
-                             LV_OBJ_FLAG_GESTURE_BUBBLE |
-                             LV_OBJ_FLAG_SCROLL_ELASTIC |
-                             LV_OBJ_FLAG_SCROLL_MOMENTUM;
-    lv_obj_remove_flag(object, passive_flags);
+    lv_obj_set_click_focusable(object, false);
+    lv_obj_set_gesture_bubble(object, false);
+    lv_obj_set_scroll_elastic(object, false);
+    lv_obj_set_scroll_momentum(object, false);
     if (scrollable)
     {
-        lv_obj_add_flag(object, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(object, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_clickable(object, true);
+        lv_obj_set_scrollable(object, true);
     }
     else
     {
-        lv_obj_remove_flag(object, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_remove_flag(object, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_clickable(object, false);
+        lv_obj_set_scrollable(object, false);
     }
 }
 
@@ -520,7 +519,7 @@ void app_ui_chip_set_selected(lv_obj_t *chip, bool selected)
 
 void app_ui_click_only(lv_obj_t *obj)
 {
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_PRESS_LOCK);
+    lv_obj_set_press_lock(obj, false);
 }
 
 lv_obj_t *app_ui_add_icon_button(lv_obj_t *parent, uint32_t image_id,
@@ -681,8 +680,8 @@ lv_obj_t *app_ui_add_switch_row(lv_obj_t *parent, const char *title,
     app_ui_make_passive(row, false);
     /* The whole row is the touch target; it forwards to the switch so the
      * small toggle never becomes a dead-zone hit. */
-    lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_PRESS_LOCK);
+    lv_obj_set_clickable(row, true);
+    lv_obj_set_press_lock(row, false);
     lv_obj_set_style_bg_color(row, lv_color_hex(COLOR_SURFACE_HI),
                               LV_STATE_PRESSED);
 

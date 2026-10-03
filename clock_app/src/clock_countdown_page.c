@@ -85,22 +85,22 @@ static void _countdown_render(clock_countdown_state_t *state)
         case TIMER_SERVICE_IDLE:
             lv_label_set_text(state->hint_label, "选择时长后开始");
             app_ui_button_set_text(state->btn_primary, "开始");
-            lv_obj_add_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->btn_reset, true);
             break;
         case TIMER_SERVICE_RUNNING:
             lv_label_set_text(state->hint_label, "倒计时进行中");
             app_ui_button_set_text(state->btn_primary, "暂停");
-            lv_obj_remove_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->btn_reset, false);
             break;
         case TIMER_SERVICE_PAUSED:
             lv_label_set_text(state->hint_label, "已暂停");
             app_ui_button_set_text(state->btn_primary, "继续");
-            lv_obj_remove_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->btn_reset, false);
             break;
         default:
             lv_label_set_text(state->hint_label, "时间到");
             app_ui_button_set_text(state->btn_primary, "重新开始");
-            lv_obj_remove_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->btn_reset, false);
             break;
         }
     }
@@ -246,7 +246,7 @@ static void _countdown_mount(const app_manager_page_context_t *context)
                          state);
     state->btn_reset = app_ui_button_create(controls, "重置",
                                             _countdown_reset_event, state);
-    lv_obj_add_flag(state->btn_reset, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(state->btn_reset, true);
 
     state->refresh_timer = lv_timer_create(_countdown_refresh, 250U, state);
     _countdown_render(state);

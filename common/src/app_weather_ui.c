@@ -125,10 +125,10 @@ bool app_weather_ui_set_image(lv_obj_t *image, uint16_t condition_code,
     if (app_manager_get_image(app_weather_ui_image_id(condition_code, small),
                               &descriptor) != ESP_OK)
     {
-        lv_obj_add_flag(image, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(image, true);
         return false;
     }
     lv_image_set_src(image, descriptor);
-    lv_obj_remove_flag(image, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(image, false);
     return true;
 }

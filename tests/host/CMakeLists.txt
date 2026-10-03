@@ -173,3 +173,17 @@ configure_apps_host_target(theme_contrast_test)
 target_link_libraries(theme_contrast_test PRIVATE m)
 
 add_apps_host_test(theme_contrast_test theme_contrast_test)
+
+add_executable(level_math_test
+    level_math_test.c
+    ../../level_app/src/level_math.c
+)
+
+target_include_directories(level_math_test PRIVATE
+    ../../level_app/src
+)
+
+target_link_libraries(level_math_test PRIVATE m)
+configure_apps_host_target(level_math_test)
+
+add_apps_host_test(level_math_test level_math_test)

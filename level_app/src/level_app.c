@@ -9,8 +9,8 @@
 #include "chore_service.h"
 #include "imu_service.h"
 #include "level_app_persistence.h"
+#include "level_math.h"
 
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdatomic.h>
@@ -20,6 +20,15 @@
 #define LEVEL_BUBBLE_SIZE 24
 #define LEVEL_MAX_DEGREES 15.0F
 #define LEVEL_LEVEL_DEGREES 1.5F
+
+static const level_math_config_t s_level_math_config =
+{
+    .filter_alpha = 0.2F,
+    .max_degrees = LEVEL_MAX_DEGREES,
+    .level_degrees = LEVEL_LEVEL_DEGREES,
+    .board_size = LEVEL_BOARD_SIZE,
+    .bubble_size = LEVEL_BUBBLE_SIZE,
+};
 
 typedef struct level_page_state
 {
@@ -39,9 +48,7 @@ typedef struct level_page_state
     uint32_t last_state_color;
     float roll_offset;
     float pitch_offset;
-    float filtered_roll;
-    float filtered_pitch;
-    bool filter_valid;
+    level_math_filter_t filter;
     uint32_t job_generation;
     bool calibration_op_save;
     bool calibration_error;
@@ -91,30 +98,24 @@ static void _level_render(level_page_state_t *state)
         if (state->last_bubble_visible)
         {
             state->last_bubble_visible = false;
-            lv_obj_add_flag(state->bubble, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(state->bubble, true);
         }
         return;
     }
     const imu_service_vector_t *acc = &snapshot.sample.acceleration_mps2;
-    const float raw_roll = atan2f(acc->y, acc->z) * 57.2957795F;
-    const float raw_pitch = atan2f(-acc->x,
-                                   sqrtf(acc->y * acc->y + acc->z * acc->z)) *
-                            57.2957795F;
-    if (!state->filter_valid)
+    const level_math_vector_t vector =
     {
-        state->filtered_roll = raw_roll;
-        state->filtered_pitch = raw_pitch;
-        state->filter_valid = true;
-    }
-    else
-    {
-        state->filtered_roll += (raw_roll - state->filtered_roll) * 0.2F;
-        state->filtered_pitch += (raw_pitch - state->filtered_pitch) * 0.2F;
-    }
-    const float roll = state->filtered_roll - state->roll_offset;
-    const float pitch = state->filtered_pitch - state->pitch_offset;
+        .x = acc->x,
+        .y = acc->y,
+        .z = acc->z,
+    };
+    const level_math_result_t result = level_math_compute(&vector,
+                                       &s_level_math_config, &state->filter,
+                                       state->roll_offset,
+                                       state->pitch_offset);
     char text[48];
-    (void)snprintf(text, sizeof(text), "左右 %+.1f°\n前后 %+.1f°", roll, pitch);
+    (void)snprintf(text, sizeof(text), "左右 %+.1f°\n前后 %+.1f°",
+                   result.roll_deg, result.pitch_deg);
     if (strcmp(state->last_angle, text) != 0)
     {
         (void)snprintf(state->last_angle, sizeof(state->last_angle), "%s",
@@ -126,8 +127,8 @@ static void _level_render(level_page_state_t *state)
                    snapshot.sample.temperature_c);
     app_ui_label_set_text_if(state->info_label, info);
 
-    const float magnitude = fmaxf(fabsf(roll), fabsf(pitch));
-    const bool level = magnitude < LEVEL_LEVEL_DEGREES;
+    const float magnitude = result.magnitude_deg;
+    const bool level = result.level;
     if (state->job_generation != 0U)
     {
         _level_set_status(state, state->calibration_op_save ? "正在保存校准" :
@@ -150,27 +151,13 @@ static void _level_render(level_page_state_t *state)
         _level_set_status(state, "明显倾斜", APP_UI_STATUS_ERROR, 0U);
     }
 
-    const float clamp = LEVEL_MAX_DEGREES;
-    const float scale = (LEVEL_BOARD_SIZE - LEVEL_BUBBLE_SIZE - 8) / 2.0F /
-                        clamp;
-    float bx = roll;
-    float by = pitch;
-    /* Radial clamp keeps the bubble on the circular board instead of letting
-     * a combined tilt park it in a square corner outside the ring. */
-    const float tilt = sqrtf(bx * bx + by * by);
-    if (tilt > clamp)
-    {
-        bx *= clamp / tilt;
-        by *= clamp / tilt;
-    }
-    const int32_t center = LEVEL_BOARD_SIZE / 2 - LEVEL_BUBBLE_SIZE / 2;
-    const int32_t x = center + (int32_t)(bx * scale);
-    const int32_t y = center + (int32_t)(by * scale);
+    const int32_t x = result.bubble_x;
+    const int32_t y = result.bubble_y;
     const uint32_t color = level ? APP_UI_COLOR_SUN : APP_UI_COLOR_RAIN;
     if (!state->last_bubble_visible)
     {
         state->last_bubble_visible = true;
-        lv_obj_remove_flag(state->bubble, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->bubble, false);
     }
     if (x != state->last_bubble_x || y != state->last_bubble_y)
     {
@@ -268,7 +255,7 @@ static void _level_calibration_apply_result(level_page_state_t *state)
     state->roll_offset = s_done_roll;
     state->pitch_offset = s_done_pitch;
     state->calibration_error = false;
-    state->filter_valid = false;
+    state->filter.valid = false;
 }
 
 static esp_err_t _level_submit_calibration(level_page_state_t *state,
@@ -326,10 +313,15 @@ static void _level_calibrate(lv_event_t *event)
     {
         return;
     }
-    const float roll_offset = atan2f(acc->y, acc->z) * 57.2957795F;
-    const float pitch_offset = atan2f(-acc->x,
-                                      sqrtf(acc->y * acc->y + acc->z * acc->z)) *
-                               57.2957795F;
+    const level_math_vector_t vector =
+    {
+        .x = acc->x,
+        .y = acc->y,
+        .z = acc->z,
+    };
+    float roll_offset = 0.0F;
+    float pitch_offset = 0.0F;
+    level_math_raw_angles(&vector, &roll_offset, &pitch_offset);
     const esp_err_t result = _level_submit_calibration(state,
                              LEVEL_CALIBRATION_SAVE,
                              roll_offset,
@@ -364,7 +356,7 @@ static void _level_mount(const app_manager_page_context_t *context)
     app_ui_page_set_subtitle(&state->page, "倾角与稳定性");
     lv_obj_set_style_pad_row(state->page.content, 8, 0);
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
-    lv_obj_remove_flag(state->page.content, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(state->page.content, false);
 
     lv_obj_t *board_row = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(board_row);

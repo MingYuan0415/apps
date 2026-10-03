@@ -107,12 +107,12 @@ static void _home_set_weather_image(home_page_state_t *state,
                            state->weather_image, condition_code, true);
     if (ready)
     {
-        lv_obj_add_flag(state->weather_fallback, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->weather_fallback, true);
     }
     else
     {
-        lv_obj_add_flag(state->weather_image, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(state->weather_fallback, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->weather_image, true);
+        lv_obj_set_hidden(state->weather_fallback, false);
     }
 }
 
@@ -189,14 +189,14 @@ static void _home_render_clock(home_page_state_t *state)
         app_ui_label_set_text_if(state->date_label, "等待有效时间");
         app_ui_set_status_text(state->quality_label, "时间不可用",
                                APP_UI_STATUS_WARNING);
-        lv_obj_add_flag(state->hand_hour, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(state->hand_minute, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(state->hand_second, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->hand_hour, true);
+        lv_obj_set_hidden(state->hand_minute, true);
+        lv_obj_set_hidden(state->hand_second, true);
         return;
     }
-    lv_obj_remove_flag(state->hand_hour, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(state->hand_minute, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(state->hand_second, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(state->hand_hour, false);
+    lv_obj_set_hidden(state->hand_minute, false);
+    lv_obj_set_hidden(state->hand_second, false);
     char text[48];
     if (strftime(text, sizeof(text), "%H:%M", &local_time) == 0U)
     {
@@ -344,7 +344,7 @@ static void _home_render_weather(home_page_state_t *state)
         app_ui_label_set_text_if(state->weather_value, "--");
         app_ui_label_set_text_if(state->weather_condition, "服务不可用");
         app_ui_label_set_text_if(state->weather_sub, "");
-        lv_obj_add_flag(state->weather_sub, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->weather_sub, true);
         _home_set_color(state->weather_value, APP_UI_COLOR_WARNING);
         return;
     }
@@ -411,11 +411,11 @@ static void _home_render_weather(home_page_state_t *state)
     app_ui_label_set_text_if(state->weather_sub, sub);
     if (sub[0] != '\0')
     {
-        lv_obj_remove_flag(state->weather_sub, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->weather_sub, false);
     }
     else
     {
-        lv_obj_add_flag(state->weather_sub, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->weather_sub, true);
     }
     weather_service_snapshot_release(snapshot);
 }
@@ -543,7 +543,7 @@ static void _home_build_status(home_page_state_t *state, lv_obj_t *content)
     lv_obj_remove_style_all(wifi);
     lv_obj_set_size(wifi, 28, 22);
     app_ui_make_passive(wifi, false);
-    lv_obj_add_flag(wifi, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    lv_obj_set_overflow_visible(wifi, true);
     static const int32_t wifi_arc_sizes[3] = { 28, 20, 12 };
     for (size_t index = 0; index < 3U; index++)
     {
@@ -594,7 +594,7 @@ static void _home_build_status(home_page_state_t *state, lv_obj_t *content)
     lv_obj_set_style_bg_opa(battery_nub, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(battery_nub, lv_color_hex(APP_UI_COLOR_MUTED), 0);
     app_ui_make_passive(battery_nub, false);
-    lv_obj_add_flag(battery, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    lv_obj_set_overflow_visible(battery, true);
 
     state->battery_status = _home_label(status, "--", APP_THEME_FONT_BODY,
                                         APP_UI_COLOR_MUTED);
@@ -613,7 +613,7 @@ static void _home_build_dial(home_page_state_t *state, lv_obj_t *clock)
     lv_obj_set_style_border_color(dial, lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_border_opa(dial, LV_OPA_80, 0);
     app_ui_make_passive(dial, false);
-    lv_obj_add_flag(dial, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    lv_obj_set_overflow_visible(dial, true);
 
     lv_obj_t *glow = lv_obj_create(dial);
     lv_obj_set_size(glow, HOME_DIAL_SIZE + 10, HOME_DIAL_SIZE + 10);

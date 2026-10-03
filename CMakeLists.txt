@@ -14,6 +14,7 @@ set(APP_SRCS
     "recorder_app/src/recorder_files_page.c"
     "level_app/src/level_app.c"
     "level_app/src/level_app_persistence.c"
+    "level_app/src/level_math.c"
     "diagnostics_app/src/diagnostics_app.c"
     "weather_app/src/weather_app.c"
     "weather_app/src/weather_ui.c"

@@ -216,7 +216,7 @@ static void _display_mount(const app_manager_page_context_t *context)
     app_ui_page_create(&state->page, "显示与电源", true);
     app_ui_page_set_subtitle(&state->page, "亮度 · 熄屏 · 待机");
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
-    lv_obj_remove_flag(state->page.content, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(state->page.content, false);
 
     lv_obj_t *card = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(card);

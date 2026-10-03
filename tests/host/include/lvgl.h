@@ -127,6 +127,28 @@ bool lv_obj_is_valid(const lv_obj_t *object);
 void lv_obj_add_flag(lv_obj_t *object, uint32_t flag);
 /** @brief Remove a behavior flag from a fake object. */
 void lv_obj_remove_flag(lv_obj_t *object, uint32_t flag);
+/* LVGL 9.6 dedicated per-flag setters (fake reuses the generic helpers). */
+#define MT_FAKE_FLAG_SETTER(name, flag) \
+    static inline void lv_obj_set_##name(lv_obj_t *object, bool en) \
+    { \
+        if (en) \
+        { \
+            lv_obj_add_flag(object, flag); \
+        } \
+        else \
+        { \
+            lv_obj_remove_flag(object, flag); \
+        } \
+    }
+MT_FAKE_FLAG_SETTER(click_focusable, LV_OBJ_FLAG_CLICK_FOCUSABLE)
+MT_FAKE_FLAG_SETTER(clickable, LV_OBJ_FLAG_CLICKABLE)
+MT_FAKE_FLAG_SETTER(gesture_bubble, LV_OBJ_FLAG_GESTURE_BUBBLE)
+MT_FAKE_FLAG_SETTER(hidden, LV_OBJ_FLAG_HIDDEN)
+MT_FAKE_FLAG_SETTER(press_lock, LV_OBJ_FLAG_PRESS_LOCK)
+MT_FAKE_FLAG_SETTER(scroll_elastic, LV_OBJ_FLAG_SCROLL_ELASTIC)
+MT_FAKE_FLAG_SETTER(scroll_momentum, LV_OBJ_FLAG_SCROLL_MOMENTUM)
+MT_FAKE_FLAG_SETTER(scrollable, LV_OBJ_FLAG_SCROLLABLE)
+#undef MT_FAKE_FLAG_SETTER
 /** @brief Return a fake event code. */
 lv_event_code_t lv_event_get_code(lv_event_t *event);
 /** @brief Return fake callback user data. */

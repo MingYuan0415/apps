@@ -342,7 +342,7 @@ static void _weather_alert_detail_render(weather_alert_detail_state_t *state)
         lv_label_set_text(state->period_value, "--");
         lv_label_set_text(state->description_value, "暂无说明");
         lv_label_set_text(state->instruction_value, "暂无建议");
-        lv_obj_add_flag(state->truncated_label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->truncated_label, true);
         return;
     }
     app_ui_set_status_text(
@@ -375,11 +375,11 @@ static void _weather_alert_detail_render(weather_alert_detail_state_t *state)
                       alert->instruction : "暂无建议");
     if (alert->content_truncated)
     {
-        lv_obj_remove_flag(state->truncated_label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->truncated_label, false);
     }
     else
     {
-        lv_obj_add_flag(state->truncated_label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->truncated_label, true);
     }
 }
 

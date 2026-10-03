@@ -50,12 +50,11 @@ static void _bluetooth_scrub_confirmation(settings_bluetooth_state_t *state)
     if (state->passkey_label != NULL)
     {
         lv_label_set_text(state->passkey_label, "");
-        lv_obj_add_flag(state->passkey_label, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(state->passkey_label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->passkey_label, true);
     }
     if (state->confirm_row != NULL)
     {
-        lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->confirm_row, true);
     }
 }
 
@@ -122,7 +121,7 @@ static void _bluetooth_render(settings_bluetooth_state_t *state,
 
     if (status->active && status->enabled && !status->pending_confirmation)
     {
-        lv_obj_remove_flag(state->ring_row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->ring_row, false);
         uint32_t clamped = status->window_remaining_ms;
         if (clamped > SETTINGS_BT_WINDOW_TOTAL_MS)
         {
@@ -139,7 +138,7 @@ static void _bluetooth_render(settings_bluetooth_state_t *state,
     }
     else
     {
-        lv_obj_add_flag(state->ring_row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->ring_row, true);
     }
 
     if (status->pending_confirmation && status->confirmation_token != 0U)
@@ -149,8 +148,8 @@ static void _bluetooth_render(settings_bluetooth_state_t *state,
         (void)snprintf(passkey, sizeof(passkey), "%06u",
                        (unsigned)(status->numeric_comparison % 1000000U));
         lv_label_set_text(state->passkey_label, passkey);
-        lv_obj_remove_flag(state->passkey_label, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->passkey_label, false);
+        lv_obj_set_hidden(state->confirm_row, false);
     }
     else
     {
@@ -309,12 +308,12 @@ static void _bluetooth_unbind_event(lv_event_t *event)
     if (device_link_service_get_status(&status) != ESP_OK || !status.bound)
     {
         state->unbind_armed = false;
-        lv_obj_remove_flag(state->unbind_status, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(state->unbind_status, false);
         app_ui_set_status_text(state->unbind_status, "当前没有已绑定的手机",
                                APP_UI_STATUS_NEUTRAL);
         return;
     }
-    lv_obj_remove_flag(state->unbind_status, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(state->unbind_status, false);
     if (!state->unbind_armed)
     {
         state->unbind_armed = true;
@@ -361,7 +360,7 @@ static void _bluetooth_mount(const app_manager_page_context_t *context)
                           LV_FLEX_ALIGN_CENTER);
     app_ui_make_passive(ring_row, false);
     state->ring = app_ui_ring_create(ring_row, 96, 8, APP_UI_COLOR_SURFACE_HI);
-    lv_obj_add_flag(ring_row, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ring_row, true);
     state->ring_row = ring_row;
 
     state->passkey_label = lv_label_create(state->page.content);
@@ -378,14 +377,14 @@ static void _bluetooth_mount(const app_manager_page_context_t *context)
                                _bluetooth_confirm_event, state);
     (void)app_ui_button_create(state->confirm_row, "拒绝",
                                _bluetooth_deny_event, state);
-    lv_obj_add_flag(state->confirm_row, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(state->confirm_row, true);
 
     state->unbind_action = app_ui_add_danger_action(
                                state->page.content, LV_SYMBOL_TRASH, "解除绑定",
                                "清除与当前手机的配对", _bluetooth_unbind_event,
                                state);
     state->unbind_status = app_ui_add_body_label(state->page.content, " ");
-    lv_obj_add_flag(state->unbind_status, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(state->unbind_status, true);
 
     state->refresh_timer = lv_timer_create(_bluetooth_timer, 1000U, state);
     _bluetooth_refresh(state);

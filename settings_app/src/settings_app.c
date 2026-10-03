@@ -151,7 +151,7 @@ static void _settings_root_mount(const app_manager_page_context_t *context)
     app_ui_page_set_subtitle(&state->page, "设备与电源");
     lv_obj_set_style_pad_row(state->page.content, 8, 0);
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
-    lv_obj_remove_flag(state->page.content, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(state->page.content, false);
 
     (void)app_ui_add_entry_row(state->page.content, "显示与电源",
                                &state->display_summary,
@@ -241,7 +241,7 @@ static void _settings_info_mount(const app_manager_page_context_t *context)
     app_ui_page_create(&state->page, storage ? "存储管理" : "时间设置", true);
     app_ui_page_set_subtitle(&state->page, storage ? "SD 卡与容量" : "时区与校时");
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
-    lv_obj_remove_flag(state->page.content, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(state->page.content, false);
 
     app_ui_add_value_row(state->page.content, storage ? "SD 卡" : "时间来源",
                          "读取中", &state->source_value);
