@@ -223,6 +223,55 @@ lv_obj_t *app_ui_add_empty_state(lv_obj_t *parent, const char *title,
                                  const char *subtitle);
 
 /**
+ * @brief Create a rounded card that groups inset rows.
+ *
+ * Rows added with the app_ui_group_* helpers are transparent and share the
+ * group surface, giving a phone-style grouped list instead of one card per
+ * row. A NULL parent returns NULL.
+ */
+lv_obj_t *app_ui_group_create(lv_obj_t *parent);
+
+/** @brief Append a tappable navigation row (icon, title, subtitle, chevron). */
+lv_obj_t *app_ui_group_add_nav(lv_obj_t *group, const char *symbol,
+                               const char *title, const char *subtitle,
+                               lv_event_cb_t callback, void *user_data);
+/** @brief Append a tappable command row without a chevron. */
+lv_obj_t *app_ui_group_add_command(lv_obj_t *group, const char *symbol,
+                                   const char *title, const char *subtitle,
+                                   lv_event_cb_t callback, void *user_data);
+/** @brief Append a destructive navigation row with a red title. */
+lv_obj_t *app_ui_group_add_danger(lv_obj_t *group, const char *symbol,
+                                  const char *title, const char *subtitle,
+                                  lv_event_cb_t callback, void *user_data);
+/**
+ * @brief Append a name/value row.
+ * @param value_out optionally receives the value label.
+ */
+lv_obj_t *app_ui_group_add_value(lv_obj_t *group, const char *name,
+                                 const char *value, lv_obj_t **value_out);
+/**
+ * @brief Append a title/subtitle row with a trailing switch.
+ * @param switch_out optionally receives the switch.
+ */
+lv_obj_t *app_ui_group_add_switch(lv_obj_t *group, const char *title,
+                                  const char *subtitle,
+                                  lv_event_cb_t callback, void *user_data,
+                                  lv_obj_t **switch_out);
+
+/**
+ * @brief Add or replace the header trailing action button.
+ * @param page owns the header.
+ * @param image_id is the semantic image ID, or zero for the symbol.
+ * @param fallback_symbol is drawn when the image is unavailable.
+ * @param callback receives click events.
+ * @param user_data is retained as LVGL event user data.
+ * @return Created button, or NULL when the page is headerless.
+ */
+lv_obj_t *app_ui_page_set_action(app_ui_page_t *page, uint32_t image_id,
+                                 const char *fallback_symbol,
+                                 lv_event_cb_t callback, void *user_data);
+
+/**
  * @brief Open a modal bottom sheet over a page root.
  *
  * Creates a dimming scrim plus a bottom-anchored panel carrying a title and an
