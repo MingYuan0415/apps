@@ -337,13 +337,12 @@ static void _weather_root_refresh_snapshot(weather_root_state_t *state)
     _weather_root_render(state);
 }
 
-static void _weather_root_refresh_event(lv_event_t *event)
+/* Single retained Weather root instance; the pull state lives outside the page
+ * arena to keep the slot under APP_MANAGER_PAGE_STATE_BYTES. */
+static app_ui_pull_refresh_t s_weather_root_pull;
+
+static void _weather_root_request_refresh(weather_root_state_t *state)
 {
-    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
-    {
-        return;
-    }
-    weather_root_state_t *state = lv_event_get_user_data(event);
     esp_err_t result = weather_service_request_refresh();
     if (result == ESP_OK)
     {
@@ -366,12 +365,28 @@ static void _weather_root_refresh_event(lv_event_t *event)
         }
         app_ui_set_status_text(state->status_label, text,
                                APP_UI_STATUS_WARNING);
+        app_ui_pull_refresh_set_refreshing(&s_weather_root_pull, false);
     }
     else
     {
         app_ui_set_status_text(state->status_label, "刷新请求失败",
                                APP_UI_STATUS_ERROR);
+        app_ui_pull_refresh_set_refreshing(&s_weather_root_pull, false);
     }
+}
+
+static void _weather_root_pull_refresh(void *user_data)
+{
+    _weather_root_request_refresh(user_data);
+}
+
+static void _weather_root_refresh_event(lv_event_t *event)
+{
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+    _weather_root_request_refresh(lv_event_get_user_data(event));
 }
 
 static void _weather_root_open_forecast(lv_event_t *event)
@@ -401,6 +416,7 @@ static void _weather_root_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
             state->page.root != NULL)
     {
         _weather_root_refresh_snapshot(state);
+        app_ui_pull_refresh_set_refreshing(&s_weather_root_pull, false);
     }
 }
 
@@ -521,6 +537,8 @@ static void _weather_root_build(weather_root_state_t *state)
     lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
 
     _weather_root_render(state);
+    app_ui_pull_refresh_attach(&s_weather_root_pull, &state->page,
+                               _weather_root_pull_refresh, state);
 }
 
 static void _weather_root_resume(weather_root_state_t *state)
@@ -571,6 +589,7 @@ static void _weather_root_unmount(
     const app_manager_page_context_t *context)
 {
     weather_root_state_t *state = context->state;
+    app_ui_pull_refresh_detach(&s_weather_root_pull);
     app_ui_page_destroy(&state->page);
     state->city_label = NULL;
     state->status_label = NULL;

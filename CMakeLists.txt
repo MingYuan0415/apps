@@ -2,6 +2,7 @@
 # never become production registrations through a recursive glob.
 set(APP_SRCS
     "common/src/app_ui.c"
+    "common/src/app_ui_pull_refresh.c"
     "common/src/apps_persistence.c"
     "common/src/app_weather_ui.c"
     "home_app/src/home_app.c"

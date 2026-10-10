@@ -36,6 +36,10 @@ typedef struct settings_wifi_state
 _Static_assert(sizeof(settings_wifi_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Wi-Fi page state exceeds the lifecycle arena slot");
 
+/* Single retained Wi-Fi page instance; the pull state lives outside the page
+ * arena to keep the slot under APP_MANAGER_PAGE_STATE_BYTES. */
+static app_ui_pull_refresh_t s_wifi_page_pull;
+
 static const char *_wifi_state_text(
     const connectivity_manager_status_snapshot_t *status)
 {
@@ -147,6 +151,7 @@ static void _wifi_row_event(lv_event_t *event)
 static void _wifi_render_scan(settings_wifi_state_t *state)
 {
     lv_obj_clean(state->scan_list);
+    app_ui_pull_refresh_set_refreshing(&s_wifi_page_pull, false);
     if (state->scan.record_count == 0U)
     {
         return;
@@ -420,9 +425,8 @@ static void _wifi_forget_confirm(lv_event_t *event)
     _wifi_refresh(state);
 }
 
-static void _wifi_rescan_event(lv_event_t *event)
+static void _wifi_request_rescan(settings_wifi_state_t *state)
 {
-    settings_wifi_state_t *state = lv_event_get_user_data(event);
     connectivity_manager_operation_id_t op = 0U;
     if (connectivity_manager_request_scan(&op) == ESP_OK)
     {
@@ -433,7 +437,18 @@ static void _wifi_rescan_event(lv_event_t *event)
     {
         app_ui_set_status_text(state->scan_hint, "扫描请求提交失败",
                                APP_UI_STATUS_ERROR);
+        app_ui_pull_refresh_set_refreshing(&s_wifi_page_pull, false);
     }
+}
+
+static void _wifi_rescan_event(lv_event_t *event)
+{
+    _wifi_request_rescan(lv_event_get_user_data(event));
+}
+
+static void _wifi_pull_refresh(void *user_data)
+{
+    _wifi_request_rescan(user_data);
 }
 
 static void _wifi_mount(const app_manager_page_context_t *context)
@@ -482,6 +497,8 @@ static void _wifi_mount(const app_manager_page_context_t *context)
     app_ui_make_passive(state->scan_list, false);
 
     state->refresh_timer = lv_timer_create(_wifi_timer, 1000U, state);
+    app_ui_pull_refresh_attach(&s_wifi_page_pull, &state->page,
+                               _wifi_pull_refresh, state);
     _wifi_refresh(state);
 }
 
@@ -513,6 +530,7 @@ static void _wifi_unmount(const app_manager_page_context_t *context)
         lv_timer_delete(state->refresh_timer);
         state->refresh_timer = NULL;
     }
+    app_ui_pull_refresh_detach(&s_wifi_page_pull);
     app_ui_page_destroy(&state->page);
     state->online_switch = NULL;
     state->auto_switch = NULL;

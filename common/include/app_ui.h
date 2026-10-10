@@ -99,6 +99,61 @@ lv_obj_t *app_ui_image(lv_obj_t *parent, uint32_t image_id,
  * @param color is the RGB color.
  */
 void app_ui_icon_set_color(lv_obj_t *icon, uint32_t color);
+
+/** @brief Receive a completed whole-page pull-to-refresh gesture. */
+typedef void (*app_ui_pull_refresh_cb_t)(void *user_data);
+
+/** @brief Caller-owned whole-page pull-to-refresh state for one page. */
+typedef struct app_ui_pull_refresh
+{
+    lv_obj_t *root;                  /**< Page root owning the occluded hint. */
+    lv_obj_t *hint;                  /**< Top hint container, revealed on pull. */
+    lv_obj_t *hint_label;            /**< Hint text label. */
+    lv_obj_t *header;                /**< Page header translated with the pull. */
+    lv_obj_t *content;               /**< Page scroll owner receiving the drag. */
+    app_ui_pull_refresh_cb_t on_refresh; /**< Invoked on release past threshold. */
+    void *user_data;                 /**< Forwarded to on_refresh. */
+    int32_t start_y;                 /**< Press y captured at gesture start. */
+    int32_t offset;                  /**< Current whole-page downward offset. */
+    bool armed;                      /**< Pull passed the trigger threshold. */
+    bool tracking;                   /**< The gesture may still become a pull. */
+    bool refreshing;                 /**< A refresh is in progress. */
+    void *timeout;                   /**< Bounded refresh fallback timer, or NULL. */
+} app_ui_pull_refresh_t;
+
+/**
+ * @brief Enable whole-page pull-to-refresh on one page.
+ *
+ * Adds an occluded hint strip at the top of the page and translates the header
+ * and content downward as the user drags over the content scroll owner,
+ * revealing the hint. Release past the threshold (about 25 px of 56) fires
+ * on_refresh; the page then stays open at the hint until
+ * app_ui_pull_refresh_set_refreshing(refresh, false). A drag that starts on a
+ * clickable row is left to the row / normal scrolling.
+ *
+ * @param refresh is caller-owned state that must outlive the page content.
+ * @param page supplies the root, header, and content scroll owner.
+ * @param on_refresh runs on the UI worker after the gesture commits.
+ * @param user_data is forwarded to on_refresh.
+ */
+void app_ui_pull_refresh_attach(app_ui_pull_refresh_t *refresh,
+                                app_ui_page_t *page,
+                                app_ui_pull_refresh_cb_t on_refresh,
+                                void *user_data);
+
+/**
+ * @brief Finish a refresh and animate the page back to rest.
+ * @param refresh is the state passed to app_ui_pull_refresh_attach.
+ * @param refreshing is false to close the pull; true is a no-op.
+ */
+void app_ui_pull_refresh_set_refreshing(app_ui_pull_refresh_t *refresh,
+                                        bool refreshing);
+
+/**
+ * @brief Forget a pull-to-refresh registration before the page is destroyed.
+ * @param refresh is the state passed to app_ui_pull_refresh_attach.
+ */
+void app_ui_pull_refresh_detach(app_ui_pull_refresh_t *refresh);
 /**
  * @brief Add a clickable application action row.
  * @param parent is the LVGL parent object.
