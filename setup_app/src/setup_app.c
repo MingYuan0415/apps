@@ -28,8 +28,7 @@ typedef struct setup_root_state
     lv_obj_t *status_label;
     lv_obj_t *detail_label;
     lv_obj_t *controls;
-    lv_obj_t *wifi_arcs[3];
-    lv_obj_t *wifi_dot;
+    lv_obj_t *wifi_glyph;
     setup_wifi_adapter_t wifi;
     event_bus_sub_handle_t device_link_subscription;
     connectivity_manager_status_snapshot_t connectivity;
@@ -120,12 +119,13 @@ static void _setup_set_status(setup_root_state_t *state, const char *title,
 }
 
 static lv_obj_t *_setup_add_command(setup_root_state_t *state,
-                                    const char *symbol, const char *title,
+                                    uint32_t image_id, const char *symbol,
+                                    const char *title,
                                     const char *subtitle,
                                     lv_event_cb_t callback)
 {
-    lv_obj_t *command = app_ui_add_command(
-                            state->controls, symbol, title, subtitle,
+    lv_obj_t *command = app_ui_add_command_image(
+                            state->controls, image_id, symbol, title, subtitle,
                             callback, state);
     if (state->device_link_valid && state->device_link.active)
     {
@@ -344,70 +344,40 @@ static void _setup_render_management(setup_root_state_t *state)
         &state->connectivity;
     if (status->state == CONNECTIVITY_MANAGER_STATE_IP_READY)
     {
-        (void)_setup_add_command(state, LV_SYMBOL_CLOSE, "断开连接",
+        (void)_setup_add_command(state, APP_IMAGE_UI_CLOSE, LV_SYMBOL_CLOSE,
+                                 "断开连接",
                                  "本次启动保持离线",
                                  _setup_disconnect_event);
     }
     else if (status->saved_profile)
     {
-        (void)_setup_add_command(state, LV_SYMBOL_LOOP, "重新连接",
+        (void)_setup_add_command(state, APP_IMAGE_UI_LOOP, LV_SYMBOL_LOOP,
+                                 "重新连接",
                                  "连接已保存的网络",
                                  _setup_reconnect_event);
     }
     if (status->saved_profile)
     {
         _setup_render_auto_connect(state);
-        (void)_setup_add_command(state, LV_SYMBOL_TRASH, "忘记网络",
+        (void)_setup_add_command(state, APP_IMAGE_UI_TRASH, LV_SYMBOL_TRASH,
+                                 "忘记网络",
                                  "删除保存配置并断开连接",
                                  _setup_forget_event);
     }
 }
 
-static void _setup_wifi_glyph(lv_obj_t *parent, lv_obj_t **arcs,
-                              lv_obj_t **dot)
+static void _setup_wifi_glyph(lv_obj_t *parent, lv_obj_t **glyph)
 {
-    static const int32_t sizes[3] = { 56, 40, 24 };
-    lv_obj_t *glyph = lv_obj_create(parent);
-    lv_obj_remove_style_all(glyph);
-    lv_obj_set_size(glyph, 56, 44);
-    app_ui_make_passive(glyph, false);
-    lv_obj_set_overflow_visible(glyph, true);
-    for (size_t index = 0U; index < 3U; ++index)
+    *glyph = app_ui_image(parent, APP_IMAGE_UI_WIFI, NULL, 44);
+    if (*glyph != NULL)
     {
-        const int32_t size = sizes[index];
-        lv_obj_t *arc = lv_arc_create(glyph);
-        lv_obj_set_size(arc, size, size);
-        lv_obj_remove_style(arc, NULL, LV_PART_KNOB);
-        lv_obj_set_style_bg_opa(arc, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_arc_width(arc, 3, LV_PART_MAIN);
-        lv_obj_set_style_arc_color(arc, lv_color_hex(APP_UI_COLOR_MUTED),
-                                   LV_PART_MAIN);
-        lv_obj_set_style_arc_opa(arc, LV_OPA_TRANSP, LV_PART_INDICATOR);
-        lv_arc_set_bg_angles(arc, 225, 315);
-        lv_arc_set_angles(arc, 225, 315);
-        lv_obj_set_pos(arc, 28 - size / 2, 36 - size / 2);
-        app_ui_make_passive(arc, false);
-        arcs[index] = arc;
+        app_ui_icon_set_color(*glyph, APP_UI_COLOR_MUTED);
     }
-    *dot = lv_obj_create(glyph);
-    lv_obj_remove_style_all(*dot);
-    lv_obj_set_size(*dot, 6, 6);
-    lv_obj_set_style_bg_color(*dot, lv_color_hex(APP_UI_COLOR_MUTED), 0);
-    lv_obj_set_style_bg_opa(*dot, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(*dot, LV_RADIUS_CIRCLE, 0);
-    app_ui_make_passive(*dot, false);
-    lv_obj_set_pos(*dot, 25, 33);
 }
 
-static void _setup_wifi_glyph_color(lv_obj_t **arcs, lv_obj_t *dot,
-                                    uint32_t color)
+static void _setup_wifi_glyph_color(lv_obj_t *glyph, uint32_t color)
 {
-    for (size_t index = 0U; index < 3U; ++index)
-    {
-        lv_obj_set_style_arc_color(arcs[index], lv_color_hex(color),
-                                   LV_PART_MAIN);
-    }
-    lv_obj_set_style_bg_color(dot, lv_color_hex(color), 0);
+    app_ui_icon_set_color(glyph, color);
 }
 
 static void _setup_root_render(setup_root_state_t *state)
@@ -422,7 +392,8 @@ static void _setup_root_render(setup_root_state_t *state)
     if (setup_wifi_adapter_has_operation(&state->wifi))
     {
         _setup_set_status(state, "网络操作进行中", status->ssid);
-        (void)_setup_add_command(state, LV_SYMBOL_CLOSE, "取消",
+        (void)_setup_add_command(state, APP_IMAGE_UI_CLOSE, LV_SYMBOL_CLOSE,
+                                 "取消",
                                  "停止本次网络操作", _setup_cancel_event);
     }
     else if (state->completed_operation != SETUP_WIFI_OPERATION_NONE)
@@ -513,24 +484,26 @@ static void _setup_root_render(setup_root_state_t *state)
 
     if (bound)
     {
-        (void)app_ui_add_action(state->controls, LV_SYMBOL_BLUETOOTH,
-                                "解除绑定",
-                                transport_fault ?
-                                "蓝牙关闭失败，需要重启" :
-                                "清除本机保存的手机绑定",
-                                _setup_revoke_binding_event, state);
+        (void)app_ui_add_action_image(state->controls, APP_IMAGE_UI_BLUETOOTH,
+                                      LV_SYMBOL_BLUETOOTH,
+                                      "解除绑定",
+                                      transport_fault ?
+                                      "蓝牙关闭失败，需要重启" :
+                                      "清除本机保存的手机绑定",
+                                      _setup_revoke_binding_event, state);
     }
     else
     {
-        (void)app_ui_add_action(state->controls, LV_SYMBOL_BLUETOOTH,
-                                "手机绑定",
-                                transport_fault ?
-                                "蓝牙关闭失败，需要重启" :
-                                state->device_link_valid &&
-                                state->device_link.active ?
-                                "绑定窗口正在运行" :
-                                "开启 2 分钟绑定窗口",
-                                _setup_open_provisioning_event, state);
+        (void)app_ui_add_action_image(state->controls, APP_IMAGE_UI_BLUETOOTH,
+                                      LV_SYMBOL_BLUETOOTH,
+                                      "手机绑定",
+                                      transport_fault ?
+                                      "蓝牙关闭失败，需要重启" :
+                                      state->device_link_valid &&
+                                      state->device_link.active ?
+                                      "绑定窗口正在运行" :
+                                      "开启 2 分钟绑定窗口",
+                                      _setup_open_provisioning_event, state);
     }
     if (transport_fault)
     {
@@ -553,21 +526,23 @@ static void _setup_root_render(setup_root_state_t *state)
     {
         glyph_color = APP_UI_COLOR_SUN;
     }
-    _setup_wifi_glyph_color(state->wifi_arcs, state->wifi_dot, glyph_color);
+    _setup_wifi_glyph_color(state->wifi_glyph, glyph_color);
     if (status->state == CONNECTIVITY_MANAGER_STATE_IP_READY)
     {
         if (state->onboarding_state != ONBOARDING_SERVICE_COMPLETED)
         {
-            (void)app_ui_add_command(state->controls, LV_SYMBOL_OK, "完成设置",
-                                     "保存引导状态并进入主页",
-                                     _setup_finish_event, state);
+            (void)app_ui_add_command_image(state->controls, APP_IMAGE_UI_CHECK,
+                                           LV_SYMBOL_OK, "完成设置",
+                                           "保存引导状态并进入主页",
+                                           _setup_finish_event, state);
         }
     }
     else if (state->onboarding_state != ONBOARDING_SERVICE_COMPLETED)
     {
-        (void)app_ui_add_command(state->controls, LV_SYMBOL_RIGHT, "稍后设置",
-                                 "离线功能仍可使用",
-                                 _setup_finish_event, state);
+        (void)app_ui_add_command_image(state->controls, APP_IMAGE_UI_CHEVRON_RIGHT,
+                                       LV_SYMBOL_RIGHT, "稍后设置",
+                                       "离线功能仍可使用",
+                                       _setup_finish_event, state);
     }
 }
 
@@ -631,7 +606,7 @@ static void _setup_root_mount(setup_root_state_t *state)
     lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
     app_ui_make_passive(card, false);
-    _setup_wifi_glyph(card, state->wifi_arcs, &state->wifi_dot);
+    _setup_wifi_glyph(card, &state->wifi_glyph);
 
     lv_obj_t *text = lv_obj_create(card);
     lv_obj_remove_style_all(text);
@@ -777,11 +752,7 @@ static void _setup_root_unmount(const app_manager_page_context_t *context)
     state->status_label = NULL;
     state->detail_label = NULL;
     state->controls = NULL;
-    for (size_t index = 0U; index < 3U; ++index)
-    {
-        state->wifi_arcs[index] = NULL;
-    }
-    state->wifi_dot = NULL;
+    state->wifi_glyph = NULL;
 }
 
 static void _setup_provisioning_scrub(setup_provisioning_state_t *state)
