@@ -343,30 +343,36 @@ static void _settings_about_mount(const app_manager_page_context_t *context)
     lv_obj_center(name);
 
     app_ui_add_section(state->page.content, "硬件");
-    app_ui_add_value_row(state->page.content, "显示", "368 x 448 AMOLED", NULL);
-    app_ui_add_value_row(state->page.content, "平台", "ESP32-S3", NULL);
+    lv_obj_t *hardware_group = app_ui_group_create(state->page.content);
+    (void)app_ui_group_add_value(hardware_group, "显示", "368 x 448 AMOLED",
+                                 NULL);
+    (void)app_ui_group_add_value(hardware_group, "平台", "ESP32-S3", NULL);
 
     app_ui_add_section(state->page.content, "固件");
-    app_ui_add_value_row(state->page.content, "项目",
-                         description != NULL ? description->project_name : "--",
-                         NULL);
-    app_ui_add_value_row(state->page.content, "版本",
-                         description != NULL ? description->version : "--", NULL);
-    app_ui_add_value_row(state->page.content, "ESP-IDF",
-                         description != NULL ? description->idf_ver : "--", NULL);
+    lv_obj_t *firmware_group = app_ui_group_create(state->page.content);
+    (void)app_ui_group_add_value(firmware_group, "项目",
+                                 description != NULL ? description->project_name :
+                                 "--", NULL);
+    (void)app_ui_group_add_value(firmware_group, "版本",
+                                 description != NULL ? description->version : "--",
+                                 NULL);
+    (void)app_ui_group_add_value(firmware_group, "ESP-IDF",
+                                 description != NULL ? description->idf_ver : "--",
+                                 NULL);
     if (description != NULL)
     {
         char build[40];
         (void)snprintf(build, sizeof(build), "%s %s",
                        description->date, description->time);
-        app_ui_add_value_row(state->page.content, "构建", build, NULL);
+        (void)app_ui_group_add_value(firmware_group, "构建", build, NULL);
     }
 
     app_ui_add_section(state->page.content, "维护");
-    (void)app_ui_add_danger_action(state->page.content, LV_SYMBOL_TRASH,
-                                   "恢复出厂设置", "清除本机数据并重新启动",
-                                   _settings_open_page_event,
-                                   (void *)SETTINGS_PAGE_FACTORY_RESET);
+    lv_obj_t *maintenance_group = app_ui_group_create(state->page.content);
+    (void)app_ui_group_add_danger(maintenance_group, LV_SYMBOL_TRASH,
+                                  "恢复出厂设置", "清除本机数据并重新启动",
+                                  _settings_open_page_event,
+                                  (void *)SETTINGS_PAGE_FACTORY_RESET);
 }
 
 static void _settings_about_unmount(const app_manager_page_context_t *context)

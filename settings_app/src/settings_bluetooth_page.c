@@ -372,16 +372,19 @@ static void _bluetooth_mount(const app_manager_page_context_t *context)
     app_ui_page_create(&state->page, "蓝牙", true);
     app_ui_page_set_subtitle(&state->page, "手机绑定");
 
-    (void)app_ui_add_switch_row(state->page.content, "蓝牙开关",
-                                "关闭后暂停配对与手机连接",
-                                _bluetooth_enable_event, state,
-                                &state->enable_switch);
-    app_ui_add_value_row(state->page.content, "状态", "读取中",
-                         &state->status_value);
-    app_ui_add_value_row(state->page.content, "详情", "--",
-                         &state->detail_value);
-    state->pair_command = app_ui_add_command(
-                              state->page.content, LV_SYMBOL_BLUETOOTH, "配对手机",
+    lv_obj_t *bt_conn = app_ui_group_create(state->page.content);
+    (void)app_ui_group_add_switch(bt_conn, "蓝牙开关",
+                                  "关闭后暂停配对与手机连接",
+                                  _bluetooth_enable_event, state,
+                                  &state->enable_switch);
+    lv_obj_t *bt_info = app_ui_group_create(state->page.content);
+    (void)app_ui_group_add_value(bt_info, "状态", "读取中",
+                                 &state->status_value);
+    (void)app_ui_group_add_value(bt_info, "详情", "--",
+                                 &state->detail_value);
+    lv_obj_t *bt_action = app_ui_group_create(state->page.content);
+    state->pair_command = app_ui_group_add_command(
+                              bt_action, LV_SYMBOL_BLUETOOTH, "配对手机",
                               "开启绑定窗口，用手机发起",
                               _bluetooth_pair_event, state);
 
@@ -413,8 +416,9 @@ static void _bluetooth_mount(const app_manager_page_context_t *context)
                                _bluetooth_deny_event, state);
     lv_obj_set_hidden(state->confirm_row, true);
 
-    state->unbind_action = app_ui_add_danger_action(
-                               state->page.content, LV_SYMBOL_TRASH, "解除绑定",
+    lv_obj_t *bt_danger = app_ui_group_create(state->page.content);
+    state->unbind_action = app_ui_group_add_danger(
+                               bt_danger, LV_SYMBOL_TRASH, "解除绑定",
                                "清除与当前手机的配对", _bluetooth_unbind_event,
                                state);
     state->unbind_status = app_ui_add_body_label(state->page.content, " ");

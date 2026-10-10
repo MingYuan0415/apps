@@ -444,23 +444,26 @@ static void _wifi_mount(const app_manager_page_context_t *context)
     app_ui_page_create(&state->page, "Wi-Fi", true);
     app_ui_page_set_subtitle(&state->page, "无线网络");
 
-    (void)app_ui_add_switch_row(state->page.content, "Wi-Fi 开关",
-                                "关闭后保持离线至下次连接",
-                                _wifi_online_event, state,
-                                &state->online_switch);
-    (void)app_ui_add_switch_row(state->page.content, "自动连接",
-                                "开机后自动连接已保存网络",
-                                _wifi_auto_event, state, &state->auto_switch);
+    lv_obj_t *conn_group = app_ui_group_create(state->page.content);
+    (void)app_ui_group_add_switch(conn_group, "Wi-Fi 开关",
+                                  "关闭后保持离线至下次连接",
+                                  _wifi_online_event, state,
+                                  &state->online_switch);
+    (void)app_ui_group_add_switch(conn_group, "自动连接",
+                                  "开机后自动连接已保存网络",
+                                  _wifi_auto_event, state, &state->auto_switch);
 
-    app_ui_add_value_row(state->page.content, "状态", "读取中",
-                         &state->status_value);
-    app_ui_add_value_row(state->page.content, "网络", "--",
-                         &state->ssid_value);
-    app_ui_add_value_row(state->page.content, "IP 地址", "--",
-                         &state->ip_value);
+    lv_obj_t *info_group = app_ui_group_create(state->page.content);
+    (void)app_ui_group_add_value(info_group, "状态", "读取中",
+                                 &state->status_value);
+    (void)app_ui_group_add_value(info_group, "网络", "--",
+                                 &state->ssid_value);
+    (void)app_ui_group_add_value(info_group, "IP 地址", "--",
+                                 &state->ip_value);
 
-    state->forget_action = app_ui_add_danger_action(
-                               state->page.content, LV_SYMBOL_TRASH, "忘记网络",
+    lv_obj_t *danger_group = app_ui_group_create(state->page.content);
+    state->forget_action = app_ui_group_add_danger(
+                               danger_group, LV_SYMBOL_TRASH, "忘记网络",
                                "清除本机保存的凭据并断开", _wifi_forget_event, state);
     state->forget_status = app_ui_add_body_label(state->page.content, " ");
     lv_obj_set_hidden(state->forget_status, true);

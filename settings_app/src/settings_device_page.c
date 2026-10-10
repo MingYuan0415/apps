@@ -95,21 +95,27 @@ static void _device_mount(const app_manager_page_context_t *context)
     app_ui_page_set_subtitle(&state->page, "电量与存储");
     lv_obj_set_style_pad_row(state->page.content, 8, 0);
 
-    app_ui_add_value_row(state->page.content, "电量", "读取中",
-                         &state->battery_value);
-    app_ui_add_value_row(state->page.content, "供电来源", "读取中",
-                         &state->source_value);
-    app_ui_add_value_row(state->page.content, "SD 卡", "读取中",
-                         &state->storage_value);
-    app_ui_add_command(state->page.content, LV_SYMBOL_POWER, "立即熄屏",
-                       "熄屏或待机后使用 HOME 恢复",
-                       _device_screen_off_event, NULL);
-    app_ui_add_action(state->page.content, LV_SYMBOL_HOME, "时间设置",
-                      "时区、时间来源与校时状态", _device_open_time, NULL);
-    app_ui_add_action(state->page.content, LV_SYMBOL_SD_CARD, "存储管理",
-                      "SD 卡状态与容量信息", _device_open_storage, NULL);
-    app_ui_add_action(state->page.content, LV_SYMBOL_WIFI, "连接向导",
-                      "BLE 绑定与 Wi-Fi 配网", _device_open_connection, NULL);
+    lv_obj_t *status_group = app_ui_group_create(state->page.content);
+    (void)app_ui_group_add_value(status_group, "电量", "读取中",
+                                 &state->battery_value);
+    (void)app_ui_group_add_value(status_group, "供电来源", "读取中",
+                                 &state->source_value);
+    (void)app_ui_group_add_value(status_group, "SD 卡", "读取中",
+                                 &state->storage_value);
+
+    lv_obj_t *action_group = app_ui_group_create(state->page.content);
+    (void)app_ui_group_add_command(action_group, LV_SYMBOL_POWER, "立即熄屏",
+                                   "熄屏或待机后使用 HOME 恢复",
+                                   _device_screen_off_event, NULL);
+    (void)app_ui_group_add_nav(action_group, LV_SYMBOL_HOME, "时间设置",
+                               "时区、时间来源与校时状态", _device_open_time,
+                               NULL);
+    (void)app_ui_group_add_nav(action_group, LV_SYMBOL_SD_CARD, "存储管理",
+                               "SD 卡状态与容量信息", _device_open_storage,
+                               NULL);
+    (void)app_ui_group_add_nav(action_group, LV_SYMBOL_WIFI, "连接向导",
+                               "BLE 绑定与 Wi-Fi 配网",
+                               _device_open_connection, NULL);
 
     state->refresh_timer = lv_timer_create(_device_timer, 1000U, state);
     _device_refresh(state);
