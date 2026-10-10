@@ -244,6 +244,13 @@ lv_obj_t *app_ui_group_add_danger(lv_obj_t *group, const char *symbol,
                                   const char *title, const char *subtitle,
                                   lv_event_cb_t callback, void *user_data);
 /**
+ * @brief Append a title + live-summary navigation row.
+ * @param summary_out receives the muted summary label for later updates.
+ */
+lv_obj_t *app_ui_group_add_entry(lv_obj_t *group, const char *title,
+                                 lv_obj_t **summary_out,
+                                 lv_event_cb_t callback, void *user_data);
+/**
  * @brief Append a name/value row.
  * @param value_out optionally receives the value label.
  */

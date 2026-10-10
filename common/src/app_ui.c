@@ -843,6 +843,43 @@ lv_obj_t *app_ui_group_add_danger(lv_obj_t *group, const char *symbol,
                              APP_UI_COLOR_WARNING, true, callback, user_data);
 }
 
+lv_obj_t *app_ui_group_add_entry(lv_obj_t *group, const char *title,
+                                 lv_obj_t **summary_out,
+                                 lv_event_cb_t callback, void *user_data)
+{
+    lv_obj_t *row = _app_ui_group_row(group, 62);
+    if (row == NULL)
+    {
+        return NULL;
+    }
+    _app_ui_group_row_text(row, title, NULL, COLOR_TEXT);
+    lv_obj_t *text = lv_obj_get_child(row, 0);
+    lv_obj_t *summary = NULL;
+    if (text != NULL)
+    {
+        summary = lv_label_create(text);
+        lv_obj_set_width(summary, LV_PCT(100));
+        lv_label_set_long_mode(summary, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_color(summary, lv_color_hex(COLOR_MUTED), 0);
+        lv_obj_set_style_text_font(summary, app_ui_font(APP_THEME_FONT_SMALL), 0);
+        lv_label_set_text(summary, "");
+    }
+    if (summary_out != NULL)
+    {
+        *summary_out = summary;
+    }
+    lv_obj_t *chevron = lv_label_create(row);
+    lv_obj_set_style_text_color(chevron, lv_color_hex(COLOR_MUTED), 0);
+    lv_obj_set_style_text_font(chevron, LV_FONT_DEFAULT, 0);
+    app_ui_make_passive(chevron, false);
+    lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
+    if (callback != NULL)
+    {
+        lv_obj_add_event_cb(row, callback, LV_EVENT_CLICKED, user_data);
+    }
+    return row;
+}
+
 lv_obj_t *app_ui_group_add_value(lv_obj_t *group, const char *name,
                                  const char *value, lv_obj_t **value_out)
 {

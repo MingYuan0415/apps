@@ -149,30 +149,40 @@ static void _settings_root_mount(const app_manager_page_context_t *context)
     memset(state, 0, sizeof(*state));
     app_ui_page_create(&state->page, "系统设置", true);
     app_ui_page_set_subtitle(&state->page, "设备与电源");
-    lv_obj_set_style_pad_row(state->page.content, 8, 0);
-    lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
-    lv_obj_set_scrollable(state->page.content, false);
+    lv_obj_t *root = state->page.content;
+    lv_obj_set_style_pad_row(root, 8, 0);
+    lv_obj_set_scroll_dir(root, LV_DIR_VER);
+    lv_obj_set_scrollable(root, true);
+    lv_obj_set_scrollbar_mode(root, LV_SCROLLBAR_MODE_OFF);
 
-    (void)app_ui_add_entry_row(state->page.content, "显示与电源",
-                               &state->display_summary,
-                               _settings_open_page_event,
-                               (void *)SETTINGS_PAGE_DISPLAY);
-    (void)app_ui_add_entry_row(state->page.content, "Wi-Fi",
-                               &state->wifi_summary,
-                               _settings_open_page_event,
-                               (void *)SETTINGS_PAGE_WIFI);
-    (void)app_ui_add_entry_row(state->page.content, "蓝牙",
-                               &state->bluetooth_summary,
-                               _settings_open_page_event,
-                               (void *)SETTINGS_PAGE_BLUETOOTH);
-    (void)app_ui_add_entry_row(state->page.content, "设备状态",
-                               &state->device_summary,
-                               _settings_open_page_event,
-                               (void *)SETTINGS_PAGE_DEVICE);
-    (void)app_ui_add_entry_row(state->page.content, "关于与维护",
-                               &state->about_summary,
-                               _settings_open_page_event,
-                               (void *)SETTINGS_PAGE_ABOUT);
+    app_ui_add_section(root, "显示");
+    lv_obj_t *display_group = app_ui_group_create(root);
+    (void)app_ui_group_add_entry(display_group, "显示与电源",
+                                 &state->display_summary,
+                                 _settings_open_page_event,
+                                 (void *)SETTINGS_PAGE_DISPLAY);
+
+    app_ui_add_section(root, "连接");
+    lv_obj_t *connect_group = app_ui_group_create(root);
+    (void)app_ui_group_add_entry(connect_group, "Wi-Fi",
+                                 &state->wifi_summary,
+                                 _settings_open_page_event,
+                                 (void *)SETTINGS_PAGE_WIFI);
+    (void)app_ui_group_add_entry(connect_group, "蓝牙",
+                                 &state->bluetooth_summary,
+                                 _settings_open_page_event,
+                                 (void *)SETTINGS_PAGE_BLUETOOTH);
+
+    app_ui_add_section(root, "系统");
+    lv_obj_t *system_group = app_ui_group_create(root);
+    (void)app_ui_group_add_entry(system_group, "设备状态",
+                                 &state->device_summary,
+                                 _settings_open_page_event,
+                                 (void *)SETTINGS_PAGE_DEVICE);
+    (void)app_ui_group_add_entry(system_group, "关于与维护",
+                                 &state->about_summary,
+                                 _settings_open_page_event,
+                                 (void *)SETTINGS_PAGE_ABOUT);
     _settings_root_render(state);
 }
 
