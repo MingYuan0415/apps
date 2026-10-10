@@ -42,6 +42,7 @@ typedef struct lv_draw_buf
 } lv_draw_buf_t;
 
 #define LV_ALIGN_TOP_LEFT           0
+#define LV_ALIGN_BOTTOM_RIGHT       6
 #define LV_ALIGN_BOTTOM_LEFT        4
 #define LV_DIR_VER                  1
 #define LV_EVENT_CLICKED            1

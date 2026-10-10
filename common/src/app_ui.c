@@ -1095,7 +1095,9 @@ lv_obj_t *app_ui_page_set_action(app_ui_page_t *page, uint32_t image_id,
         return NULL;
     }
     app_ui_click_only(button);
-    lv_obj_set_size(button, 44, 44);
+    lv_obj_set_size(button, 40, 40);
+    lv_obj_set_ignore_layout(button, true);
+    lv_obj_align(button, LV_ALIGN_BOTTOM_RIGHT, -8, 8);
     lv_obj_set_style_radius(button, 12, 0);
     lv_obj_set_style_bg_color(button, lv_color_hex(COLOR_SURFACE), 0);
     lv_obj_set_style_bg_color(button, lv_color_hex(COLOR_SURFACE_HI),
@@ -1105,29 +1107,13 @@ lv_obj_t *app_ui_page_set_action(app_ui_page_t *page, uint32_t image_id,
     {
         lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
     }
-    const lv_image_dsc_t *descriptor = NULL;
-    if (image_id != 0U &&
-            app_manager_get_image(image_id, &descriptor) == ESP_OK &&
-            descriptor != NULL)
+    lv_obj_t *icon = app_ui_image(button, image_id,
+                                  fallback_symbol != NULL ? fallback_symbol :
+                                  LV_SYMBOL_RIGHT, 24);
+    if (icon != NULL)
     {
-        lv_obj_t *image = lv_image_create(button);
-        if (image != NULL)
-        {
-            lv_obj_set_size(image, 28, 28);
-            lv_image_set_src(image, descriptor);
-            app_ui_make_passive(image, false);
-            lv_obj_center(image);
-            return button;
-        }
-    }
-    lv_obj_t *symbol = lv_label_create(button);
-    if (symbol != NULL)
-    {
-        lv_obj_set_style_text_font(symbol, LV_FONT_DEFAULT, 0);
-        lv_obj_set_style_text_color(symbol, lv_color_hex(COLOR_TEXT), 0);
-        lv_label_set_text(symbol, fallback_symbol != NULL ? fallback_symbol :
-                          LV_SYMBOL_RIGHT);
-        lv_obj_center(symbol);
+        app_ui_icon_set_color(icon, COLOR_TEXT);
+        lv_obj_center(icon);
     }
     return button;
 }
