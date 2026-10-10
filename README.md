@@ -4,7 +4,7 @@
 
 ## 目录结构与应用
 
-- `common/`：统一 368 x 448 页面骨架、标题栏、导航/命令行、值行和语义状态，保留异步导航 API；新增分组列表（`app_ui_group_*`）与页内模态底部面板（`app_ui_sheet_*`）。
+- `common/`：统一 368 x 448 页面骨架、标题栏、导航/命令行、值行和语义状态，保留异步导航 API；新增分组列表（`app_ui_group_*`）、页内模态底部面板（`app_ui_sheet_*`）与共享 SVG 图标集（`assets/ui_*.svg`，经 `app_ui_image`/`app_ui_icon_set_color` 及行/动作/分组行的 `image_id` 变体使用）。
 - `home_app/`：顶部 Wi-Fi/蓝牙/电池状态条、数字大时钟（日期与时间源质量）、天气卡、计时卡（倒计时/专注进度环）与底部四枚图标 Dock（时钟/录音/水平仪/设置）；天气卡与 Dock 点击进入对应应用。
 - `menu_app/`：三列应用图标网格，按 `launcher_order` 展示图标与名称。
 - `clock_app/`：时钟枢纽页聚合四张卡片（倒计时、时长选择、秒表、专注），子页共享 App-scope
@@ -30,6 +30,13 @@ LVGLImage.py 转 RGB565A8 BIN 打包进唯一的 `res` 分区；manifest 记录�
 symbol；新增资源需要同时更新 manifest、语义 ID 和 `tests/resources`，改动 manifest
 后执行 `idf.py reconfigure`。天气状况图标为 QWeather Icons（MIT）的 `N-fill.svg`
 vendor 源，随附 `weather_app/assets/qweather-icons-LICENSE.txt`。
+
+共享 UI 图标集位于 `common/assets/`，由 `common/resource_manifest.cmake` 登记到
+`APP_IMAGE_UI_*` 语义段，以中性 INK 终色入库，运行时经
+`lv_obj_set_style_image_recolor` 着色；`app_ui_image()` 在图片缺失时回退 LVGL symbol。
+Setup 页的 Wi-Fi 卡片、绑定/断开/忘记/取消/完成/稍后等行图标均已改用该集合。页头动作
+按钮（`app_ui_page_set_action`）为 40 x 40 且右下对齐，位于系统控制中心顶部下拉捕获带
+（屏幕顶部 20 px）之下，因此页头内容不得占用该顶部区域。
 
 每个应用以普通 `const` Page definition 描述 typed ops 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。App descriptor（`APP_MANAGER_APP_EXPORT` 及其 `APP_MANAGER_APP_EXPORT_META` 变体）进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。新增应用时应在独立目录中实现生命周期 ops，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，同时提供图标 manifest，不要使用递归 glob。
 
