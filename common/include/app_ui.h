@@ -72,6 +72,33 @@ void app_ui_page_destroy(app_ui_page_t *page);
  * @return Created label object.
  */
 lv_obj_t *app_ui_add_section(lv_obj_t *parent, const char *text);
+
+/**
+ * @brief Create one shared UI glyph image, or a symbol fallback.
+ *
+ * Resolves @p image_id through app_manager_get_image(); when the image is
+ * unavailable it creates a centered LVGL-symbol label instead, so callers never
+ * depend on the resource partition being populated.
+ *
+ * @param parent is the LVGL parent object.
+ * @param image_id is the semantic image ID, or zero to force the fallback.
+ * @param fallback_symbol is the LVGL symbol used when the image is missing.
+ * @param size is the square glyph size in pixels; zero selects 28.
+ * @return Created image or label object, or NULL on allocation failure.
+ */
+lv_obj_t *app_ui_image(lv_obj_t *parent, uint32_t image_id,
+                       const char *fallback_symbol, int32_t size);
+
+/**
+ * @brief Apply one color to a glyph created by app_ui_image.
+ *
+ * Sets the text color for a symbol fallback and the image recolor for a real
+ * image, so a single call tints either representation.
+ *
+ * @param icon is an app_ui_image result, or NULL.
+ * @param color is the RGB color.
+ */
+void app_ui_icon_set_color(lv_obj_t *icon, uint32_t color);
 /**
  * @brief Add a clickable application action row.
  * @param parent is the LVGL parent object.
@@ -111,6 +138,24 @@ lv_obj_t *app_ui_add_command(lv_obj_t *parent, const char *symbol,
 lv_obj_t *app_ui_add_danger_action(lv_obj_t *parent, const char *symbol,
                                    const char *title, const char *subtitle,
                                    lv_event_cb_t callback, void *user_data);
+
+/** @brief app_ui_add_action with a shared SVG glyph instead of a symbol. */
+lv_obj_t *app_ui_add_action_image(lv_obj_t *parent, uint32_t image_id,
+                                  const char *fallback_symbol,
+                                  const char *title, const char *subtitle,
+                                  lv_event_cb_t callback, void *user_data);
+/** @brief app_ui_add_command with a shared SVG glyph instead of a symbol. */
+lv_obj_t *app_ui_add_command_image(lv_obj_t *parent, uint32_t image_id,
+                                   const char *fallback_symbol,
+                                   const char *title, const char *subtitle,
+                                   lv_event_cb_t callback, void *user_data);
+/** @brief app_ui_add_danger_action with a shared SVG glyph. */
+lv_obj_t *app_ui_add_danger_action_image(lv_obj_t *parent, uint32_t image_id,
+        const char *fallback_symbol,
+        const char *title,
+        const char *subtitle,
+        lv_event_cb_t callback,
+        void *user_data);
 /**
  * @brief Add a two-line icon-less entry row with a live summary label.
  * @param parent is the page content owning the row.
@@ -243,6 +288,26 @@ lv_obj_t *app_ui_group_add_command(lv_obj_t *group, const char *symbol,
 lv_obj_t *app_ui_group_add_danger(lv_obj_t *group, const char *symbol,
                                   const char *title, const char *subtitle,
                                   lv_event_cb_t callback, void *user_data);
+
+/** @brief app_ui_group_add_nav with a shared SVG glyph. */
+lv_obj_t *app_ui_group_add_nav_image(lv_obj_t *group, uint32_t image_id,
+                                     const char *fallback_symbol,
+                                     const char *title, const char *subtitle,
+                                     lv_event_cb_t callback, void *user_data);
+/** @brief app_ui_group_add_command with a shared SVG glyph. */
+lv_obj_t *app_ui_group_add_command_image(lv_obj_t *group, uint32_t image_id,
+        const char *fallback_symbol,
+        const char *title,
+        const char *subtitle,
+        lv_event_cb_t callback,
+        void *user_data);
+/** @brief app_ui_group_add_danger with a shared SVG glyph. */
+lv_obj_t *app_ui_group_add_danger_image(lv_obj_t *group, uint32_t image_id,
+                                        const char *fallback_symbol,
+                                        const char *title,
+                                        const char *subtitle,
+                                        lv_event_cb_t callback,
+                                        void *user_data);
 /**
  * @brief Append a title + live-summary navigation row.
  * @param summary_out receives the muted summary label for later updates.

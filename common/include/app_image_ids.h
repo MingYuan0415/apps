@@ -64,4 +64,25 @@
 #define APP_IMAGE_HOME_LEVEL                  0x5771U
 #define APP_IMAGE_HOME_SETTINGS               0x5772U
 
+/* Shared app_ui glyph set: 0x5780-0x57BF reserved for common-owned assets.
+ * Baked in the neutral INK color and recolored at runtime. */
+#define APP_IMAGE_UI_REFRESH                  0x5780U
+#define APP_IMAGE_UI_CLOSE                    0x5781U
+#define APP_IMAGE_UI_CHECK                    0x5782U
+#define APP_IMAGE_UI_TRASH                    0x5783U
+#define APP_IMAGE_UI_LOOP                     0x5784U
+#define APP_IMAGE_UI_LINK                     0x5785U
+#define APP_IMAGE_UI_UNLINK                   0x5786U
+#define APP_IMAGE_UI_BLUETOOTH                0x5787U
+#define APP_IMAGE_UI_WIFI                     0x5788U
+#define APP_IMAGE_UI_WIFI_OFF                 0x5789U
+#define APP_IMAGE_UI_BRIGHTNESS               0x578AU
+#define APP_IMAGE_UI_POWER                    0x578BU
+#define APP_IMAGE_UI_STANDBY                  0x578CU
+#define APP_IMAGE_UI_CHEVRON_RIGHT            0x578DU
+#define APP_IMAGE_UI_INFO                     0x578EU
+#define APP_IMAGE_UI_WARNING                  0x578FU
+#define APP_IMAGE_UI_PLAY                     0x5790U
+#define APP_IMAGE_UI_STOP                     0x5791U
+
 #endif /* __APP_IMAGE_IDS_H__ */

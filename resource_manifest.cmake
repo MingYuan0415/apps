@@ -1,5 +1,6 @@
 # Explicit application resource records. Keep this list non-recursive.
 set(MICROTECH_APP_RESOURCE_RECORDS "")
+include("${CMAKE_CURRENT_LIST_DIR}/common/resource_manifest.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/home_app/resource_manifest.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/menu_app/resource_manifest.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/settings_app/resource_manifest.cmake")

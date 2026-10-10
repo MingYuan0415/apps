@@ -406,18 +406,9 @@ static void _weather_root_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
 
 static lv_obj_t *_weather_root_header_button(weather_root_state_t *state)
 {
-    lv_obj_t *button = lv_button_create(state->page.header);
-    app_ui_click_only(button);
-    lv_obj_set_size(button, 44, 44);
-    lv_obj_set_style_radius(button, 6, 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(WEATHER_COLOR_SURFACE), 0);
-    lv_obj_set_style_shadow_width(button, 0, 0);
-    lv_obj_add_event_cb(button, _weather_root_refresh_event, LV_EVENT_CLICKED,
-                        state);
-    lv_obj_t *icon = weather_ui_symbol_label(button);
-    lv_obj_center(icon);
-    lv_label_set_text(icon, LV_SYMBOL_REFRESH);
-    return button;
+    return app_ui_page_set_action(&state->page, APP_IMAGE_UI_REFRESH,
+                                  LV_SYMBOL_REFRESH, _weather_root_refresh_event,
+                                  state);
 }
 
 static void _weather_root_build(weather_root_state_t *state)

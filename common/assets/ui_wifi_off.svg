@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MicroTech shared UI glyph: 24-grid, recolored at runtime; INK base. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <path d="M3.6 9.4a13 13 0 0 1 16.8 0" stroke="#EAF0F2" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M6.6 12.9a8.6 8.6 0 0 1 10.8 0" stroke="#EAF0F2" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M9.6 16.4a4.3 4.3 0 0 1 4.8 0" stroke="#EAF0F2" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M4.6 4 19.4 20" stroke="#EAF0F2" stroke-width="1.8" stroke-linecap="round"/>
+</svg>

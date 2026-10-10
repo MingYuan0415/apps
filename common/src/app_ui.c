@@ -261,7 +261,54 @@ lv_obj_t *app_ui_add_section(lv_obj_t *parent, const char *text)
     return label;
 }
 
-static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, const char *symbol,
+lv_obj_t *app_ui_image(lv_obj_t *parent, uint32_t image_id,
+                       const char *fallback_symbol, int32_t size)
+{
+    if (size <= 0)
+    {
+        size = 28;
+    }
+    const lv_image_dsc_t *descriptor = NULL;
+    if (image_id != 0U &&
+            app_manager_get_image(image_id, &descriptor) == ESP_OK &&
+            descriptor != NULL)
+    {
+        lv_obj_t *image = lv_image_create(parent);
+        if (image != NULL)
+        {
+            lv_obj_set_size(image, size, size);
+            lv_image_set_src(image, descriptor);
+            app_ui_make_passive(image, false);
+            return image;
+        }
+    }
+    lv_obj_t *symbol = lv_label_create(parent);
+    if (symbol == NULL)
+    {
+        return NULL;
+    }
+    lv_obj_set_width(symbol, size);
+    lv_obj_set_style_text_align(symbol, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(symbol, LV_FONT_DEFAULT, 0);
+    lv_obj_set_style_text_color(symbol, lv_color_hex(COLOR_MUTED), 0);
+    lv_label_set_text(symbol, fallback_symbol != NULL ? fallback_symbol : "");
+    app_ui_make_passive(symbol, false);
+    return symbol;
+}
+
+void app_ui_icon_set_color(lv_obj_t *icon, uint32_t color)
+{
+    if (icon == NULL)
+    {
+        return;
+    }
+    lv_obj_set_style_text_color(icon, lv_color_hex(color), 0);
+    lv_obj_set_style_image_recolor(icon, lv_color_hex(color), 0);
+    lv_obj_set_style_image_recolor_opa(icon, LV_OPA_COVER, 0);
+}
+
+static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, uint32_t image_id,
+                                    const char *symbol,
                                     const char *title, const char *subtitle,
                                     lv_event_cb_t callback, void *user_data,
                                     bool navigation, lv_obj_t **title_out)
@@ -284,13 +331,13 @@ static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, const char *symbol,
     lv_obj_set_flex_align(button, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    lv_obj_t *icon = lv_label_create(button);
-    lv_obj_set_width(icon, 28);
-    lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(icon, lv_color_hex(APP_UI_COLOR_RAIN), 0);
-    lv_obj_set_style_text_font(icon, LV_FONT_DEFAULT, 0);
-    app_ui_make_passive(icon, false);
-    lv_label_set_text(icon, symbol != NULL ? symbol : LV_SYMBOL_RIGHT);
+    lv_obj_t *icon = app_ui_image(button, image_id,
+                                  symbol != NULL ? symbol : LV_SYMBOL_RIGHT,
+                                  28);
+    if (icon != NULL)
+    {
+        app_ui_icon_set_color(icon, APP_UI_COLOR_RAIN);
+    }
 
     lv_obj_t *text = lv_obj_create(button);
     lv_obj_remove_style_all(text);
@@ -343,16 +390,34 @@ lv_obj_t *app_ui_add_action(lv_obj_t *parent, const char *symbol,
                             const char *title, const char *subtitle,
                             lv_event_cb_t callback, void *user_data)
 {
-    return _app_ui_add_action(parent, symbol, title, subtitle, callback,
+    return _app_ui_add_action(parent, 0U, symbol, title, subtitle, callback,
                               user_data, true, NULL);
+}
+
+lv_obj_t *app_ui_add_action_image(lv_obj_t *parent, uint32_t image_id,
+                                  const char *fallback_symbol,
+                                  const char *title, const char *subtitle,
+                                  lv_event_cb_t callback, void *user_data)
+{
+    return _app_ui_add_action(parent, image_id, fallback_symbol, title,
+                              subtitle, callback, user_data, true, NULL);
 }
 
 lv_obj_t *app_ui_add_command(lv_obj_t *parent, const char *symbol,
                              const char *title, const char *subtitle,
                              lv_event_cb_t callback, void *user_data)
 {
-    return _app_ui_add_action(parent, symbol, title, subtitle, callback,
+    return _app_ui_add_action(parent, 0U, symbol, title, subtitle, callback,
                               user_data, false, NULL);
+}
+
+lv_obj_t *app_ui_add_command_image(lv_obj_t *parent, uint32_t image_id,
+                                   const char *fallback_symbol,
+                                   const char *title, const char *subtitle,
+                                   lv_event_cb_t callback, void *user_data)
+{
+    return _app_ui_add_action(parent, image_id, fallback_symbol, title,
+                              subtitle, callback, user_data, false, NULL);
 }
 
 lv_obj_t *app_ui_add_entry_row(lv_obj_t *parent, const char *title,
@@ -420,9 +485,28 @@ lv_obj_t *app_ui_add_danger_action(lv_obj_t *parent, const char *symbol,
                                    lv_event_cb_t callback, void *user_data)
 {
     lv_obj_t *title_label = NULL;
-    lv_obj_t *button = _app_ui_add_action(parent, symbol, title, subtitle,
+    lv_obj_t *button = _app_ui_add_action(parent, 0U, symbol, title, subtitle,
                                           callback, user_data, true,
                                           &title_label);
+    if (title_label != NULL)
+    {
+        lv_obj_set_style_text_color(title_label,
+                                    lv_color_hex(APP_UI_COLOR_WARNING), 0);
+    }
+    return button;
+}
+
+lv_obj_t *app_ui_add_danger_action_image(lv_obj_t *parent, uint32_t image_id,
+        const char *fallback_symbol,
+        const char *title,
+        const char *subtitle,
+        lv_event_cb_t callback,
+        void *user_data)
+{
+    lv_obj_t *title_label = NULL;
+    lv_obj_t *button = _app_ui_add_action(parent, image_id, fallback_symbol,
+                                          title, subtitle, callback, user_data,
+                                          true, &title_label);
     if (title_label != NULL)
     {
         lv_obj_set_style_text_color(title_label,
@@ -783,7 +867,8 @@ static void _app_ui_group_row_text(lv_obj_t *row, const char *title,
     }
 }
 
-static lv_obj_t *_app_ui_group_nav(lv_obj_t *group, const char *symbol,
+static lv_obj_t *_app_ui_group_nav(lv_obj_t *group, uint32_t image_id,
+                                   const char *symbol,
                                    const char *title, const char *subtitle,
                                    uint32_t title_color, bool navigation,
                                    lv_event_cb_t callback, void *user_data)
@@ -793,15 +878,13 @@ static lv_obj_t *_app_ui_group_nav(lv_obj_t *group, const char *symbol,
     {
         return NULL;
     }
-    if (symbol != NULL)
+    if (image_id != 0U || symbol != NULL)
     {
-        lv_obj_t *icon = lv_label_create(row);
-        lv_obj_set_width(icon, 24);
-        lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_text_color(icon, lv_color_hex(APP_UI_COLOR_RAIN), 0);
-        lv_obj_set_style_text_font(icon, LV_FONT_DEFAULT, 0);
-        app_ui_make_passive(icon, false);
-        lv_label_set_text(icon, symbol);
+        lv_obj_t *icon = app_ui_image(row, image_id, symbol, 24);
+        if (icon != NULL)
+        {
+            app_ui_icon_set_color(icon, APP_UI_COLOR_RAIN);
+        }
     }
     _app_ui_group_row_text(row, title, subtitle, title_color);
     if (navigation)
@@ -823,23 +906,53 @@ lv_obj_t *app_ui_group_add_nav(lv_obj_t *group, const char *symbol,
                                const char *title, const char *subtitle,
                                lv_event_cb_t callback, void *user_data)
 {
-    return _app_ui_group_nav(group, symbol, title, subtitle, COLOR_TEXT, true,
-                             callback, user_data);
+    return _app_ui_group_nav(group, 0U, symbol, title, subtitle, COLOR_TEXT,
+                             true, callback, user_data);
+}
+
+lv_obj_t *app_ui_group_add_nav_image(lv_obj_t *group, uint32_t image_id,
+                                     const char *fallback_symbol,
+                                     const char *title, const char *subtitle,
+                                     lv_event_cb_t callback, void *user_data)
+{
+    return _app_ui_group_nav(group, image_id, fallback_symbol, title, subtitle,
+                             COLOR_TEXT, true, callback, user_data);
 }
 
 lv_obj_t *app_ui_group_add_command(lv_obj_t *group, const char *symbol,
                                    const char *title, const char *subtitle,
                                    lv_event_cb_t callback, void *user_data)
 {
-    return _app_ui_group_nav(group, symbol, title, subtitle, COLOR_TEXT, false,
-                             callback, user_data);
+    return _app_ui_group_nav(group, 0U, symbol, title, subtitle, COLOR_TEXT,
+                             false, callback, user_data);
+}
+
+lv_obj_t *app_ui_group_add_command_image(lv_obj_t *group, uint32_t image_id,
+        const char *fallback_symbol,
+        const char *title,
+        const char *subtitle,
+        lv_event_cb_t callback,
+        void *user_data)
+{
+    return _app_ui_group_nav(group, image_id, fallback_symbol, title, subtitle,
+                             COLOR_TEXT, false, callback, user_data);
 }
 
 lv_obj_t *app_ui_group_add_danger(lv_obj_t *group, const char *symbol,
                                   const char *title, const char *subtitle,
                                   lv_event_cb_t callback, void *user_data)
 {
-    return _app_ui_group_nav(group, symbol, title, subtitle,
+    return _app_ui_group_nav(group, 0U, symbol, title, subtitle,
+                             APP_UI_COLOR_WARNING, true, callback, user_data);
+}
+
+lv_obj_t *app_ui_group_add_danger_image(lv_obj_t *group, uint32_t image_id,
+                                        const char *fallback_symbol,
+                                        const char *title, const char *subtitle,
+                                        lv_event_cb_t callback,
+                                        void *user_data)
+{
+    return _app_ui_group_nav(group, image_id, fallback_symbol, title, subtitle,
                              APP_UI_COLOR_WARNING, true, callback, user_data);
 }
 
