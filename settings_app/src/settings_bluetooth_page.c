@@ -33,11 +33,11 @@ typedef struct settings_bluetooth_state
     lv_obj_t *confirm_row;
     lv_obj_t *unbind_action;
     lv_obj_t *unbind_status;
+    lv_obj_t *confirm_sheet;
     lv_timer_t *refresh_timer;
     event_bus_sub_handle_t subscription;
     device_link_confirmation_token_t token;
     uint64_t rendered_generation;
-    bool unbind_armed;
 } settings_bluetooth_state_t;
 
 _Static_assert(sizeof(settings_bluetooth_state_t) <=
@@ -301,32 +301,66 @@ static void _bluetooth_deny_event(lv_event_t *event)
     _bluetooth_apply_confirmation(lv_event_get_user_data(event), false);
 }
 
+static void _bluetooth_unbind_confirm(lv_event_t *event);
+static void _bluetooth_unbind_cancel(lv_event_t *event);
+
 static void _bluetooth_unbind_event(lv_event_t *event)
 {
     settings_bluetooth_state_t *state = lv_event_get_user_data(event);
     device_link_service_status_t status;
     if (device_link_service_get_status(&status) != ESP_OK || !status.bound)
     {
-        state->unbind_armed = false;
         lv_obj_set_hidden(state->unbind_status, false);
         app_ui_set_status_text(state->unbind_status, "当前没有已绑定的手机",
                                APP_UI_STATUS_NEUTRAL);
         return;
     }
-    lv_obj_set_hidden(state->unbind_status, false);
-    if (!state->unbind_armed)
+    state->confirm_sheet = app_ui_sheet_open(state->page.root, "解除绑定",
+                           "清除与当前手机的配对，之后需要重新配对？");
+    if (state->confirm_sheet == NULL)
     {
-        state->unbind_armed = true;
-        app_ui_set_status_text(state->unbind_status, "再次点击“解除绑定”以确认",
-                               APP_UI_STATUS_WARNING);
         return;
     }
-    state->unbind_armed = false;
+    (void)app_ui_sheet_add_action(state->confirm_sheet, "解除绑定", true,
+                                  _bluetooth_unbind_confirm, state);
+    (void)app_ui_sheet_add_action(state->confirm_sheet, "取消", false,
+                                  _bluetooth_unbind_cancel, state);
+}
+
+static void _bluetooth_unbind_cancel(lv_event_t *event)
+{
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+    settings_bluetooth_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
+    {
+        return;
+    }
+    app_ui_sheet_dismiss(state->confirm_sheet);
+    state->confirm_sheet = NULL;
+}
+
+static void _bluetooth_unbind_confirm(lv_event_t *event)
+{
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+    settings_bluetooth_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
+    {
+        return;
+    }
     const esp_err_t result = device_link_service_revoke_binding();
+    lv_obj_set_hidden(state->unbind_status, false);
     app_ui_set_status_text(state->unbind_status,
                            result == ESP_OK ? "已解除绑定" : "解绑失败",
                            result == ESP_OK ? APP_UI_STATUS_SUCCESS :
                            APP_UI_STATUS_ERROR);
+    app_ui_sheet_dismiss(state->confirm_sheet);
+    state->confirm_sheet = NULL;
     _bluetooth_refresh(state);
 }
 
@@ -458,6 +492,7 @@ static void _bluetooth_unmount(const app_manager_page_context_t *context)
     state->confirm_row = NULL;
     state->unbind_action = NULL;
     state->unbind_status = NULL;
+    state->confirm_sheet = NULL;
 }
 
 static const app_manager_page_ops_t s_settings_bluetooth_ops =

@@ -12,6 +12,9 @@
 #define COLOR_TEXT       APP_UI_COLOR_TEXT
 #define COLOR_MUTED      APP_UI_COLOR_MUTED
 
+/* ~70% black scrim behind a modal bottom sheet. */
+#define APP_UI_SHEET_SCRIM_OPA 179
+
 const lv_font_t *app_ui_font(app_theme_font_id_t id)
 {
     const lv_font_t *font = app_manager_get_font(id);
@@ -569,6 +572,266 @@ lv_obj_t *app_ui_add_icon_button(lv_obj_t *parent, uint32_t image_id,
         lv_obj_center(symbol);
     }
     return button;
+}
+
+lv_obj_t *app_ui_add_icon_tile(lv_obj_t *parent, uint32_t image_id,
+                               const char *fallback_symbol, const char *label,
+                               lv_event_cb_t callback, void *user_data)
+{
+    lv_obj_t *tile = lv_button_create(parent);
+    if (tile == NULL)
+    {
+        return NULL;
+    }
+    app_ui_click_only(tile);
+    lv_obj_set_height(tile, 92);
+    lv_obj_set_style_radius(tile, 16, 0);
+    lv_obj_set_style_bg_opa(tile, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_bg_color(tile, lv_color_hex(COLOR_SURFACE_HI),
+                              LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, LV_STATE_PRESSED);
+    lv_obj_set_style_shadow_width(tile, 0, 0);
+    lv_obj_set_style_pad_all(tile, 4, 0);
+    lv_obj_set_style_pad_row(tile, 6, 0);
+    lv_obj_set_flex_flow(tile, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(tile, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    if (callback != NULL)
+    {
+        lv_obj_add_event_cb(tile, callback, LV_EVENT_CLICKED, user_data);
+    }
+
+    lv_obj_t *chip = lv_obj_create(tile);
+    if (chip != NULL)
+    {
+        lv_obj_remove_style_all(chip);
+        lv_obj_set_size(chip, 52, 52);
+        lv_obj_set_style_radius(chip, 15, 0);
+        lv_obj_set_style_bg_color(chip, lv_color_hex(APP_UI_COLOR_SURFACE_LO), 0);
+        lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
+        app_ui_make_passive(chip, false);
+
+        const lv_image_dsc_t *descriptor = NULL;
+        if (image_id != 0U &&
+                app_manager_get_image(image_id, &descriptor) == ESP_OK &&
+                descriptor != NULL)
+        {
+            lv_obj_t *image = lv_image_create(chip);
+            if (image != NULL)
+            {
+                lv_obj_set_size(image, 40, 40);
+                lv_image_set_src(image, descriptor);
+                app_ui_make_passive(image, false);
+                lv_obj_center(image);
+            }
+        }
+        else
+        {
+            lv_obj_t *symbol = lv_label_create(chip);
+            if (symbol != NULL)
+            {
+                lv_obj_set_style_text_font(symbol, LV_FONT_DEFAULT, 0);
+                lv_obj_set_style_text_color(symbol, lv_color_hex(COLOR_TEXT), 0);
+                lv_label_set_text(symbol, fallback_symbol != NULL ?
+                                  fallback_symbol : LV_SYMBOL_IMAGE);
+                lv_obj_center(symbol);
+            }
+        }
+    }
+
+    lv_obj_t *caption = lv_label_create(tile);
+    if (caption != NULL)
+    {
+        lv_obj_set_width(caption, LV_PCT(100));
+        lv_obj_set_height(caption, LV_SIZE_CONTENT);
+        lv_label_set_long_mode(caption, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_align(caption, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_color(caption, lv_color_hex(COLOR_TEXT), 0);
+        lv_obj_set_style_text_font(caption, app_ui_font(APP_THEME_FONT_SMALL), 0);
+        lv_label_set_text(caption, label != NULL ? label : "");
+    }
+    return tile;
+}
+
+lv_obj_t *app_ui_add_empty_state(lv_obj_t *parent, const char *title,
+                                 const char *subtitle)
+{
+    lv_obj_t *block = lv_obj_create(parent);
+    if (block == NULL)
+    {
+        return NULL;
+    }
+    lv_obj_remove_style_all(block);
+    lv_obj_set_width(block, LV_PCT(100));
+    lv_obj_set_height(block, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(block, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(block, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_top(block, 48, 0);
+    lv_obj_set_style_pad_row(block, 6, 0);
+    app_ui_make_passive(block, false);
+
+    if (title != NULL && title[0] != '\0')
+    {
+        lv_obj_t *title_label = lv_label_create(block);
+        lv_obj_set_width(title_label, LV_PCT(100));
+        lv_label_set_long_mode(title_label, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_align(title_label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_color(title_label, lv_color_hex(COLOR_TEXT), 0);
+        lv_obj_set_style_text_font(title_label, app_ui_font(APP_THEME_FONT_BODY),
+                                   0);
+        lv_label_set_text(title_label, title);
+    }
+    if (subtitle != NULL && subtitle[0] != '\0')
+    {
+        lv_obj_t *subtitle_label = lv_label_create(block);
+        lv_obj_set_width(subtitle_label, LV_PCT(100));
+        lv_label_set_long_mode(subtitle_label, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_align(subtitle_label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_color(subtitle_label, lv_color_hex(COLOR_MUTED),
+                                    0);
+        lv_obj_set_style_text_font(subtitle_label,
+                                   app_ui_font(APP_THEME_FONT_SMALL), 0);
+        lv_label_set_text(subtitle_label, subtitle);
+    }
+    return block;
+}
+
+static void _app_ui_sheet_delete_async(void *object)
+{
+    if (object != NULL && lv_obj_is_valid((lv_obj_t *)object))
+    {
+        lv_obj_delete((lv_obj_t *)object);
+    }
+}
+
+lv_obj_t *app_ui_sheet_open(lv_obj_t *parent, const char *title,
+                            const char *message)
+{
+    if (parent == NULL)
+    {
+        return NULL;
+    }
+    lv_obj_t *scrim = lv_obj_create(parent);
+    if (scrim == NULL)
+    {
+        return NULL;
+    }
+    lv_obj_remove_style_all(scrim);
+    lv_obj_set_size(scrim, LV_PCT(100), LV_PCT(100));
+    lv_obj_align(scrim, LV_ALIGN_TOP_LEFT, 0, 0);
+    /* Float above the page's flex tree instead of joining its flow. */
+    lv_obj_set_ignore_layout(scrim, true);
+    lv_obj_set_floating(scrim, true);
+    lv_obj_set_style_bg_color(scrim, lv_color_hex(COLOR_BACKGROUND), 0);
+    lv_obj_set_style_bg_opa(scrim, APP_UI_SHEET_SCRIM_OPA, 0);
+    lv_obj_set_style_pad_all(scrim, 0, 0);
+    /* Swallow every touch so the covered page receives none. */
+    lv_obj_set_clickable(scrim, true);
+    lv_obj_set_scrollable(scrim, false);
+    lv_obj_set_click_focusable(scrim, false);
+
+    lv_obj_t *panel = lv_obj_create(scrim);
+    if (panel == NULL)
+    {
+        lv_obj_delete(scrim);
+        return NULL;
+    }
+    lv_obj_remove_style_all(panel);
+    lv_obj_set_width(panel, LV_PCT(100));
+    lv_obj_set_height(panel, LV_SIZE_CONTENT);
+    lv_obj_align(panel, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    lv_obj_set_style_bg_color(panel, lv_color_hex(COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(panel, 20, 0);
+    lv_obj_set_style_pad_left(panel, 20, 0);
+    lv_obj_set_style_pad_right(panel, 20, 0);
+    lv_obj_set_style_pad_top(panel, 20, 0);
+    lv_obj_set_style_pad_bottom(panel, 24, 0);
+    lv_obj_set_style_pad_row(panel, 10, 0);
+    lv_obj_set_flex_flow(panel, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_START);
+    /* Keep taps on the panel from falling through to the scrim. */
+    lv_obj_set_clickable(panel, true);
+    lv_obj_set_scrollable(panel, false);
+
+    lv_obj_t *title_label = lv_label_create(panel);
+    if (title_label != NULL)
+    {
+        lv_obj_set_width(title_label, LV_PCT(100));
+        lv_obj_set_style_text_color(title_label, lv_color_hex(COLOR_TEXT), 0);
+        lv_obj_set_style_text_font(title_label, app_ui_font(APP_THEME_FONT_HEAD),
+                                   0);
+        lv_label_set_text(title_label, title != NULL ? title : "");
+    }
+    if (message != NULL && message[0] != '\0')
+    {
+        lv_obj_t *message_label = lv_label_create(panel);
+        if (message_label != NULL)
+        {
+            lv_obj_set_width(message_label, LV_PCT(100));
+            lv_label_set_long_mode(message_label, LV_LABEL_LONG_WRAP);
+            lv_obj_set_style_text_color(message_label, lv_color_hex(COLOR_MUTED),
+                                        0);
+            lv_obj_set_style_text_font(message_label,
+                                       app_ui_font(APP_THEME_FONT_SMALL), 0);
+            lv_label_set_text(message_label, message);
+        }
+    }
+    return scrim;
+}
+
+lv_obj_t *app_ui_sheet_add_action(lv_obj_t *sheet, const char *text,
+                                  bool danger, lv_event_cb_t callback,
+                                  void *user_data)
+{
+    if (sheet == NULL)
+    {
+        return NULL;
+    }
+    lv_obj_t *panel = lv_obj_get_child(sheet, 0);
+    if (panel == NULL)
+    {
+        return NULL;
+    }
+    lv_obj_t *button = lv_button_create(panel);
+    if (button == NULL)
+    {
+        return NULL;
+    }
+    app_ui_click_only(button);
+    lv_obj_set_width(button, LV_PCT(100));
+    lv_obj_set_height(button, 48);
+    lv_obj_set_style_radius(button, 12, 0);
+    lv_obj_set_style_bg_color(button, lv_color_hex(COLOR_SURFACE_HI), 0);
+    lv_obj_set_style_bg_color(button, lv_color_hex(COLOR_SURFACE),
+                              LV_STATE_PRESSED);
+    lv_obj_set_style_shadow_width(button, 0, 0);
+    if (callback != NULL)
+    {
+        lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
+    }
+    lv_obj_t *label = lv_label_create(button);
+    if (label != NULL)
+    {
+        lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
+        lv_obj_set_style_text_color(label, lv_color_hex(
+                                        danger ? APP_UI_COLOR_WARNING : COLOR_TEXT), 0);
+        lv_label_set_text(label, text != NULL ? text : "");
+        lv_obj_center(label);
+    }
+    return button;
+}
+
+void app_ui_sheet_dismiss(lv_obj_t *sheet)
+{
+    if (sheet == NULL)
+    {
+        return;
+    }
+    lv_obj_set_hidden(sheet, true);
+    (void)lv_async_call(_app_ui_sheet_delete_async, sheet);
 }
 
 lv_obj_t *app_ui_ring_create(lv_obj_t *parent, int32_t size, int32_t width,

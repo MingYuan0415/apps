@@ -13,6 +13,11 @@
 #include <stdint.h>
 #include <string.h>
 
+/* Three columns: a 4-character launcher name ("系统设置") must stay on one
+ * line at the SMALL theme role, so the cell is sized to its worst case. */
+#define MENU_TILE_WIDTH 100
+#define MENU_TILE_HEIGHT 104
+
 typedef struct menu_page_state
 {
     app_ui_page_t page;
@@ -48,77 +53,36 @@ static void _menu_open_app(lv_event_t *event)
     }
 }
 
-static lv_obj_t *_menu_add_tile(menu_page_state_t *state,
-                                const app_manager_app_desc_t *app)
+static void _menu_add_tile(menu_page_state_t *state,
+                           const app_manager_app_desc_t *app)
 {
-    lv_obj_t *card = lv_button_create(state->page.content);
-    app_ui_click_only(card);
-    lv_obj_set_width(card, 168);
-    lv_obj_set_height(card, 136);
-    lv_obj_set_style_radius(card, 8, 0);
-    lv_obj_set_style_bg_color(card, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
-    lv_obj_set_style_bg_color(card, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
-                              LV_STATE_PRESSED);
-    lv_obj_set_style_shadow_width(card, 0, 0);
-    lv_obj_set_style_pad_all(card, 6, 0);
-    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_SPACE_EVENLY,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_add_event_cb(card, _menu_open_app, LV_EVENT_CLICKED,
-                        (void *)app->id);
-
-    const lv_image_dsc_t *image = NULL;
-    if (app->icon_id != 0U &&
-            app_manager_get_image(app->icon_id, &image) == ESP_OK &&
-            image != NULL)
-    {
-        lv_obj_t *icon = lv_image_create(card);
-        lv_obj_set_size(icon, 40, 40);
-        lv_image_set_src(icon, image);
-        app_ui_make_passive(icon, false);
-    }
-
     const char *name = app->display_name != NULL ? app->display_name :
                        app->name;
-    lv_obj_t *title = lv_label_create(card);
-    lv_obj_set_width(title, LV_PCT(100));
-    lv_obj_set_height(title, 26);
-    lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
-    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(title, lv_color_hex(APP_UI_COLOR_TEXT), 0);
-    lv_obj_set_style_text_font(title, app_ui_font(APP_THEME_FONT_SMALL), 0);
-    lv_label_set_text(title, name);
-
-    if (app->launcher_subtitle != NULL)
+    lv_obj_t *tile = app_ui_add_icon_tile(state->page.content, app->icon_id,
+                                          LV_SYMBOL_IMAGE, name,
+                                          _menu_open_app, (void *)app->id);
+    if (tile == NULL)
     {
-        lv_obj_t *subtitle = lv_label_create(card);
-        lv_obj_set_width(subtitle, LV_PCT(100));
-        lv_obj_set_height(subtitle, 24);
-        lv_label_set_long_mode(subtitle, LV_LABEL_LONG_DOT);
-        lv_obj_set_style_text_align(subtitle, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_text_color(subtitle,
-                                    lv_color_hex(APP_UI_COLOR_MUTED), 0);
-        lv_obj_set_style_text_font(subtitle,
-                                   app_ui_font(APP_THEME_FONT_BODY), 0);
-        lv_label_set_text(subtitle, app->launcher_subtitle);
+        return;
     }
-    return card;
+    lv_obj_set_width(tile, MENU_TILE_WIDTH);
+    lv_obj_set_height(tile, MENU_TILE_HEIGHT);
 }
 
 static void _menu_page_build(menu_page_state_t *state)
 {
-    app_ui_page_create_home(&state->page);
+    app_ui_page_create(&state->page, "应用", false);
 
     lv_obj_t *content = state->page.content;
     lv_obj_set_style_pad_top(content, 12, 0);
-    lv_obj_set_style_pad_bottom(content, 12, 0);
+    lv_obj_set_style_pad_bottom(content, 16, 0);
     lv_obj_set_flex_flow(content, LV_FLEX_FLOW_ROW_WRAP);
-    lv_obj_set_flex_align(content, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
+    lv_obj_set_flex_align(content, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_START);
     lv_obj_set_style_pad_column(content, 8, 0);
-    lv_obj_set_style_pad_row(content, 8, 0);
-    /* Six tiles fit the viewport exactly; a seventh launcher app must stay
-     * reachable instead of rendering below a dead edge. */
+    lv_obj_set_style_pad_row(content, 10, 0);
+    /* Keep every launcher app reachable instead of rendering below a dead
+     * edge when the registry grows past the viewport. */
     lv_obj_set_scrollable(content, true);
     lv_obj_set_scroll_dir(content, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(content, LV_SCROLLBAR_MODE_AUTO);
@@ -137,8 +101,7 @@ static void _menu_page_build(menu_page_state_t *state)
         calloc(registry_count, sizeof(*ordered));
     if (registry_count != 0U && ordered == NULL)
     {
-        lv_obj_t *error = app_ui_add_body_label(content, "应用目录内存不足");
-        lv_obj_set_width(error, LV_PCT(100));
+        (void)app_ui_add_empty_state(content, "应用目录内存不足", NULL);
         LOG_W("application menu allocation failed: count=%u",
               (unsigned)registry_count);
         return;
@@ -164,21 +127,13 @@ static void _menu_page_build(menu_page_state_t *state)
 
     if (count == 0U)
     {
-        lv_obj_t *empty = app_ui_add_body_label(content, "暂无可用应用");
-        lv_obj_set_width(empty, LV_PCT(100));
+        (void)app_ui_add_empty_state(content, "暂无可用应用", NULL);
         free(ordered);
         return;
     }
     for (size_t index = 0U; index < count; ++index)
     {
-        (void)_menu_add_tile(state, ordered[index]);
-    }
-    if (count % 2U != 0U)
-    {
-        lv_obj_t *spacer = lv_obj_create(content);
-        lv_obj_remove_style_all(spacer);
-        lv_obj_set_size(spacer, 168, 0);
-        app_ui_make_passive(spacer, false);
+        _menu_add_tile(state, ordered[index]);
     }
     state->entry_count = count;
     free(ordered);

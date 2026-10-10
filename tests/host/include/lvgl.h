@@ -42,6 +42,7 @@ typedef struct lv_draw_buf
 } lv_draw_buf_t;
 
 #define LV_ALIGN_TOP_LEFT           0
+#define LV_ALIGN_BOTTOM_LEFT        4
 #define LV_DIR_VER                  1
 #define LV_EVENT_CLICKED            1
 #define LV_EVENT_VALUE_CHANGED      2
@@ -63,6 +64,8 @@ typedef struct lv_draw_buf
 #define LV_OBJ_FLAG_SCROLL_MOMENTUM  64
 #define LV_OBJ_FLAG_HIDDEN            128
 #define LV_OBJ_FLAG_PRESS_LOCK        256
+#define LV_OBJ_FLAG_IGNORE_LAYOUT     512
+#define LV_OBJ_FLAG_FLOATING          1024
 #define LV_OPA_COVER                 255
 #define LV_OPA_TRANSP                  0
 #define LV_PART_MAIN                   0
@@ -87,6 +90,7 @@ typedef struct lv_draw_buf
 #define LV_SYMBOL_AUDIO             "audio"
 #define LV_SYMBOL_SETTINGS          "settings"
 #define LV_SYMBOL_LIST              "list"
+#define LV_SYMBOL_IMAGE             "image"
 
 /** @brief Create a fake generic object. */
 lv_obj_t *lv_obj_create(lv_obj_t *parent);
@@ -148,6 +152,8 @@ MT_FAKE_FLAG_SETTER(press_lock, LV_OBJ_FLAG_PRESS_LOCK)
 MT_FAKE_FLAG_SETTER(scroll_elastic, LV_OBJ_FLAG_SCROLL_ELASTIC)
 MT_FAKE_FLAG_SETTER(scroll_momentum, LV_OBJ_FLAG_SCROLL_MOMENTUM)
 MT_FAKE_FLAG_SETTER(scrollable, LV_OBJ_FLAG_SCROLLABLE)
+MT_FAKE_FLAG_SETTER(ignore_layout, LV_OBJ_FLAG_IGNORE_LAYOUT)
+MT_FAKE_FLAG_SETTER(floating, LV_OBJ_FLAG_FLOATING)
 #undef MT_FAKE_FLAG_SETTER
 /** @brief Return a fake event code. */
 lv_event_code_t lv_event_get_code(lv_event_t *event);
@@ -160,6 +166,14 @@ lv_obj_t *lv_event_get_current_target(lv_event_t *event);
 /** @brief Dispatch an event to an object's stored callback (if matching). */
 lv_result_t lv_obj_send_event(lv_obj_t *object, lv_event_code_t code,
                               void *param);
+/** @brief No-op deferred callback post for layout-only host tests. */
+static inline lv_result_t lv_async_call(void (*callback)(void *),
+                                        void *user_data)
+{
+    (void)callback;
+    (void)user_data;
+    return LV_RESULT_OK;
+}
 /** @brief Set fake label text. */
 void lv_label_set_text(lv_obj_t *label, const char *text);
 /** @brief Return fake label text. */

@@ -21,10 +21,10 @@ typedef struct settings_wifi_state
     lv_obj_t *forget_status;
     lv_obj_t *scan_hint;
     lv_obj_t *scan_list;
+    lv_obj_t *confirm_sheet;
     lv_timer_t *refresh_timer;
     connectivity_manager_scan_snapshot_t scan;
     uint64_t rendered_scan_generation;
-    bool forget_armed;
     bool online_pending;
     bool online_desired;
     uint32_t online_deadline;
@@ -345,6 +345,9 @@ static void _wifi_auto_event(lv_event_t *event)
     _wifi_refresh(state);
 }
 
+static void _wifi_forget_confirm(lv_event_t *event);
+static void _wifi_forget_cancel(lv_event_t *event);
+
 static void _wifi_forget_event(lv_event_t *event)
 {
     settings_wifi_state_t *state = lv_event_get_user_data(event);
@@ -352,27 +355,68 @@ static void _wifi_forget_event(lv_event_t *event)
     if (connectivity_manager_get_status(&status) != ESP_OK ||
             !status.saved_profile)
     {
-        state->forget_armed = false;
         lv_obj_set_hidden(state->forget_status, false);
         app_ui_set_status_text(state->forget_status, "当前没有已保存的网络",
                                APP_UI_STATUS_NEUTRAL);
         return;
     }
-    lv_obj_set_hidden(state->forget_status, false);
-    if (!state->forget_armed)
+    char message[96];
+    if (status.ssid[0] != '\0')
     {
-        state->forget_armed = true;
-        app_ui_set_status_text(state->forget_status, "再次点击“忘记网络”以确认",
-                               APP_UI_STATUS_WARNING);
+        (void)snprintf(message, sizeof(message),
+                       "清除保存的网络“%s”并断开连接？", status.ssid);
+    }
+    else
+    {
+        (void)snprintf(message, sizeof(message), "清除保存的网络并断开连接？");
+    }
+    state->confirm_sheet = app_ui_sheet_open(state->page.root, "忘记网络",
+                           message);
+    if (state->confirm_sheet == NULL)
+    {
         return;
     }
-    state->forget_armed = false;
+    (void)app_ui_sheet_add_action(state->confirm_sheet, "忘记", true,
+                                  _wifi_forget_confirm, state);
+    (void)app_ui_sheet_add_action(state->confirm_sheet, "取消", false,
+                                  _wifi_forget_cancel, state);
+}
+
+static void _wifi_forget_cancel(lv_event_t *event)
+{
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+    settings_wifi_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
+    {
+        return;
+    }
+    app_ui_sheet_dismiss(state->confirm_sheet);
+    state->confirm_sheet = NULL;
+}
+
+static void _wifi_forget_confirm(lv_event_t *event)
+{
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+    settings_wifi_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
+    {
+        return;
+    }
     connectivity_manager_operation_id_t op = 0U;
     const esp_err_t result = connectivity_manager_request_forget(&op);
+    lv_obj_set_hidden(state->forget_status, false);
     app_ui_set_status_text(state->forget_status,
                            result == ESP_OK ? "已忘记网络" : "操作失败",
                            result == ESP_OK ? APP_UI_STATUS_SUCCESS :
                            APP_UI_STATUS_ERROR);
+    app_ui_sheet_dismiss(state->confirm_sheet);
+    state->confirm_sheet = NULL;
     _wifi_refresh(state);
 }
 
@@ -476,6 +520,7 @@ static void _wifi_unmount(const app_manager_page_context_t *context)
     state->forget_status = NULL;
     state->scan_hint = NULL;
     state->scan_list = NULL;
+    state->confirm_sheet = NULL;
 }
 
 static const app_manager_page_ops_t s_settings_wifi_ops =

@@ -12,6 +12,7 @@ typedef struct recorder_files_state
     lv_obj_t *btn_play;
     lv_obj_t *btn_delete;
     lv_obj_t *status_label;
+    lv_obj_t *confirm_sheet;
     lv_timer_t *refresh_timer;
     char selected[64];
     char pending_delete[64];
@@ -23,6 +24,8 @@ _Static_assert(sizeof(recorder_files_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Recorder files state exceeds the lifecycle arena slot");
 
 static void _files_row_event(lv_event_t *event);
+static void _files_delete_confirm(lv_event_t *event);
+static void _files_delete_cancel(lv_event_t *event);
 
 static void _files_add_row(recorder_files_state_t *state,
                            const recorder_service_file_t *file,
@@ -222,30 +225,82 @@ static void _files_delete_event(lv_event_t *event)
         _files_set_status(state, "录音中无法删除", APP_UI_STATUS_WARNING);
         return;
     }
-    if (snapshot.state == RECORDER_SERVICE_PLAYING)
+    /* Confirm in a phone-style bottom sheet instead of deleting immediately. */
+    char message[96];
+    (void)snprintf(message, sizeof(message), "删除“%s”？此操作无法撤销。",
+                   recorder_ui_display_name(state->selected));
+    state->confirm_sheet = app_ui_sheet_open(state->page.root, "删除录音",
+                           message);
+    if (state->confirm_sheet == NULL)
     {
-        /* stop_playback only queues; deleting now would be rejected. Queue
-         * the delete and let the 250 ms poller run it after the stop. */
-        (void)snprintf(state->pending_delete, sizeof(state->pending_delete),
-                       "%s", state->selected);
-        if (recorder_service_stop_playback() != ESP_OK)
-        {
-            state->pending_delete[0] = '\0';
-            _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
-        }
         return;
     }
-    const esp_err_t result = recorder_service_delete(state->selected);
-    if (result == ESP_OK)
+    (void)app_ui_sheet_add_action(state->confirm_sheet, "删除", true,
+                                  _files_delete_confirm, state);
+    (void)app_ui_sheet_add_action(state->confirm_sheet, "取消", false,
+                                  _files_delete_cancel, state);
+}
+
+static void _files_delete_cancel(lv_event_t *event)
+{
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
     {
-        state->selected[0] = '\0';
-        _files_set_status(state, "已删除", APP_UI_STATUS_SUCCESS);
+        return;
     }
-    else
+    recorder_files_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
     {
-        _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
+        return;
     }
-    (void)lv_async_call(_files_rebuild_async, state);
+    app_ui_sheet_dismiss(state->confirm_sheet);
+    state->confirm_sheet = NULL;
+}
+
+static void _files_delete_confirm(lv_event_t *event)
+{
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+    recorder_files_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
+    {
+        return;
+    }
+    recorder_service_snapshot_t snapshot;
+    if (recorder_service_get_snapshot(&snapshot) == ESP_OK &&
+            !snapshot.operation_pending && state->selected[0] != '\0')
+    {
+        if (snapshot.state == RECORDER_SERVICE_PLAYING)
+        {
+            /* stop_playback only queues; deleting now would be rejected. Queue
+             * the delete and let the 250 ms poller run it after the stop. */
+            (void)snprintf(state->pending_delete,
+                           sizeof(state->pending_delete), "%s",
+                           state->selected);
+            if (recorder_service_stop_playback() != ESP_OK)
+            {
+                state->pending_delete[0] = '\0';
+                _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
+            }
+        }
+        else
+        {
+            const esp_err_t result = recorder_service_delete(state->selected);
+            if (result == ESP_OK)
+            {
+                state->selected[0] = '\0';
+                _files_set_status(state, "已删除", APP_UI_STATUS_SUCCESS);
+            }
+            else
+            {
+                _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
+            }
+            (void)lv_async_call(_files_rebuild_async, state);
+        }
+    }
+    app_ui_sheet_dismiss(state->confirm_sheet);
+    state->confirm_sheet = NULL;
 }
 
 static void _files_row_event(lv_event_t *event)
@@ -356,6 +411,7 @@ static void _files_unmount(const app_manager_page_context_t *context)
     state->btn_play = NULL;
     state->btn_delete = NULL;
     state->status_label = NULL;
+    state->confirm_sheet = NULL;
 }
 
 static const app_manager_page_ops_t s_recorder_files_ops =

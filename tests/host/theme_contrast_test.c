@@ -45,6 +45,8 @@ static const contrast_case_t s_cases[] =
     { "INK_SOFT/VOID",      APP_THEME_COLOR_INK_SOFT,  APP_THEME_COLOR_VOID,        7.0 },
     { "INK_SOFT/PLUME",     APP_THEME_COLOR_INK_SOFT,  APP_THEME_COLOR_PLUME,       6.0 },
     { "INK_SOFT/PLUME_HI",  APP_THEME_COLOR_INK_SOFT,  APP_THEME_COLOR_PLUME_HI,    4.5 },
+    { "INK_SOFT/SHEET",     APP_THEME_COLOR_INK_SOFT,  APP_THEME_COLOR_SHEET,       5.0 },
+    { "INK/TRACK",          APP_THEME_COLOR_INK,       APP_THEME_COLOR_TRACK,       4.5 },
     { "AZURE/VOID",         APP_THEME_COLOR_AZURE,     APP_THEME_COLOR_VOID,        7.0 },
     { "AZURE/PLUME",        APP_THEME_COLOR_AZURE,     APP_THEME_COLOR_PLUME,       4.5 },
     { "AMBER/VOID",         APP_THEME_COLOR_AMBER,     APP_THEME_COLOR_VOID,        7.0 },
@@ -81,10 +83,17 @@ int main(void)
         printf("FAIL canvas must be true black on AMOLED\n");
         failures++;
     }
-    if (!(_luma(APP_THEME_COLOR_PLUME) < _luma(APP_THEME_COLOR_PLUME_HI) &&
+    if (APP_THEME_COLOR_SCRIM != 0x000000)
+    {
+        printf("FAIL scrim must share the true-black canvas value\n");
+        failures++;
+    }
+    if (!(_luma(APP_THEME_COLOR_PLUME) < _luma(APP_THEME_COLOR_SHEET) &&
+            _luma(APP_THEME_COLOR_SHEET) < _luma(APP_THEME_COLOR_DIVIDER) &&
+            _luma(APP_THEME_COLOR_DIVIDER) < _luma(APP_THEME_COLOR_PLUME_HI) &&
             _luma(APP_THEME_COLOR_PLUME_HI) < _luma(APP_THEME_COLOR_INK_SOFT)))
     {
-        printf("FAIL elevation ramp PLUME < PLUME_HI < ink is not monotonic\n");
+        printf("FAIL elevation ramp PLUME < SHEET < DIVIDER < PLUME_HI < ink is not monotonic\n");
         failures++;
     }
     if (_luma(APP_THEME_COLOR_INK) > 0.93)

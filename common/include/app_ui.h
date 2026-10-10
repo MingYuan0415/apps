@@ -192,6 +192,76 @@ void app_ui_click_only(lv_obj_t *obj);
 lv_obj_t *app_ui_add_icon_button(lv_obj_t *parent, uint32_t image_id,
                                  const char *fallback_symbol,
                                  lv_event_cb_t callback, void *user_data);
+
+/**
+ * @brief Add a launcher tile: square icon well plus centered caption.
+ *
+ * The caller owns the tile size: set an explicit width for a launcher grid
+ * cell or leave the default height for a dock cell. The caption is a single
+ * DOT line so it never wraps inside the tile.
+ *
+ * @param parent is the grid or row that owns the tile.
+ * @param image_id is the semantic image ID, or zero to use the symbol.
+ * @param fallback_symbol is drawn when the image is unavailable.
+ * @param label is the caption under the icon.
+ * @param callback receives click events.
+ * @param user_data is retained as LVGL event user data.
+ * @return Created tile, or NULL when allocation fails.
+ */
+lv_obj_t *app_ui_add_icon_tile(lv_obj_t *parent, uint32_t image_id,
+                               const char *fallback_symbol, const char *label,
+                               lv_event_cb_t callback, void *user_data);
+
+/**
+ * @brief Add a centered empty-state block with a title and optional hint.
+ * @param parent is the page content owning the state.
+ * @param title is the primary line; NULL or empty renders no title.
+ * @param subtitle is the optional secondary hint; NULL renders no hint.
+ * @return Created container object.
+ */
+lv_obj_t *app_ui_add_empty_state(lv_obj_t *parent, const char *title,
+                                 const char *subtitle);
+
+/**
+ * @brief Open a modal bottom sheet over a page root.
+ *
+ * Creates a dimming scrim plus a bottom-anchored panel carrying a title and an
+ * optional message. The caller adds action rows with app_ui_sheet_add_action
+ * and closes the sheet with app_ui_sheet_dismiss. The scrim swallows touches so
+ * the covered page receives none while the sheet is open; the panel keeps the
+ * page's full-bleed opaque root intact for snapshot transitions.
+ *
+ * @param parent is the page root that owns the sheet.
+ * @param title is the sheet heading.
+ * @param message is optional supporting copy; NULL renders none.
+ * @return Sheet handle (the scrim), or NULL on allocation failure.
+ */
+lv_obj_t *app_ui_sheet_open(lv_obj_t *parent, const char *title,
+                            const char *message);
+
+/**
+ * @brief Append a full-width action row to a sheet.
+ * @param sheet is an app_ui_sheet_open handle.
+ * @param text is the action caption.
+ * @param danger renders the caption in the destructive color when true.
+ * @param callback receives click events.
+ * @param user_data is retained as LVGL event user data.
+ * @return Created button, or NULL on failure.
+ */
+lv_obj_t *app_ui_sheet_add_action(lv_obj_t *sheet, const char *text,
+                                  bool danger, lv_event_cb_t callback,
+                                  void *user_data);
+
+/**
+ * @brief Close and release a sheet after its action completes.
+ *
+ * Hides the sheet immediately and frees it on the next UI cycle so the caller
+ * never destroys an object inside its own CLICKED callback.
+ *
+ * @param sheet is an app_ui_sheet_open handle, or NULL.
+ */
+void app_ui_sheet_dismiss(lv_obj_t *sheet);
+
 /**
  * @brief Create a passive full-circle progress ring starting at 12 o'clock.
  * @param parent is the LVGL parent object.
