@@ -58,11 +58,11 @@ static lv_obj_t *_weather_forecast_metric(lv_obj_t *parent, const char *name,
     lv_obj_set_width(cell, LV_PCT(48));
     lv_obj_set_flex_flow(cell, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(cell, 2, 0);
-    lv_obj_t *name_label = weather_ui_text_label(cell, APP_THEME_FONT_BODY);
+    lv_obj_t *name_label = weather_ui_text_label(cell, APP_THEME_FONT_SMALL);
     lv_obj_set_style_text_color(name_label, lv_color_hex(WEATHER_COLOR_MUTED),
                                 0);
     lv_label_set_text(name_label, name);
-    lv_obj_t *value_label = weather_ui_text_label(cell, APP_THEME_FONT_SMALL);
+    lv_obj_t *value_label = weather_ui_text_label(cell, APP_THEME_FONT_BODY);
     lv_obj_set_width(value_label, LV_PCT(100));
     lv_label_set_long_mode(value_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(value_label, lv_color_hex(WEATHER_COLOR_TEXT),
@@ -403,7 +403,7 @@ static void _weather_forecast_render_daily(weather_forecast_state_t *state)
                        _weather_forecast_weekday_text(
                            _weather_forecast_weekday(day->date)),
                        day->date + 5);
-        lv_obj_t *date = weather_ui_text_label(row, APP_THEME_FONT_BODY);
+        lv_obj_t *date = weather_ui_text_label(row, APP_THEME_FONT_SMALL);
         lv_obj_set_width(date, 52);
         lv_label_set_long_mode(date, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(date, lv_color_hex(WEATHER_COLOR_MUTED),
@@ -449,7 +449,7 @@ static void _weather_forecast_render_daily(weather_forecast_state_t *state)
                        day->precipitation_tenths_mm / 10.0,
                        (unsigned)day->uv_index);
         lv_obj_t *details = weather_ui_text_label(summary,
-                            APP_THEME_FONT_BODY);
+                            APP_THEME_FONT_SMALL);
         lv_obj_set_width(details, LV_PCT(100));
         lv_label_set_long_mode(details, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(details,

@@ -325,14 +325,14 @@ static void _clock_root_add_card(clock_root_state_t *state, const char *name,
     lv_obj_t *title = lv_label_create(text);
     lv_obj_set_width(title, LV_PCT(100));
     lv_obj_set_style_text_color(title, lv_color_hex(APP_UI_COLOR_TEXT), 0);
-    lv_obj_set_style_text_font(title, app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_obj_set_style_text_font(title, app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_label_set_text(title, name);
 
     lv_obj_t *summary = lv_label_create(text);
     lv_obj_set_width(summary, LV_PCT(100));
     lv_label_set_long_mode(summary, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_color(summary, lv_color_hex(APP_UI_COLOR_MUTED), 0);
-    lv_obj_set_style_text_font(summary, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_obj_set_style_text_font(summary, app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_label_set_text(summary, "");
     state->card_summary[card] = summary;
 

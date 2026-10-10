@@ -38,11 +38,11 @@ static lv_obj_t *_weather_root_metric(lv_obj_t *parent, const char *name,
     lv_obj_set_flex_flow(cell, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(cell, 4, 0);
     lv_obj_set_style_pad_row(cell, 2, 0);
-    lv_obj_t *name_label = weather_ui_text_label(cell, APP_THEME_FONT_BODY);
+    lv_obj_t *name_label = weather_ui_text_label(cell, APP_THEME_FONT_SMALL);
     lv_obj_set_style_text_color(name_label, lv_color_hex(WEATHER_COLOR_MUTED),
                                 0);
     lv_label_set_text(name_label, name);
-    lv_obj_t *value_label = weather_ui_text_label(cell, APP_THEME_FONT_SMALL);
+    lv_obj_t *value_label = weather_ui_text_label(cell, APP_THEME_FONT_BODY);
     lv_obj_set_width(value_label, LV_PCT(100));
     lv_label_set_long_mode(value_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(value_label, lv_color_hex(WEATHER_COLOR_TEXT),
@@ -451,7 +451,7 @@ static void _weather_root_build(weather_root_state_t *state)
     lv_label_set_long_mode(state->condition_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(state->condition_label,
                                 lv_color_hex(WEATHER_COLOR_TEXT), 0);
-    state->range_label = weather_ui_text_label(summary, APP_THEME_FONT_BODY);
+    state->range_label = weather_ui_text_label(summary, APP_THEME_FONT_SMALL);
     lv_obj_set_width(state->range_label, LV_PCT(100));
     lv_label_set_long_mode(state->range_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(state->range_label,
@@ -469,7 +469,7 @@ static void _weather_root_build(weather_root_state_t *state)
 
     state->status_label = weather_ui_text_label(state->page.content,
                           APP_THEME_FONT_BODY);
-    lv_obj_set_size(state->status_label, LV_PCT(100), 22);
+    lv_obj_set_size(state->status_label, LV_PCT(100), LV_SIZE_CONTENT);
     lv_label_set_long_mode(state->status_label,
                            LV_LABEL_LONG_SCROLL_CIRCULAR);
 

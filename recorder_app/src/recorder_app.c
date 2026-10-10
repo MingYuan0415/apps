@@ -328,13 +328,13 @@ static void _recorder_root_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_color(entry_title,
                                 lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(entry_title,
-                               app_ui_font(APP_THEME_FONT_SMALL), 0);
+                               app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_label_set_text(entry_title, "播放库");
     state->library_count_label = lv_label_create(entry_text);
     lv_obj_set_style_text_color(state->library_count_label,
                                 lv_color_hex(APP_UI_COLOR_MUTED), 0);
     lv_obj_set_style_text_font(state->library_count_label,
-                               app_ui_font(APP_THEME_FONT_BODY), 0);
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_label_set_text(state->library_count_label, "暂无录音");
     lv_obj_t *chevron = lv_label_create(entry);
     lv_obj_set_style_text_color(chevron, lv_color_hex(APP_UI_COLOR_MUTED), 0);
