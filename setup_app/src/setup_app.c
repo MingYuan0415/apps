@@ -368,7 +368,7 @@ static void _setup_render_management(setup_root_state_t *state)
 
 static void _setup_wifi_glyph(lv_obj_t *parent, lv_obj_t **glyph)
 {
-    *glyph = app_ui_image(parent, APP_IMAGE_UI_WIFI, NULL, 44);
+    *glyph = app_ui_image(parent, APP_IMAGE_UI_WIFI, LV_SYMBOL_WIFI, 44);
     if (*glyph != NULL)
     {
         app_ui_icon_set_color(*glyph, APP_UI_COLOR_MUTED);

@@ -8,12 +8,17 @@
 
 #define COLOR_BACKGROUND APP_UI_COLOR_BACKGROUND
 #define COLOR_SURFACE    APP_UI_COLOR_SURFACE
+#define COLOR_SHEET      APP_UI_COLOR_SHEET
 #define COLOR_SURFACE_HI APP_UI_COLOR_SURFACE_HI
 #define COLOR_TEXT       APP_UI_COLOR_TEXT
 #define COLOR_MUTED      APP_UI_COLOR_MUTED
 
 /* ~70% black scrim behind a modal bottom sheet. */
 #define APP_UI_SHEET_SCRIM_OPA 179
+
+/* One-line height for a grouped value; bounds DOT truncation so a long value
+ * ellipsizes inside the row instead of wrapping or overflowing. */
+#define APP_UI_VALUE_LINE_PX 36
 
 const lv_font_t *app_ui_font(app_theme_font_id_t id)
 {
@@ -291,7 +296,9 @@ lv_obj_t *app_ui_image(lv_obj_t *parent, uint32_t image_id,
     lv_obj_set_style_text_align(symbol, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(symbol, LV_FONT_DEFAULT, 0);
     lv_obj_set_style_text_color(symbol, lv_color_hex(COLOR_MUTED), 0);
-    lv_label_set_text(symbol, fallback_symbol != NULL ? fallback_symbol : "");
+    lv_label_set_text(symbol,
+                      fallback_symbol != NULL ? fallback_symbol :
+                      LV_SYMBOL_IMAGE);
     app_ui_make_passive(symbol, false);
     return symbol;
 }
@@ -809,6 +816,10 @@ lv_obj_t *app_ui_group_create(lv_obj_t *parent)
 
 static lv_obj_t *_app_ui_group_row(lv_obj_t *group, int32_t height)
 {
+    if (group == NULL)
+    {
+        return NULL;
+    }
     lv_obj_t *row = lv_button_create(group);
     if (row == NULL)
     {
@@ -1006,14 +1017,16 @@ lv_obj_t *app_ui_group_add_value(lv_obj_t *group, const char *name,
     lv_obj_set_style_text_font(name_label, app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_label_set_text(name_label, name != NULL ? name : "");
 
-    lv_obj_t *spacer = lv_obj_create(row);
-    lv_obj_remove_style_all(spacer);
-    lv_obj_set_width(spacer, 0);
-    lv_obj_set_height(spacer, 1);
-    lv_obj_set_flex_grow(spacer, 1);
-    app_ui_make_passive(spacer, false);
-
-    lv_obj_t *value_label = lv_label_create(row);
+    lv_obj_t *value_box = lv_obj_create(row);
+    lv_obj_remove_style_all(value_box);
+    lv_obj_set_width(value_box, 0);
+    lv_obj_set_flex_grow(value_box, 1);
+    lv_obj_set_height(value_box, LV_SIZE_CONTENT);
+    app_ui_make_passive(value_box, false);
+    lv_obj_t *value_label = lv_label_create(value_box);
+    lv_obj_set_width(value_label, LV_PCT(100));
+    lv_obj_set_height(value_label, APP_UI_VALUE_LINE_PX);
+    lv_label_set_long_mode(value_label, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(value_label, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_style_text_color(value_label, lv_color_hex(COLOR_TEXT), 0);
     lv_obj_set_style_text_font(value_label, app_ui_font(APP_THEME_FONT_BODY), 0);
@@ -1162,7 +1175,7 @@ lv_obj_t *app_ui_sheet_open(lv_obj_t *parent, const char *title,
     lv_obj_set_width(panel, LV_PCT(100));
     lv_obj_set_height(panel, LV_SIZE_CONTENT);
     lv_obj_align(panel, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-    lv_obj_set_style_bg_color(panel, lv_color_hex(COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_color(panel, lv_color_hex(COLOR_SHEET), 0);
     lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(panel, 20, 0);
     lv_obj_set_style_pad_left(panel, 20, 0);
@@ -1225,8 +1238,8 @@ lv_obj_t *app_ui_sheet_add_action(lv_obj_t *sheet, const char *text,
     lv_obj_set_width(button, LV_PCT(100));
     lv_obj_set_height(button, 48);
     lv_obj_set_style_radius(button, 12, 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(COLOR_SURFACE_HI), 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(COLOR_SURFACE),
+    lv_obj_set_style_bg_color(button, lv_color_hex(COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_color(button, lv_color_hex(COLOR_SURFACE_HI),
                               LV_STATE_PRESSED);
     lv_obj_set_style_shadow_width(button, 0, 0);
     if (callback != NULL)
