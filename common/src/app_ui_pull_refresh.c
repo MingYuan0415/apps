@@ -119,6 +119,13 @@ static void _pull_event(lv_event_t *event)
     }
     else if (code == LV_EVENT_RELEASED)
     {
+        /* A stray tap during an in-flight refresh must not collapse the hold. */
+        if (refresh->refreshing)
+        {
+            refresh->tracking = false;
+            refresh->armed = false;
+            return;
+        }
         if (refresh->armed && refresh->on_refresh != NULL)
         {
             refresh->refreshing = true;
