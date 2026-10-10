@@ -38,6 +38,13 @@ Setup 页的 Wi-Fi 卡片、绑定/断开/忘记/取消/完成/稍后等行图�
 按钮（`app_ui_page_set_action`）为 40 x 40 且右下对齐，位于系统控制中心顶部下拉捕获带
 （屏幕顶部 20 px）之下，因此页头内容不得占用该顶部区域。
 
+下拉刷新由 `app_ui_pull_refresh_attach()` 提供：在页顶放置一条被页头/内容遮挡的提示条，
+`content`（以及可点击的 root）上向下拖动时整页（页头 + 内容）随位移下移并逐步露出提示条，
+达阈值（约 25 px / 56 px）松手触发页面刷新回调并保持「正在刷新…」，页面经
+`app_ui_pull_refresh_set_refreshing(false)`（或 8 s 兜底）回弹。天气根页复用
+`weather_service_request_refresh()`，设置 Wi-Fi 页复用扫描请求；拖动起点落在可点击行上时
+交给行/滚动，不触发下拉。控制中心顶部 20 px 下拉仍归控制中心。
+
 每个应用以普通 `const` Page definition 描述 typed ops 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。App descriptor（`APP_MANAGER_APP_EXPORT` 及其 `APP_MANAGER_APP_EXPORT_META` 变体）进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。新增应用时应在独立目录中实现生命周期 ops，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，同时提供图标 manifest，不要使用递归 glob。
 
 页面只声明实际需要的生命周期阶段，无需为未使用阶段编写空回调。例如静态页面只需
