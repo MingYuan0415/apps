@@ -8,6 +8,12 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Every dataset in the snapshot is served by QWeather (和风天气). The
+ * snapshot's location.provider (e.g. cloudflare) only reports the IP
+ * geolocation that resolved the city, so it is not the weather data source and
+ * must never be shown as one. */
+#define WEATHER_FORECAST_SOURCE "和风天气"
+
 typedef enum weather_forecast_segment
 {
     WEATHER_FORECAST_CURRENT = 0,
@@ -116,13 +122,7 @@ static void _weather_forecast_add_meta(
     _weather_forecast_add_service_status(parent);
 }
 
-static const char *_weather_forecast_provider(
-    const weather_forecast_state_t *state)
-{
-    const char *provider = state->snapshot->location.provider;
 
-    return provider[0] != '\0' ? provider : "未提供";
-}
 
 static void _weather_forecast_render_current(weather_forecast_state_t *state)
 {
@@ -162,7 +162,7 @@ static void _weather_forecast_render_current(weather_forecast_state_t *state)
     _weather_forecast_metric_pair(state->body, "气压", left, "能见度",
                                   right);
     _weather_forecast_add_meta(state->body, &current->meta,
-                               _weather_forecast_provider(state));
+                               WEATHER_FORECAST_SOURCE);
 }
 
 static void _weather_forecast_render_chart(weather_forecast_state_t *state)
@@ -319,7 +319,7 @@ static void _weather_forecast_render_hourly(weather_forecast_state_t *state)
         lv_label_set_text(details, text);
     }
     _weather_forecast_add_meta(state->body, &hourly->meta,
-                               _weather_forecast_provider(state));
+                               WEATHER_FORECAST_SOURCE);
 }
 
 static unsigned _weather_forecast_weekday(const char *date)
@@ -457,7 +457,7 @@ static void _weather_forecast_render_daily(weather_forecast_state_t *state)
         lv_label_set_text(details, text);
     }
     _weather_forecast_add_meta(state->body, &daily->meta,
-                               _weather_forecast_provider(state));
+                               WEATHER_FORECAST_SOURCE);
 }
 
 static void _weather_forecast_render(weather_forecast_state_t *state)
