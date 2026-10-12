@@ -87,6 +87,18 @@ static void _device_open_connection(lv_event_t *event)
     }
 }
 
+/* The device page packs two groups (three values + four actions) onto one
+ * screen; the shared 52/60 px group row heights carry 8 px of vertical slack
+ * each, which is reclaimed here instead of leaving the last action sliced by
+ * the viewport edge. */
+static void _device_compact(lv_obj_t *row, int32_t height)
+{
+    if (row != NULL)
+    {
+        lv_obj_set_height(row, height);
+    }
+}
+
 static void _device_mount(const app_manager_page_context_t *context)
 {
     settings_device_state_t *state = context->state;
@@ -94,28 +106,30 @@ static void _device_mount(const app_manager_page_context_t *context)
     app_ui_page_create(&state->page, "设备状态", true);
     app_ui_page_set_subtitle(&state->page, "电量与存储");
     lv_obj_set_style_pad_row(state->page.content, 8, 0);
+    lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
+    lv_obj_set_scrollable(state->page.content, false);
 
     lv_obj_t *status_group = app_ui_group_create(state->page.content);
-    (void)app_ui_group_add_value(status_group, "电量", "读取中",
-                                 &state->battery_value);
-    (void)app_ui_group_add_value(status_group, "供电来源", "读取中",
-                                 &state->source_value);
-    (void)app_ui_group_add_value(status_group, "SD 卡", "读取中",
-                                 &state->storage_value);
+    _device_compact(app_ui_group_add_value(status_group, "电量", "读取中",
+                                           &state->battery_value), 44);
+    _device_compact(app_ui_group_add_value(status_group, "供电来源", "读取中",
+                                           &state->source_value), 44);
+    _device_compact(app_ui_group_add_value(status_group, "SD 卡", "读取中",
+                                           &state->storage_value), 44);
 
     lv_obj_t *action_group = app_ui_group_create(state->page.content);
-    (void)app_ui_group_add_command(action_group, LV_SYMBOL_POWER, "立即熄屏",
-                                   "熄屏或待机后使用 HOME 恢复",
-                                   _device_screen_off_event, NULL);
-    (void)app_ui_group_add_nav(action_group, LV_SYMBOL_HOME, "时间设置",
-                               "时区、时间来源与校时状态", _device_open_time,
-                               NULL);
-    (void)app_ui_group_add_nav(action_group, LV_SYMBOL_SD_CARD, "存储管理",
-                               "SD 卡状态与容量信息", _device_open_storage,
-                               NULL);
-    (void)app_ui_group_add_nav(action_group, LV_SYMBOL_WIFI, "连接向导",
-                               "BLE 绑定与 Wi-Fi 配网",
-                               _device_open_connection, NULL);
+    _device_compact(app_ui_group_add_command(action_group, LV_SYMBOL_POWER,
+                   "立即熄屏", "熄屏或待机后使用 HOME 恢复",
+                   _device_screen_off_event, NULL), 52);
+    _device_compact(app_ui_group_add_nav(action_group, LV_SYMBOL_HOME,
+                   "时间设置", "时区、时间来源与校时状态", _device_open_time,
+                   NULL), 52);
+    _device_compact(app_ui_group_add_nav(action_group, LV_SYMBOL_SD_CARD,
+                   "存储管理", "SD 卡状态与容量信息", _device_open_storage,
+                   NULL), 52);
+    _device_compact(app_ui_group_add_nav(action_group, LV_SYMBOL_WIFI,
+                   "连接向导", "BLE 绑定与 Wi-Fi 配网",
+                   _device_open_connection, NULL), 52);
 
     state->refresh_timer = lv_timer_create(_device_timer, 1000U, state);
     _device_refresh(state);

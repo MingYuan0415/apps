@@ -59,6 +59,8 @@ static void _settings_factory_reset_mount(
     settings_factory_reset_state_t *state = context->state;
     memset(state, 0, sizeof(*state));
     app_ui_page_create(&state->page, "恢复出厂设置", true);
+    lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
+    lv_obj_set_scrollable(state->page.content, false);
 
     app_ui_add_section(state->page.content, "将清除的内容");
     app_ui_add_body_label(

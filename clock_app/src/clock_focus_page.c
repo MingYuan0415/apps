@@ -45,6 +45,14 @@ typedef struct clock_focus_state
 _Static_assert(sizeof(clock_focus_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Focus page state exceeds the lifecycle arena slot");
 
+static void _focus_show_phase(clock_focus_state_t *state, const char *text)
+{
+    lv_label_set_text(state->phase_label, text);
+    /* Keep the ring's line count stable: an empty phase would otherwise leave
+     * a blank body line between the value and the cycle count. */
+    lv_obj_set_hidden(state->phase_label, text[0] == '\0');
+}
+
 static void _focus_render(clock_focus_state_t *state)
 {
     timer_service_snapshot_t snapshot;
@@ -95,16 +103,16 @@ static void _focus_render(clock_focus_state_t *state)
     if (state->last_phase != snapshot.focus_phase)
     {
         state->last_phase = snapshot.focus_phase;
-        lv_label_set_text(state->phase_label,
-                          snapshot.focus_phase == TIMER_SERVICE_FOCUS_WORK ?
-                          "专注中" : "休息中");
+        _focus_show_phase(state, running ?
+                          (snapshot.focus_phase == TIMER_SERVICE_FOCUS_WORK ?
+                           "专注中" : "休息中") : "");
     }
     if (state->last_state != view)
     {
         state->last_state = view;
         lv_label_set_text(state->hint_label, "");
         /* No session is active: the in-ring phase text would lie. */
-        lv_label_set_text(state->phase_label, running ?
+        _focus_show_phase(state, running ?
                           (snapshot.focus_phase == TIMER_SERVICE_FOCUS_WORK ?
                            "专注中" : "休息中") : "");
         switch (view)
@@ -214,6 +222,8 @@ static void _focus_mount(const app_manager_page_context_t *context)
     memset(state, 0, sizeof(*state));
     state->last_preset = UINT32_MAX;
     app_ui_page_create(&state->page, "专注", true);
+    lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
+    lv_obj_set_scrollable(state->page.content, false);
 
     lv_obj_t *ring_row = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(ring_row);
@@ -253,7 +263,10 @@ static void _focus_mount(const app_manager_page_context_t *context)
                                app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_label_set_text(state->phase_label, "");
 
-    state->cycle_label = lv_label_create(state->page.content);
+    /* The completed-cycle count rides inside the ring: as a separate row below
+     * it, the extra body line plus gap pushed the controls past the viewport
+     * and made the whole page scroll (the countdown page, without it, fits). */
+    state->cycle_label = lv_label_create(text);
     lv_obj_set_width(state->cycle_label, LV_PCT(100));
     lv_obj_set_style_text_align(state->cycle_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(state->cycle_label,

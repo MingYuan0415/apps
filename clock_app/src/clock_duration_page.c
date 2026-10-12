@@ -113,6 +113,8 @@ static void _duration_mount(const app_manager_page_context_t *context)
     }
     _duration_build_options();
     app_ui_page_create(&state->page, "自定义时长", true);
+    lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
+    lv_obj_set_scrollable(state->page.content, false);
 
     lv_obj_t *pick_row = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(pick_row);
