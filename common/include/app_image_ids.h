@@ -63,6 +63,7 @@
 #define APP_IMAGE_HOME_RECORDER               0x5770U
 #define APP_IMAGE_HOME_LEVEL                  0x5771U
 #define APP_IMAGE_HOME_SETTINGS               0x5772U
+#define APP_IMAGE_HOME_CLOCK                  0x5773U
 
 /* Shared app_ui glyph set: 0x5780-0x57BF reserved for common-owned assets.
  * Baked in the neutral INK color and recolored at runtime. */

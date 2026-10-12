@@ -699,7 +699,7 @@ static void _home_build_dock(home_page_state_t *state, lv_obj_t *content)
         const char *app_id;
     } entries[] =
     {
-        { APP_IMAGE_CLOCK_ICON,      LV_SYMBOL_BELL,     "时钟",  APP_MANAGER_ID_CLOCK },
+        { APP_IMAGE_HOME_CLOCK,      LV_SYMBOL_BELL,     "时钟",  APP_MANAGER_ID_CLOCK },
         { APP_IMAGE_HOME_RECORDER,   LV_SYMBOL_AUDIO,    "录音",  APP_MANAGER_ID_RECORDER },
         { APP_IMAGE_HOME_LEVEL,      LV_SYMBOL_SHUFFLE,  "水平仪", APP_MANAGER_ID_LEVEL },
         { APP_IMAGE_HOME_SETTINGS,   LV_SYMBOL_SETTINGS, "设置",  APP_MANAGER_ID_SETTINGS },
