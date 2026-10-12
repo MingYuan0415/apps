@@ -157,7 +157,8 @@ static lv_obj_t *_weather_alert_add_action(weather_alerts_state_t *state,
                    alert->status[0] != '\0' ? alert->status : "状态未知",
                    start[0] != '\0' ? start : "未提供",
                    end[0] != '\0' ? end : "未提供");
-    lv_obj_t *subtitle = weather_ui_text_label(content, APP_THEME_FONT_BODY);
+    lv_obj_t *subtitle = weather_ui_text_label(content,
+                         APP_THEME_FONT_SMALL);
     lv_obj_set_width(subtitle, LV_PCT(100));
     lv_label_set_long_mode(subtitle, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(subtitle, lv_color_hex(WEATHER_COLOR_MUTED),
