@@ -274,8 +274,8 @@ static void _weather_forecast_render_hourly(weather_forecast_state_t *state)
         weather_ui_format_time(&hour->forecast_at, "%m-%d\n%H:%M", text,
                                sizeof(text));
         lv_obj_t *time = weather_ui_text_label(row, APP_THEME_FONT_BODY);
-        lv_obj_set_size(time, 58, LV_SIZE_CONTENT);
-        lv_label_set_long_mode(time, LV_LABEL_LONG_WRAP);
+        lv_obj_set_size(time, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_label_set_long_mode(time, LV_LABEL_LONG_CLIP);
         lv_obj_set_style_text_color(time, lv_color_hex(WEATHER_COLOR_MUTED),
                                     0);
         lv_label_set_text(time, text[0] != '\0' ? text : "--:--");
