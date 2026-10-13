@@ -1,5 +1,4 @@
 #define DBG_TAG "clock_app"
-#define DBG_LVL DBG_INFO
 #include "mt_log.h"
 
 #include "clock_app_internal.h"

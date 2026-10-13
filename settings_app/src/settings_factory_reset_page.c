@@ -1,5 +1,4 @@
 #define DBG_TAG "settings_factory_reset"
-#define DBG_LVL DBG_INFO
 #include "mt_log.h"
 
 #include "settings_factory_reset_page.h"

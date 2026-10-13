@@ -1,5 +1,4 @@
 #define DBG_TAG "level_persistence"
-#define DBG_LVL DBG_INFO
 #include "mt_log.h"
 
 #include "level_app_persistence.h"

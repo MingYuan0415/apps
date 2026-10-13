@@ -1,5 +1,4 @@
 #define DBG_TAG "home_app"
-#define DBG_LVL DBG_INFO
 #include "mt_log.h"
 
 #include "app_image_ids.h"

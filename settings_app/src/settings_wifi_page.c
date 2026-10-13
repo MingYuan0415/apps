@@ -1,5 +1,4 @@
 #define DBG_TAG "settings_wifi"
-#define DBG_LVL DBG_INFO
 
 /* The worker applies toggle requests asynchronously; the switches hold the
  * user's intent until the snapshot catches up, and a wall-clock deadline

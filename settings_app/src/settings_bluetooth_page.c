@@ -1,5 +1,4 @@
 #define DBG_TAG "settings_bluetooth"
-#define DBG_LVL DBG_INFO
 #include "mt_log.h"
 
 #include "settings_app_internal.h"
