@@ -466,12 +466,18 @@ static void _weather_root_build(weather_root_state_t *state)
 
     lv_obj_t *visual = weather_ui_container(hero, 112, LV_FLEX_FLOW_ROW);
     lv_obj_set_width(visual, 112);
+    /* The image and its fallback are mutually exclusive and share this box:
+     * center whichever is visible through the flex alignment. Calling
+     * lv_obj_center() on a flex child is ignored, which left the no-data
+     * glyph pinned to the left. */
+    lv_obj_set_flex_align(visual, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
     state->main_image = lv_image_create(visual);
     lv_obj_set_size(state->main_image, 112, 112);
     state->image_fallback = weather_ui_symbol_label(visual);
     lv_obj_set_style_text_color(state->image_fallback,
                                 lv_color_hex(WEATHER_COLOR_SUN), 0);
-    lv_obj_center(state->image_fallback);
+    lv_obj_set_hidden(state->image_fallback, true);
     lv_label_set_text(state->image_fallback, LV_SYMBOL_IMAGE);
 
     state->status_label = weather_ui_text_label(state->page.content,

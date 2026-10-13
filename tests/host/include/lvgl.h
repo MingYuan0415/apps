@@ -240,6 +240,7 @@ APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_color, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_image_recolor, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_image_recolor_opa, lv_obj_t *, int, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_line_space, lv_obj_t *, int32_t, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_max_height, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_4(lv_obj_align, lv_obj_t *, int, int32_t, int32_t)
 APPS_HOST_LV_NOOP_4(lv_obj_set_flex_align, lv_obj_t *, int, int, int)
 

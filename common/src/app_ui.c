@@ -15,6 +15,8 @@
 
 /* ~70% black scrim behind a modal bottom sheet. */
 #define APP_UI_SHEET_SCRIM_OPA 179
+/* A sheet's action list is unbounded; cap the panel and scroll the excess. */
+#define APP_UI_SHEET_MAX_HEIGHT 400
 
 /* One-line height for a grouped value; bounds DOT truncation so a long value
  * ellipsizes inside the row instead of wrapping or overflowing. */
@@ -1174,6 +1176,7 @@ lv_obj_t *app_ui_sheet_open(lv_obj_t *parent, const char *title,
     lv_obj_remove_style_all(panel);
     lv_obj_set_width(panel, LV_PCT(100));
     lv_obj_set_height(panel, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_height(panel, APP_UI_SHEET_MAX_HEIGHT, 0);
     lv_obj_align(panel, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     lv_obj_set_style_bg_color(panel, lv_color_hex(COLOR_SHEET), 0);
     lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
@@ -1188,7 +1191,9 @@ lv_obj_t *app_ui_sheet_open(lv_obj_t *parent, const char *title,
                           LV_FLEX_ALIGN_START);
     /* Keep taps on the panel from falling through to the scrim. */
     lv_obj_set_clickable(panel, true);
-    lv_obj_set_scrollable(panel, false);
+    lv_obj_set_scrollable(panel, true);
+    lv_obj_set_scroll_dir(panel, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(panel, LV_SCROLLBAR_MODE_AUTO);
 
     lv_obj_t *title_label = lv_label_create(panel);
     if (title_label != NULL)
