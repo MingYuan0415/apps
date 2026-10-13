@@ -119,7 +119,9 @@ static void _duration_mount(const app_manager_page_context_t *context)
     lv_obj_t *pick_row = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(pick_row);
     lv_obj_set_width(pick_row, LV_PCT(100));
-    lv_obj_set_height(pick_row, 108);
+    /* Three visible rows make the roller taller than the previous guessed
+     * 108 px, so the fixed row clipped it.  Take the height from the roller. */
+    lv_obj_set_height(pick_row, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(pick_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(pick_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
