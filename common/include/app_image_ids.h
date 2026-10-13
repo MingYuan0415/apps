@@ -58,6 +58,7 @@
 #define APP_IMAGE_RECORDER_ICON               0x5765U
 #define APP_IMAGE_LEVEL_ICON                  0x5766U
 #define APP_IMAGE_DIAGNOSTICS_ICON            0x5767U
+#define APP_IMAGE_CALENDAR_ICON               0x5768U
 
 /* Home tile glyphs: 0x5770-0x577F reserved for home_app-owned assets. */
 #define APP_IMAGE_HOME_RECORDER               0x5770U

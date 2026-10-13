@@ -187,3 +187,16 @@ target_link_libraries(level_math_test PRIVATE m)
 configure_apps_host_target(level_math_test)
 
 add_apps_host_test(level_math_test level_math_test)
+
+add_executable(calendar_math_test
+    calendar_math_test.c
+    ../../calendar_app/src/calendar_math.c
+)
+
+target_include_directories(calendar_math_test PRIVATE
+    ../../calendar_app/src
+)
+
+configure_apps_host_target(calendar_math_test)
+
+add_apps_host_test(calendar_math_test calendar_math_test)

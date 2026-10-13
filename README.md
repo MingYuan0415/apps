@@ -11,6 +11,7 @@
 选中时长与运行会话；专注支持周期模式。
 - `recorder_app/`：双声道录音主页与文件页；删除在页内底部面板中二次确认；录制、播放、删除与 `.part` finalize 全部经由
 `recorder_service` worker，页面只提交命令并轮询 generation 快照。
+- `calendar_app/`：公历月历页，只读取 `time_service` 本地时间与质量；提供上月/下月/今天导航、7 列日期网格与选中日期信息（星期、ISO 周号、年内第几天）。今日用 accent tint、选中日用 accent 描边区分；跨日由自有 1 s 定时器跟随，网格按显示月份重建，页面单屏不滚动。
 - `level_app/`：IMU 气泡水平仪；校准偏移经 `chore_service` 短任务读写并跨挂载保留，
 恢复出厂后重载为零。
 - `diagnostics_app/`：硬件自检页，由设置页五次点击入口打开，`HIDDEN` 标志使其不出现在普通应用目录。

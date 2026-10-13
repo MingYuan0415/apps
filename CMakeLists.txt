@@ -16,6 +16,8 @@ set(APP_SRCS
     "level_app/src/level_app.c"
     "level_app/src/level_app_persistence.c"
     "level_app/src/level_math.c"
+    "calendar_app/src/calendar_app.c"
+    "calendar_app/src/calendar_math.c"
     "diagnostics_app/src/diagnostics_app.c"
     "weather_app/src/weather_app.c"
     "weather_app/src/weather_ui.c"
@@ -45,6 +47,7 @@ idf_component_register(
         "settings_app/src"
         "recorder_app/src"
         "level_app/src"
+        "calendar_app/src"
     WHOLE_ARCHIVE
     REQUIRES
         esp_common
