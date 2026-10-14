@@ -1,41 +1,7 @@
-# MicroTech built-in applications. Keep this list explicit so test fixtures can
-# never become production registrations through a recursive glob.
-set(APP_SRCS
-    "common/src/app_ui.c"
-    "common/src/app_ui_pull_refresh.c"
-    "common/src/apps_persistence.c"
-    "common/src/app_weather_ui.c"
-    "home_app/src/home_app.c"
-    "clock_app/src/clock_app.c"
-    "clock_app/src/clock_countdown_page.c"
-    "clock_app/src/clock_duration_page.c"
-    "clock_app/src/clock_stopwatch_page.c"
-    "clock_app/src/clock_focus_page.c"
-    "recorder_app/src/recorder_app.c"
-    "recorder_app/src/recorder_files_page.c"
-    "level_app/src/level_app.c"
-    "level_app/src/level_app_persistence.c"
-    "level_app/src/level_math.c"
-    "calendar_app/src/calendar_app.c"
-    "calendar_app/src/calendar_math.c"
-    "calculator_app/src/calculator_app.c"
-    "calculator_app/src/calculator_math.c"
-    "diagnostics_app/src/diagnostics_app.c"
-    "weather_app/src/weather_app.c"
-    "weather_app/src/weather_ui.c"
-    "weather_app/src/weather_root_page.c"
-    "weather_app/src/weather_forecast_page.c"
-    "weather_app/src/weather_alert_pages.c"
-    "menu_app/src/menu_app.c"
-    "settings_app/src/settings_app.c"
-    "settings_app/src/settings_display_page.c"
-    "settings_app/src/settings_wifi_page.c"
-    "settings_app/src/settings_bluetooth_page.c"
-    "settings_app/src/settings_device_page.c"
-    "settings_app/src/settings_factory_reset_page.c"
-    "setup_app/src/setup_app.c"
-    "setup_app/src/setup_wifi_adapter.c"
-)
+# MicroTech built-in applications. The source list lives in app_sources.cmake,
+# shared with the simulator and the cross-layer integration suite, so a new App
+# is one edit there and never a copy in each consumer.
+include("${CMAKE_CURRENT_LIST_DIR}/app_sources.cmake")
 
 idf_component_register(
     SRCS ${APP_SRCS}
@@ -44,13 +10,7 @@ idf_component_register(
         "common/include"
         "setup_app/src"
     PRIV_INCLUDE_DIRS
-        "menu_app/src"
-        "clock_app/src"
-        "settings_app/src"
-        "recorder_app/src"
-        "level_app/src"
-        "calendar_app/src"
-        "calculator_app/src"
+        ${APP_SRC_INCLUDE_DIRS}
     WHOLE_ARCHIVE
     REQUIRES
         esp_common

@@ -7,10 +7,11 @@ exactly-once completion, durable-reset request failure and retry, successful
 request de-duplication, Wi-Fi session and operation filtering, callback delivery,
 and retryable teardown.
 
-The suite also compiles the hardware-independent logic modules on their own:
-`level_math` (tilt angles and calibration), `calendar_math` (Gregorian
-conversions and month grids), and `calculator_math` (entry editing, left-to-right
-evaluation, division-by-zero and overflow recovery, display formatting).
+The suite also compiles each App's hardware-independent logic module on its own
+(every `add_apps_host_test` target in this directory's `CMakeLists.txt`): tilt
+angles and calibration, Gregorian calendar conversions, and calculator entry
+editing, evaluation and display formatting. Add the new module there — the list
+is a sample, not the registration point.
 
 Run the normal profile from the repository root:
 

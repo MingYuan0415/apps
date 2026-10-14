@@ -19,7 +19,7 @@
 - `settings_app/`：分组列表（显示/连接/系统）；提供亮度、固定熄屏/待机延迟选项、电源详情、连接管理、时间状态、SD 存储状态、运行时固件描述及恢复出厂设置确认页。忘记网络与解绑在页内底部面板中二次确认；恢复请求只有在 reset journal 持久化成功后才进入不可重复点击的重启等待状态；保存失败时页面保留并允许重试。
 - `setup_app/`：开启限时 BLE 绑定窗口，显示六位 Numeric Comparison 并在本机确认，同时管理已保存网络的断开、重连、自动连接和忘记操作；网络选择与密码输入在手机侧完成，设备只显示六位 Numeric Comparison 并本机确认。
 - `weather_app/`：展示当前天气、预警、24 小时和 7 日预报，包含预警列表与详情页；只消费 `weather_service` 快照，不执行网络、JSON 或缓存 I/O。
-- `tests/host/`：共用导航、天气图标映射表、恢复出厂确认页、Setup Wi-Fi adapter、apps 持久化，以及水平仪/日历/计算器纯逻辑模块的宿主测试及最小依赖 fake。
+- `tests/host/`：共用导航、天气图标映射表、恢复出厂确认页、Setup Wi-Fi adapter、apps 持久化，以及各 App 纯逻辑模块（`*_math`）的宿主测试及最小依赖 fake；测试目标清单以该目录 `CMakeLists.txt` 的 `add_apps_host_test` 为准。
 
 每个 App 的只读资源必须放在自己的 `assets/` 目录，并在该 App 的
 `resource_manifest.cmake` 中逐条声明；禁止递归 glob。图片资源以 SVG 为唯一入库源
@@ -54,7 +54,7 @@ Setup 页的 Wi-Fi 卡片、绑定/断开/忘记/取消/完成/稍后等行图�
 `weather_service_request_refresh()`，设置 Wi-Fi 页复用扫描请求；拖动起点落在可点击行上时
 交给行/滚动，不触发下拉。控制中心顶部 20 px 下拉仍归控制中心。
 
-每个应用以普通 `const` Page definition 描述 typed ops 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。App descriptor（`APP_MANAGER_APP_EXPORT` 及其 `APP_MANAGER_APP_EXPORT_META` 变体）进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。新增应用时应在独立目录中实现生命周期 ops，并显式加入根 `CMakeLists.txt` 的 `APP_SRCS`，同时提供图标 manifest，不要使用递归 glob。
+每个应用以普通 `const` Page definition 描述 typed ops 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。App descriptor（`APP_MANAGER_APP_EXPORT` 及其 `APP_MANAGER_APP_EXPORT_META` 变体）进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。新增应用时应在独立目录中实现生命周期 ops，并把源文件加入本层的 `app_sources.cmake`（固件组件、sim 与 `tests/integration` 共用这一份清单，不在各处重复声明），同时提供图标 manifest，不要使用递归 glob；`tests/docs/test_app_registration.py` 会校验每条源文件都在清单内、消费方没有各自复制清单。
 
 页面只声明实际需要的生命周期阶段，无需为未使用阶段编写空回调。例如静态页面只需
 `.mount` 和 `.unmount`；需要前台刷新时再增加 `.resume` 和 `.pause`；需要跨挂载周期保留
@@ -96,7 +96,7 @@ cmake --build /tmp/mt-apps-host
 ctest --test-dir /tmp/mt-apps-host --output-on-failure
 ```
 
-`APPS_SANITIZER` 还支持 `address`（ASan/UBSan）和 `thread`（TSan）。当前宿主测试验证 RUN/BACK/OPEN_PAGE 请求、统一命令池准入失败、ID 值复制、completion 恰好一次、天气图标映射表覆盖全部 20 个主图与 20 个小图资源且无死资源、恢复出厂确认页的失败重试与成功防重复、level 校准 save/load 与恢复出厂清除，以及保存网络操作过滤、快照回调和取消清理；不替代 ESP32-S3 上的界面、Numeric Comparison 确认、BLE、无线和内存验证。
+`APPS_SANITIZER` 还支持 `address`（ASan/UBSan）和 `thread`（TSan）。当前宿主测试验证 RUN/BACK/OPEN_PAGE 请求、统一命令池准入失败、ID 值复制、completion 恰好一次、天气图标映射表覆盖全部主图与小图资源且无死资源、恢复出厂确认页的失败重试与成功防重复、level 校准 save/load 与恢复出厂清除，以及保存网络操作过滤、快照回调和取消清理；不替代 ESP32-S3 上的界面、Numeric Comparison 确认、BLE、无线和内存验证。
 
 音频、存储和时钟 worker adapter 的故障恢复测试，以及产品页面的跨层生命周期测试位于主工程 `tests/integration/`，通过 `CROSS_LAYER_SANITIZER` 分别运行普通、ASan/UBSan 和 TSan 配置。
 
