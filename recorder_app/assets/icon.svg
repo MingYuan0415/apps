@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- MicroTech app icon: dark-theme geometric glyph, transparent base. -->
+<!-- Shared icon rule: the launcher draws this 64 px source 1:1 inside a 40 px
+     window, so every art element stays inside the centred x,y = 12..52 box. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <path d="M14 26 V38" stroke="#F2F5F6" stroke-width="4" stroke-linecap="round"/>
-  <path d="M23 20 V44" stroke="#F2F5F6" stroke-width="4" stroke-linecap="round"/>
-  <path d="M32 13 V51" stroke="#FF756C" stroke-width="4" stroke-linecap="round"/>
-  <path d="M41 20 V44" stroke="#F2F5F6" stroke-width="4" stroke-linecap="round"/>
-  <path d="M50 26 V38" stroke="#F2F5F6" stroke-width="4" stroke-linecap="round"/>
+  <path d="M18 27 V37" stroke="#F2F5F6" stroke-width="4" stroke-linecap="round"/>
+  <path d="M25 21 V43" stroke="#F2F5F6" stroke-width="4" stroke-linecap="round"/>
+  <path d="M32 15 V49" stroke="#FF756C" stroke-width="4" stroke-linecap="round"/>
+  <path d="M39 21 V43" stroke="#F2F5F6" stroke-width="4" stroke-linecap="round"/>
+  <path d="M46 27 V37" stroke="#F2F5F6" stroke-width="4" stroke-linecap="round"/>
 </svg>

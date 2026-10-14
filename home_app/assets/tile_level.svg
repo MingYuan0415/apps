@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- MicroTech home tile glyph: rendered at 52 px on a ring button. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
-  <rect x="3" y="8.6" width="18" height="6.8" rx="3.4" stroke="#F2F5F6" stroke-width="2"/>
-  <path d="M9.2 9.6v4.8M14.8 9.6v4.8" stroke="#93A0A6" stroke-width="1.6" stroke-linecap="round"/>
-  <circle cx="12" cy="12" r="1.9" fill="#4FC4D8"/>
+<!-- MicroTech home tile glyph: exported at 40 px for the dock chip, so the
+     geometry uses the same 64 px design box and x,y = 12..51 safe area as the
+     app icons. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect x="14.5" y="27" width="35" height="10" rx="5" stroke="#F2F5F6" stroke-width="3.4"/>
+  <path d="M25 28v8M39 28v8" stroke="#93A0A6" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="4.4" fill="#4FC4D8"/>
 </svg>

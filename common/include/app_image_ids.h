@@ -66,6 +66,9 @@
 #define APP_IMAGE_HOME_LEVEL                  0x5771U
 #define APP_IMAGE_HOME_SETTINGS               0x5772U
 #define APP_IMAGE_HOME_CLOCK                  0x5773U
+/* 28 px ring glyph: the home clock card draws it at 28, so it has its own
+ * record instead of the 40 px dock tiles. */
+#define APP_IMAGE_HOME_RING_CLOCK             0x5774U
 
 /* Shared app_ui glyph set: 0x5780-0x57BF reserved for common-owned assets.
  * Baked in the neutral INK color and recolored at runtime. */

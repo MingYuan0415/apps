@@ -1,16 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- MicroTech app icon: dark-theme geometric glyph, transparent base. -->
-<!-- Launcher and task switcher draw the 64 px source 1:1 inside a smaller
-     window (40 px / 44 px), so every element stays inside the centred
-     x,y = 12..52 box and the glyph is complete without scaling. -->
+<!-- Shared icon rule: the launcher draws this 64 px source 1:1 inside a 40 px
+     window, so every art element stays inside the centred x,y = 13..50 box
+     (one pixel of clearance on all sides). The body outline spans 13..49. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect x="16" y="14" width="32" height="36" rx="9" stroke="#F2F5F6" stroke-width="4"/>
-  <rect x="20" y="20" width="24" height="6" rx="3" fill="#93A0A6"/>
-  <rect x="20" y="29" width="6" height="6" rx="1.5" fill="#93A0A6"/>
-  <rect x="29" y="29" width="6" height="6" rx="1.5" fill="#93A0A6"/>
-  <rect x="38" y="29" width="6" height="6" rx="1.5" fill="#93A0A6"/>
-  <rect x="20" y="38" width="6" height="6" rx="1.5" fill="#93A0A6"/>
-  <rect x="29" y="38" width="6" height="6" rx="1.5" fill="#93A0A6"/>
+  <rect x="17" y="15" width="30" height="32" rx="8" stroke="#F2F5F6" stroke-width="4"/>
+  <rect x="21" y="19" width="22" height="5" rx="2.5" fill="#93A0A6"/>
+  <rect x="21" y="27" width="5" height="5" rx="1.5" fill="#93A0A6"/>
+  <rect x="29" y="27" width="5" height="5" rx="1.5" fill="#93A0A6"/>
+  <rect x="37" y="27" width="5" height="5" rx="1.5" fill="#93A0A6"/>
+  <rect x="21" y="33" width="5" height="5" rx="1.5" fill="#93A0A6"/>
+  <rect x="29" y="33" width="5" height="5" rx="1.5" fill="#93A0A6"/>
+  <rect x="37" y="33" width="5" height="5" rx="1.5" fill="#93A0A6"/>
+  <rect x="21" y="39" width="5" height="5" rx="1.5" fill="#93A0A6"/>
+  <rect x="29" y="39" width="5" height="5" rx="1.5" fill="#93A0A6"/>
   <!-- Bottom-right equals key carries the single accent. -->
-  <rect x="38" y="38" width="6" height="6" rx="1.5" fill="#4FC4D8"/>
+  <rect x="37" y="39" width="5" height="5" rx="1.5" fill="#4FC4D8"/>
 </svg>

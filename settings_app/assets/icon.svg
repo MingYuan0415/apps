@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- MicroTech app icon: dark-theme geometric glyph, transparent base. -->
+<!-- Shared icon rule: the launcher draws this 64 px source 1:1 inside a 40 px
+     window, so every art element stays inside the centred x,y = 13..50 box
+     (one pixel of clearance on all sides). -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <path d="M14 21h36" stroke="#93A0A6" stroke-width="2.8" stroke-linecap="round"/>
-  <path d="M14 21h11" stroke="#F5C451" stroke-width="2.8" stroke-linecap="round"/>
-  <circle cx="25" cy="21" r="5.2" fill="#F5C451"/>
-  <path d="M14 43h36" stroke="#93A0A6" stroke-width="2.8" stroke-linecap="round"/>
-  <path d="M14 43h24" stroke="#4FC4D8" stroke-width="2.8" stroke-linecap="round"/>
-  <circle cx="38" cy="43" r="5.2" fill="#4FC4D8"/>
+  <path d="M15 21h34" stroke="#93A0A6" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M15 21h10.5" stroke="#F5C451" stroke-width="2.8" stroke-linecap="round"/>
+  <circle cx="25.5" cy="21" r="5" fill="#F5C451"/>
+  <path d="M15 43h34" stroke="#93A0A6" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M15 43h23.5" stroke="#4FC4D8" stroke-width="2.8" stroke-linecap="round"/>
+  <circle cx="38.5" cy="43" r="5" fill="#4FC4D8"/>
 </svg>

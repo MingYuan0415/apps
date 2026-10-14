@@ -33,6 +33,13 @@ symbol；新增资源需要同时更新 manifest、语义 ID 和 `tests/resource
 后执行 `idf.py reconfigure`。天气状况图标为 QWeather Icons（MIT）的 `N-fill.svg`
 vendor 源，随附 `weather_app/assets/qweather-icons-LICENSE.txt`。
 
+普通 `lv_image` 按原尺寸绘制、在对象框内居中裁剪且不缩放，因此**图标的图形必须落在
+消费者实际绘制的窗口内**：App 图标 record 为 64，而启动器瓦片只给 40 px、任务切换器
+给 56 px，全部图形须落在居中的 `x,y = 13..50`；主页 dock 瓦片只出现在 40 px 窗口，
+故按 40 导出；主页时钟卡的小环字形只出现在 28 px，单独用 `APP_IMAGE_HOME_RING_CLOCK`
+记录。`tests/resources/test_icon_fit.py` 按语义 ID 记录每个绘制窗口并校验墨迹框，
+新增或改动图标必须让它保持通过。
+
 共享 UI 图标集位于 `common/assets/`，由 `common/resource_manifest.cmake` 登记到
 `APP_IMAGE_UI_*` 语义段，以中性 INK 终色入库，运行时经
 `lv_obj_set_style_image_recolor` 着色；`app_ui_image()` 在图片缺失时回退 LVGL symbol。

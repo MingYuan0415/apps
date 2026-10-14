@@ -649,7 +649,8 @@ static void _home_build_clock_card(home_page_state_t *state, lv_obj_t *content)
     state->clock_ring = _home_ring_arc(card, HOME_CLOCK_RING, 3,
                                        APP_UI_COLOR_SURFACE_HI, true);
     lv_arc_set_rotation(state->clock_ring, 270);
-    _home_ring_glyph(state->clock_ring, APP_IMAGE_CLOCK_ICON, LV_SYMBOL_BELL);
+    _home_ring_glyph(state->clock_ring, APP_IMAGE_HOME_RING_CLOCK,
+                     LV_SYMBOL_BELL);
 
     lv_obj_t *info = lv_obj_create(card);
     lv_obj_remove_style_all(info);
