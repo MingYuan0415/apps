@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- MicroTech app icon: dark-theme geometric glyph, transparent base. -->
+<!-- Launcher and task switcher draw the 64 px source 1:1 inside a smaller
+     window (40 px / 44 px), so every element stays inside the centred
+     x,y = 12..52 box and the glyph is complete without scaling. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect x="16" y="8" width="32" height="48" rx="8" stroke="#F2F5F6" stroke-width="3"/>
-  <rect x="24" y="16" width="16" height="8" rx="3" stroke="#93A0A6" stroke-width="2.4"/>
-  <circle cx="24" cy="32" r="2.6" fill="#93A0A6"/>
-  <circle cx="32" cy="32" r="2.6" fill="#93A0A6"/>
-  <circle cx="40" cy="32" r="2.6" fill="#93A0A6"/>
-  <circle cx="24" cy="40" r="2.6" fill="#93A0A6"/>
-  <circle cx="32" cy="40" r="2.6" fill="#93A0A6"/>
-  <circle cx="40" cy="40" r="2.6" fill="#93A0A6"/>
-  <circle cx="24" cy="48" r="2.6" fill="#93A0A6"/>
-  <circle cx="32" cy="48" r="2.6" fill="#93A0A6"/>
-  <circle cx="40" cy="48" r="2.6" fill="#4FC4D8"/>
+  <rect x="16" y="14" width="32" height="36" rx="9" stroke="#F2F5F6" stroke-width="4"/>
+  <rect x="20" y="20" width="24" height="6" rx="3" fill="#93A0A6"/>
+  <rect x="20" y="29" width="6" height="6" rx="1.5" fill="#93A0A6"/>
+  <rect x="29" y="29" width="6" height="6" rx="1.5" fill="#93A0A6"/>
+  <rect x="38" y="29" width="6" height="6" rx="1.5" fill="#93A0A6"/>
+  <rect x="20" y="38" width="6" height="6" rx="1.5" fill="#93A0A6"/>
+  <rect x="29" y="38" width="6" height="6" rx="1.5" fill="#93A0A6"/>
+  <!-- Bottom-right equals key carries the single accent. -->
+  <rect x="38" y="38" width="6" height="6" rx="1.5" fill="#4FC4D8"/>
 </svg>
