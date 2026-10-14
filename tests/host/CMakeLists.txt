@@ -200,3 +200,17 @@ target_include_directories(calendar_math_test PRIVATE
 configure_apps_host_target(calendar_math_test)
 
 add_apps_host_test(calendar_math_test calendar_math_test)
+
+add_executable(calculator_math_test
+    calculator_math_test.c
+    ../../calculator_app/src/calculator_math.c
+)
+
+target_include_directories(calculator_math_test PRIVATE
+    ../../calculator_app/src
+)
+
+target_link_libraries(calculator_math_test PRIVATE m)
+configure_apps_host_target(calculator_math_test)
+
+add_apps_host_test(calculator_math_test calculator_math_test)

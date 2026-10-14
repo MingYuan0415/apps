@@ -7,6 +7,11 @@ exactly-once completion, durable-reset request failure and retry, successful
 request de-duplication, Wi-Fi session and operation filtering, callback delivery,
 and retryable teardown.
 
+The suite also compiles the hardware-independent logic modules on their own:
+`level_math` (tilt angles and calibration), `calendar_math` (Gregorian
+conversions and month grids), and `calculator_math` (entry editing, left-to-right
+evaluation, division-by-zero and overflow recovery, display formatting).
+
 Run the normal profile from the repository root:
 
 ```sh

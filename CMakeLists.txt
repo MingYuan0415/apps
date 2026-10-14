@@ -18,6 +18,8 @@ set(APP_SRCS
     "level_app/src/level_math.c"
     "calendar_app/src/calendar_app.c"
     "calendar_app/src/calendar_math.c"
+    "calculator_app/src/calculator_app.c"
+    "calculator_app/src/calculator_math.c"
     "diagnostics_app/src/diagnostics_app.c"
     "weather_app/src/weather_app.c"
     "weather_app/src/weather_ui.c"
@@ -48,6 +50,7 @@ idf_component_register(
         "recorder_app/src"
         "level_app/src"
         "calendar_app/src"
+        "calculator_app/src"
     WHOLE_ARCHIVE
     REQUIRES
         esp_common

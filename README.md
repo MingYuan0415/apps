@@ -12,13 +12,14 @@
 - `recorder_app/`：双声道录音主页与文件页；删除在页内底部面板中二次确认；录制、播放、删除与 `.part` finalize 全部经由
 `recorder_service` worker，页面只提交命令并轮询 generation 快照。
 - `calendar_app/`：公历月历页，只读取 `time_service` 本地时间与质量；提供上月/下月/今天导航、7 列日期网格与选中日期信息（星期、ISO 周号、年内第几天）。今日用 accent tint、选中日用 accent 描边区分；跨日由自有 1 s 定时器跟随，网格按显示月份重建，页面单屏不滚动。
+- `calculator_app/`：单页四则运算计算器，静态页面（无 timer/订阅）与固定 5 x 4 键区；表达式行与结果行各自单行右对齐，引擎为纯逻辑模块 `calculator_math`，支持小数点、±、百分号、退格，按运算顺序从左到右求值，除零与溢出进入错误态并由 `C` 或数字键复位。计算过程只存在于页面内存，重新进入应用从 0 开始。
 - `level_app/`：IMU 气泡水平仪；校准偏移经 `chore_service` 短任务读写并跨挂载保留，
 恢复出厂后重载为零。
 - `diagnostics_app/`：硬件自检页，由设置页五次点击入口打开，`HIDDEN` 标志使其不出现在普通应用目录。
 - `settings_app/`：分组列表（显示/连接/系统）；提供亮度、固定熄屏/待机延迟选项、电源详情、连接管理、时间状态、SD 存储状态、运行时固件描述及恢复出厂设置确认页。忘记网络与解绑在页内底部面板中二次确认；恢复请求只有在 reset journal 持久化成功后才进入不可重复点击的重启等待状态；保存失败时页面保留并允许重试。
 - `setup_app/`：开启限时 BLE 绑定窗口，显示六位 Numeric Comparison 并在本机确认，同时管理已保存网络的断开、重连、自动连接和忘记操作；网络选择与密码输入在手机侧完成，设备只显示六位 Numeric Comparison 并本机确认。
 - `weather_app/`：展示当前天气、预警、24 小时和 7 日预报，包含预警列表与详情页；只消费 `weather_service` 快照，不执行网络、JSON 或缓存 I/O。
-- `tests/host/`：共用导航、天气图标映射表、恢复出厂确认页、Setup Wi-Fi adapter 与 apps 持久化的宿主测试及最小依赖 fake。
+- `tests/host/`：共用导航、天气图标映射表、恢复出厂确认页、Setup Wi-Fi adapter、apps 持久化，以及水平仪/日历/计算器纯逻辑模块的宿主测试及最小依赖 fake。
 
 每个 App 的只读资源必须放在自己的 `assets/` 目录，并在该 App 的
 `resource_manifest.cmake` 中逐条声明；禁止递归 glob。图片资源以 SVG 为唯一入库源
