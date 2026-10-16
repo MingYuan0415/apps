@@ -13,6 +13,9 @@ typedef struct lv_font_t
 {
     uint8_t marker;
 } lv_font_t;
+/** @brief Measure one glyph's advance (defined by the text-wrapping test). */
+int32_t lv_font_get_glyph_width(const lv_font_t *font, uint32_t letter,
+                                uint32_t letter_next);
 typedef struct lv_image_dsc_t
 {
     uint32_t marker;
@@ -181,6 +184,16 @@ static inline lv_result_t lv_async_call(void (*callback)(void *),
     (void)user_data;
     return LV_RESULT_OK;
 }
+/** @brief Resolve an object's layout (no-op in layout-only host tests). */
+void lv_obj_update_layout(lv_obj_t *object);
+/** @brief Content width of a fake object, in pixels. */
+int32_t lv_obj_get_content_width(const lv_obj_t *object);
+/** @brief Return the fake object's text font. */
+const lv_font_t *lv_obj_get_style_text_font(const lv_obj_t *object,
+        int selector);
+/** @brief Return the fake object's text letter spacing. */
+int32_t lv_obj_get_style_text_letter_space(const lv_obj_t *object,
+        int selector);
 /** @brief Set fake label text. */
 void lv_label_set_text(lv_obj_t *label, const char *text);
 /** @brief Return fake label text. */

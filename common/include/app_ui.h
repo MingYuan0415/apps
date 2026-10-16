@@ -2,6 +2,7 @@
 #define __APP_UI_H__
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "app_manager.h"
 #include "lvgl.h"
@@ -479,6 +480,36 @@ lv_obj_t *app_ui_add_switch_row(lv_obj_t *parent, const char *title,
  * @return Created label object.
  */
 lv_obj_t *app_ui_add_body_label(lv_obj_t *parent, const char *text);
+/**
+ * @brief Wrap prose so no line opens with a closing mark or ends with an
+ *        opening one (CJK kinsoku).
+ *
+ * LVGL offers no such rule, so the line breaks are decided here and the result
+ * carries explicit newlines. Breaks land only where LVGL's own wrapping would
+ * accept one: between CJK clusters, or at a space, never inside a Latin word.
+ * @param out receives the wrapped text, always NUL terminated.
+ * @param out_size is the capacity of @p out in bytes.
+ * @param text is the NUL terminated prose.
+ * @param font is the font the text is measured with.
+ * @param letter_space is the extra advance added per glyph.
+ * @param max_width is the line width in pixels; non-positive disables wrapping.
+ * @return bytes written, or 0 when @p out is too small for the wrapped text or
+ *         the arguments do not allow wrapping (the caller keeps the original).
+ */
+size_t app_ui_wrap_prose(char *out, size_t out_size, const char *text,
+                         const lv_font_t *font, int32_t letter_space,
+                         int32_t max_width);
+/**
+ * @brief Set prose on a wrapped label, breaking lines with the label's own
+ *        width, font and letter spacing.
+ * @param label is a label already configured with a bounded width and
+ *        `LV_LABEL_LONG_WRAP`.
+ * @param text is the prose; NULL or empty clears the label.
+ * @param scratch is the caller's buffer for the wrapped text.
+ * @param scratch_size is the capacity of @p scratch in bytes.
+ */
+void app_ui_set_prose_text(lv_obj_t *label, const char *text,
+                           char *scratch, size_t scratch_size);
 /**
  * @brief Update label text and apply a semantic status color.
  * @param label is the LVGL label to update.

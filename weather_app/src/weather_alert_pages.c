@@ -367,12 +367,17 @@ static void _weather_alert_detail_render(weather_alert_detail_state_t *state)
                    start[0] != '\0' ? start : "未提供",
                    end[0] != '\0' ? end : "未提供");
     lv_label_set_text(state->period_value, period);
-    lv_label_set_text(state->description_value,
-                      alert->description[0] != '\0' ?
-                      alert->description : "暂无说明");
-    lv_label_set_text(state->instruction_value,
-                      alert->instruction[0] != '\0' ?
-                      alert->instruction : "暂无建议");
+    /* Both bodies are free prose: let the wrapper place the line breaks so no
+     * line opens with a closing mark. */
+    char prose[WEATHER_SERVICE_ALERT_TEXT_BYTES + 128U];
+    app_ui_set_prose_text(state->description_value,
+                          alert->description[0] != '\0' ?
+                          alert->description : "暂无说明",
+                          prose, sizeof(prose));
+    app_ui_set_prose_text(state->instruction_value,
+                          alert->instruction[0] != '\0' ?
+                          alert->instruction : "暂无建议",
+                          prose, sizeof(prose));
     if (alert->content_truncated)
     {
         lv_obj_set_hidden(state->truncated_label, false);

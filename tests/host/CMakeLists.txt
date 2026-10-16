@@ -214,3 +214,20 @@ target_link_libraries(calculator_math_test PRIVATE m)
 configure_apps_host_target(calculator_math_test)
 
 add_apps_host_test(calculator_math_test calculator_math_test)
+
+add_executable(app_ui_text_test
+    app_ui_text_test.c
+    ../../common/src/app_ui_text.c
+)
+
+target_include_directories(app_ui_text_test PRIVATE
+    include
+    ../../common/include
+    ../../../app_manager/app_core/include
+    ../../../app_manager/app_theme/include
+)
+
+target_compile_definitions(app_ui_text_test PRIVATE _GNU_SOURCE)
+configure_apps_host_target(app_ui_text_test)
+
+add_apps_host_test(app_ui_text_test app_ui_text_test)

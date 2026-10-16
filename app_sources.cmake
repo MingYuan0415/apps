@@ -11,6 +11,7 @@
 # become production registrations by accident.
 set(APP_SRCS
     "common/src/app_ui.c"
+    "common/src/app_ui_text.c"
     "common/src/app_ui_pull_refresh.c"
     "common/src/apps_persistence.c"
     "common/src/app_weather_ui.c"
