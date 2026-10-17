@@ -535,7 +535,13 @@ static void _home_build_status(home_page_state_t *state, lv_obj_t *content)
 
     state->battery_status = _home_label(status, "--", APP_THEME_FONT_BODY,
                                         APP_UI_COLOR_MUTED);
-    lv_obj_set_width(state->battery_status, 48);
+    /* Stable width from the longest reading ("100%") measured with the live
+     * theme font; a fixed 48 px clipped the leading digit at 100%. */
+    lv_point_t battery_size;
+    lv_text_get_size(&battery_size, "100%",
+                     app_ui_font(APP_THEME_FONT_BODY), 0, 0,
+                     LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_obj_set_width(state->battery_status, battery_size.x + 4);
     lv_obj_set_style_text_align(state->battery_status, LV_TEXT_ALIGN_RIGHT, 0);
     lv_label_set_long_mode(state->battery_status, LV_LABEL_LONG_CLIP);
 }
