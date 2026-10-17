@@ -35,6 +35,80 @@
 #define CALENDAR_TODAY_OPA         LV_OPA_20
 #define CALENDAR_RING_OPA          LV_OPA_40
 
+static lv_style_t s_nav;
+static lv_style_t s_nav_button;
+static lv_style_t s_weekday_row;
+static lv_style_t s_month_label;
+static lv_style_t s_weekday_label;
+static lv_style_t s_grid;
+static lv_style_t s_grid_line;
+static lv_style_t s_detail_label;
+static lv_style_t s_cell_base;
+static lv_style_t s_cell_today;
+static lv_style_t s_cell_selected;
+static lv_style_t s_cell_pressed;
+static bool s_styles_ready;
+
+static void _calendar_styles_init(void)
+{
+    if (s_styles_ready)
+    {
+        return;
+    }
+    lv_style_init(&s_nav);
+    lv_style_set_pad_column(&s_nav, 8);
+
+    lv_style_init(&s_nav_button);
+    lv_style_set_radius(&s_nav_button, 6);
+    lv_style_set_bg_color(&s_nav_button, lv_color_hex(CALENDAR_COLOR_SURFACE));
+    lv_style_set_shadow_width(&s_nav_button, 0);
+
+    lv_style_init(&s_weekday_row);
+    lv_style_set_pad_column(&s_weekday_row, CALENDAR_GRID_COLUMN_GAP);
+
+    lv_style_init(&s_month_label);
+    lv_style_set_text_align(&s_month_label, LV_TEXT_ALIGN_CENTER);
+    lv_style_set_text_color(&s_month_label, lv_color_hex(CALENDAR_COLOR_TEXT));
+
+    lv_style_init(&s_weekday_label);
+    lv_style_set_text_align(&s_weekday_label, LV_TEXT_ALIGN_CENTER);
+    lv_style_set_text_color(&s_weekday_label, lv_color_hex(CALENDAR_COLOR_MUTED));
+
+    lv_style_init(&s_grid);
+    lv_style_set_pad_row(&s_grid, CALENDAR_GRID_ROW_GAP);
+
+    lv_style_init(&s_grid_line);
+    lv_style_set_pad_column(&s_grid_line, CALENDAR_GRID_COLUMN_GAP);
+
+    lv_style_init(&s_detail_label);
+    lv_style_set_text_align(&s_detail_label, LV_TEXT_ALIGN_CENTER);
+    lv_style_set_text_color(&s_detail_label, lv_color_hex(CALENDAR_COLOR_TEXT));
+
+    lv_style_init(&s_cell_base);
+    lv_style_set_radius(&s_cell_base, 8);
+    lv_style_set_shadow_width(&s_cell_base, 0);
+    lv_style_set_pad_all(&s_cell_base, 0);
+    lv_style_set_border_width(&s_cell_base, 0);
+    lv_style_set_bg_opa(&s_cell_base, LV_OPA_TRANSP);
+
+    lv_style_init(&s_cell_today);
+    lv_style_set_bg_color(&s_cell_today, lv_color_hex(CALENDAR_COLOR_ACCENT));
+    lv_style_set_bg_opa(&s_cell_today, CALENDAR_TODAY_OPA);
+
+    lv_style_init(&s_cell_selected);
+    lv_style_set_border_width(&s_cell_selected, 1);
+    lv_style_set_border_color(&s_cell_selected,
+                              lv_color_hex(CALENDAR_COLOR_ACCENT));
+    lv_style_set_border_opa(&s_cell_selected, CALENDAR_RING_OPA);
+
+    lv_style_init(&s_cell_pressed);
+    lv_style_set_bg_color(&s_cell_pressed,
+                          lv_color_hex(CALENDAR_COLOR_SURFACE_HI));
+    lv_style_set_bg_opa(&s_cell_pressed, LV_OPA_COVER);
+
+    s_styles_ready = true;
+}
+
 typedef struct calendar_page_state
 {
     app_ui_page_t page;
@@ -92,12 +166,16 @@ static void _calendar_style_cell(calendar_page_state_t *state, size_t index)
                           day == state->today_day;
     const bool is_selected = day == state->selected_day;
 
-    lv_obj_set_style_bg_color(cell, lv_color_hex(CALENDAR_COLOR_ACCENT), 0);
-    lv_obj_set_style_bg_opa(cell, is_today ? CALENDAR_TODAY_OPA : LV_OPA_TRANSP,
-                            0);
-    lv_obj_set_style_border_width(cell, is_selected ? 1 : 0, 0);
-    lv_obj_set_style_border_color(cell, lv_color_hex(CALENDAR_COLOR_ACCENT), 0);
-    lv_obj_set_style_border_opa(cell, CALENDAR_RING_OPA, 0);
+    lv_obj_remove_style(cell, &s_cell_today, 0);
+    lv_obj_remove_style(cell, &s_cell_selected, 0);
+    if (is_today)
+    {
+        lv_obj_add_style(cell, &s_cell_today, 0);
+    }
+    if (is_selected)
+    {
+        lv_obj_add_style(cell, &s_cell_selected, 0);
+    }
 }
 
 static void _calendar_apply_cell_styles(calendar_page_state_t *state)
@@ -175,7 +253,7 @@ static void _calendar_rebuild_grid(calendar_page_state_t *state)
         lv_obj_set_flex_flow(line, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(line, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_column(line, CALENDAR_GRID_COLUMN_GAP, 0);
+        lv_obj_add_style(line, &s_grid_line, 0);
         app_ui_make_passive(line, false);
 
         for (int column = 0; column < CALENDAR_MATH_COLUMNS; column++)
@@ -192,15 +270,8 @@ static void _calendar_rebuild_grid(calendar_page_state_t *state)
             lv_obj_set_width(cell, 0);
             lv_obj_set_flex_grow(cell, 1);
             lv_obj_set_height(cell, LV_PCT(100));
-            lv_obj_set_style_radius(cell, 8, 0);
-            lv_obj_set_style_shadow_width(cell, 0, 0);
-            lv_obj_set_style_pad_all(cell, 0, 0);
-            lv_obj_set_style_border_width(cell, 0, 0);
-            lv_obj_set_style_bg_opa(cell, LV_OPA_TRANSP, 0);
-            lv_obj_set_style_bg_color(cell,
-                                      lv_color_hex(CALENDAR_COLOR_SURFACE_HI),
-                                      LV_STATE_PRESSED);
-            lv_obj_set_style_bg_opa(cell, LV_OPA_COVER, LV_STATE_PRESSED);
+            lv_obj_add_style(cell, &s_cell_base, 0);
+            lv_obj_add_style(cell, &s_cell_pressed, LV_STATE_PRESSED);
             lv_obj_set_user_data(cell, (void *)(intptr_t)day);
             state->cells[index] = cell;
             state->cell_count = index + 1U;
@@ -405,11 +476,8 @@ static lv_obj_t *_calendar_make_button(lv_obj_t *row, int32_t width,
     }
     app_ui_click_only(button);
     lv_obj_set_size(button, width, CALENDAR_NAV_HEIGHT);
-    lv_obj_set_style_radius(button, 6, 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(CALENDAR_COLOR_SURFACE), 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(CALENDAR_COLOR_SURFACE_HI),
-                              LV_STATE_PRESSED);
-    lv_obj_set_style_shadow_width(button, 0, 0);
+    lv_obj_add_style(button, &s_nav_button, 0);
+    lv_obj_add_style(button, &s_cell_pressed, LV_STATE_PRESSED);
     if (callback != NULL)
     {
         lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
@@ -436,7 +504,7 @@ static void _calendar_build_nav(calendar_page_state_t *state)
     lv_obj_set_flex_flow(nav, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(nav, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(nav, 8, 0);
+    lv_obj_add_style(nav, &s_nav, 0);
     app_ui_make_passive(nav, false);
 
     (void)_calendar_make_button(nav, CALENDAR_NAV_BUTTON_WIDTH, LV_SYMBOL_LEFT,
@@ -448,12 +516,9 @@ static void _calendar_build_nav(calendar_page_state_t *state)
         lv_obj_set_width(state->month_label, 0);
         lv_obj_set_flex_grow(state->month_label, 1);
         lv_label_set_long_mode(state->month_label, LV_LABEL_LONG_DOT);
-        lv_obj_set_style_text_align(state->month_label, LV_TEXT_ALIGN_CENTER,
-                                    0);
+        lv_obj_add_style(state->month_label, &s_month_label, 0);
         lv_obj_set_style_text_font(state->month_label,
                                    app_ui_font(APP_THEME_FONT_HEAD), 0);
-        lv_obj_set_style_text_color(state->month_label,
-                                    lv_color_hex(CALENDAR_COLOR_TEXT), 0);
         lv_label_set_text(state->month_label, "--");
     }
 
@@ -472,7 +537,7 @@ static void _calendar_build_weekdays(calendar_page_state_t *state)
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(row, CALENDAR_GRID_COLUMN_GAP, 0);
+    lv_obj_add_style(row, &s_weekday_row, 0);
     app_ui_make_passive(row, false);
 
     for (int weekday = 0; weekday < CALENDAR_MATH_COLUMNS; weekday++)
@@ -484,10 +549,8 @@ static void _calendar_build_weekdays(calendar_page_state_t *state)
         }
         lv_obj_set_width(label, 0);
         lv_obj_set_flex_grow(label, 1);
-        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_add_style(label, &s_weekday_label, 0);
         lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_SMALL), 0);
-        lv_obj_set_style_text_color(label, lv_color_hex(CALENDAR_COLOR_MUTED),
-                                    0);
         lv_label_set_text(label, _calendar_weekday_text(weekday));
     }
 }
@@ -504,7 +567,7 @@ static void _calendar_build_body(calendar_page_state_t *state)
     lv_obj_set_flex_flow(state->grid, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(state->grid, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_START);
-    lv_obj_set_style_pad_row(state->grid, CALENDAR_GRID_ROW_GAP, 0);
+    lv_obj_add_style(state->grid, &s_grid, 0);
     app_ui_make_passive(state->grid, false);
 
     state->detail_label = lv_label_create(state->page.content);
@@ -512,12 +575,9 @@ static void _calendar_build_body(calendar_page_state_t *state)
     {
         lv_obj_set_width(state->detail_label, LV_PCT(100));
         lv_label_set_long_mode(state->detail_label, LV_LABEL_LONG_DOT);
-        lv_obj_set_style_text_align(state->detail_label, LV_TEXT_ALIGN_CENTER,
-                                    0);
+        lv_obj_add_style(state->detail_label, &s_detail_label, 0);
         lv_obj_set_style_text_font(state->detail_label,
                                    app_ui_font(APP_THEME_FONT_SMALL), 0);
-        lv_obj_set_style_text_color(state->detail_label,
-                                    lv_color_hex(CALENDAR_COLOR_TEXT), 0);
         lv_label_set_text(state->detail_label, "");
     }
 }
@@ -526,6 +586,7 @@ static void _calendar_mount(const app_manager_page_context_t *context)
 {
     calendar_page_state_t *state = context->state;
     memset(state, 0, sizeof(*state));
+    _calendar_styles_init();
     app_ui_page_create(&state->page, "日历", true);
     /* Six grid rows plus the header and detail line always fit one screen, so
      * the page never scrolls. */

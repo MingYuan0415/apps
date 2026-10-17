@@ -17,6 +17,11 @@ typedef struct lv_image_dsc_t
 {
     uint32_t marker;
 } lv_image_dsc_t;
+/** @brief Opaque fake LVGL style. */
+typedef struct lv_style_t
+{
+    uint32_t marker;
+} lv_style_t;
 
 typedef uint32_t lv_color_t;
 typedef int32_t lv_event_code_t;
@@ -241,8 +246,34 @@ APPS_HOST_LV_NOOP_3(lv_obj_set_style_image_recolor, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_image_recolor_opa, lv_obj_t *, int, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_line_space, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_max_height, lv_obj_t *, int32_t, int)
+APPS_HOST_LV_NOOP_3(lv_obj_add_style, lv_obj_t *, const lv_style_t *, int)
 APPS_HOST_LV_NOOP_4(lv_obj_align, lv_obj_t *, int, int32_t, int32_t)
 APPS_HOST_LV_NOOP_4(lv_obj_set_flex_align, lv_obj_t *, int, int, int)
+
+/** @brief Initialize a fake static style. */
+static inline void lv_style_init(lv_style_t *style)
+{
+    (void)style;
+}
+APPS_HOST_LV_NOOP_2(lv_style_set_bg_color, lv_style_t *, lv_color_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_bg_opa, lv_style_t *, int)
+APPS_HOST_LV_NOOP_2(lv_style_set_border_color, lv_style_t *, lv_color_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_border_opa, lv_style_t *, int)
+APPS_HOST_LV_NOOP_2(lv_style_set_border_width, lv_style_t *, int32_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_pad_all, lv_style_t *, int32_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_pad_bottom, lv_style_t *, int32_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_pad_column, lv_style_t *, int32_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_pad_gap, lv_style_t *, int32_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_pad_left, lv_style_t *, int32_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_pad_right, lv_style_t *, int32_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_pad_row, lv_style_t *, int32_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_pad_top, lv_style_t *, int32_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_radius, lv_style_t *, int32_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_shadow_width, lv_style_t *, int32_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_text_align, lv_style_t *, int)
+APPS_HOST_LV_NOOP_2(lv_style_set_text_color, lv_style_t *, lv_color_t)
+APPS_HOST_LV_NOOP_2(lv_style_set_text_font, lv_style_t *, const lv_font_t *)
+APPS_HOST_LV_NOOP_2(lv_style_set_text_line_space, lv_style_t *, int32_t)
 
 /** @brief Convert a host RGB value to the fake LVGL color type. */
 static inline lv_color_t lv_color_hex(uint32_t color)

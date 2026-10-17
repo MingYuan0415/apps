@@ -32,6 +32,52 @@
  * no key paints a full accent block. */
 #define CALCULATOR_RING_OPA       LV_OPA_40
 
+static lv_style_t s_key_base;
+static lv_style_t s_key_ring;
+static lv_style_t s_key_pressed;
+static lv_style_t s_display;
+static lv_style_t s_keypad;
+static lv_style_t s_key_row;
+static lv_style_t s_label_right;
+static bool s_styles_ready;
+
+static void _calculator_styles_init(void)
+{
+    if (s_styles_ready)
+    {
+        return;
+    }
+    lv_style_init(&s_key_base);
+    lv_style_set_radius(&s_key_base, CALCULATOR_KEY_RADIUS);
+    lv_style_set_shadow_width(&s_key_base, 0);
+    lv_style_set_pad_all(&s_key_base, 0);
+    lv_style_set_bg_color(&s_key_base, lv_color_hex(CALCULATOR_COLOR_SURFACE));
+    lv_style_set_bg_opa(&s_key_base, LV_OPA_COVER);
+
+    lv_style_init(&s_key_ring);
+    lv_style_set_border_width(&s_key_ring, 1);
+    lv_style_set_border_color(&s_key_ring, lv_color_hex(CALCULATOR_COLOR_ACCENT));
+    lv_style_set_border_opa(&s_key_ring, CALCULATOR_RING_OPA);
+
+    lv_style_init(&s_key_pressed);
+    lv_style_set_bg_color(&s_key_pressed,
+                          lv_color_hex(CALCULATOR_COLOR_SURFACE_HI));
+
+    lv_style_init(&s_display);
+    lv_style_set_pad_row(&s_display, 2);
+
+    lv_style_init(&s_keypad);
+    lv_style_set_pad_row(&s_keypad, CALCULATOR_KEY_GAP);
+
+    lv_style_init(&s_key_row);
+    lv_style_set_pad_column(&s_key_row, CALCULATOR_KEY_GAP);
+
+    lv_style_init(&s_label_right);
+    lv_style_set_text_align(&s_label_right, LV_TEXT_ALIGN_RIGHT);
+
+    s_styles_ready = true;
+}
+
 /** @brief Action one keypad button performs on the engine. */
 typedef enum
 {
@@ -242,17 +288,12 @@ static lv_obj_t *_calculator_make_key(lv_obj_t *row,
     lv_obj_set_width(key, 0);
     lv_obj_set_flex_grow(key, 1);
     lv_obj_set_height(key, LV_PCT(100));
-    lv_obj_set_style_radius(key, CALCULATOR_KEY_RADIUS, 0);
-    lv_obj_set_style_shadow_width(key, 0, 0);
-    lv_obj_set_style_border_width(key, descriptor->ring ? 1 : 0, 0);
-    lv_obj_set_style_border_color(key, lv_color_hex(CALCULATOR_COLOR_ACCENT),
-                                  0);
-    lv_obj_set_style_border_opa(key, CALCULATOR_RING_OPA, 0);
-    lv_obj_set_style_pad_all(key, 0, 0);
-    lv_obj_set_style_bg_color(key, lv_color_hex(CALCULATOR_COLOR_SURFACE), 0);
-    lv_obj_set_style_bg_opa(key, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(key, lv_color_hex(CALCULATOR_COLOR_SURFACE_HI),
-                              LV_STATE_PRESSED);
+    lv_obj_add_style(key, &s_key_base, 0);
+    if (descriptor->ring)
+    {
+        lv_obj_add_style(key, &s_key_ring, 0);
+    }
+    lv_obj_add_style(key, &s_key_pressed, LV_STATE_PRESSED);
     lv_obj_set_user_data(key, (void *)(uintptr_t)index);
     lv_obj_add_event_cb(key, _calculator_key_event, LV_EVENT_CLICKED,
                         user_data);
@@ -280,7 +321,7 @@ static void _calculator_build_display(calculator_page_state_t *state)
     lv_obj_set_flex_flow(display, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(display, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END,
                           LV_FLEX_ALIGN_END);
-    lv_obj_set_style_pad_row(display, 2, 0);
+    lv_obj_add_style(display, &s_display, 0);
     app_ui_make_passive(display, false);
 
     state->expression_label = lv_label_create(display);
@@ -288,8 +329,7 @@ static void _calculator_build_display(calculator_page_state_t *state)
     {
         lv_obj_set_width(state->expression_label, LV_PCT(100));
         lv_label_set_long_mode(state->expression_label, LV_LABEL_LONG_DOT);
-        lv_obj_set_style_text_align(state->expression_label,
-                                    LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_add_style(state->expression_label, &s_label_right, 0);
         lv_obj_set_style_text_font(state->expression_label,
                                    app_ui_font(APP_THEME_FONT_SMALL), 0);
         lv_obj_set_style_text_color(state->expression_label,
@@ -302,7 +342,7 @@ static void _calculator_build_display(calculator_page_state_t *state)
     {
         lv_obj_set_width(state->value_label, LV_PCT(100));
         lv_label_set_long_mode(state->value_label, LV_LABEL_LONG_DOT);
-        lv_obj_set_style_text_align(state->value_label, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_add_style(state->value_label, &s_label_right, 0);
         lv_obj_set_style_text_font(state->value_label,
                                    app_ui_font(APP_THEME_FONT_BIGL), 0);
         lv_obj_set_style_text_color(state->value_label,
@@ -322,7 +362,7 @@ static void _calculator_build_keypad(calculator_page_state_t *state)
     lv_obj_set_flex_flow(keypad, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(keypad, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_START);
-    lv_obj_set_style_pad_row(keypad, CALCULATOR_KEY_GAP, 0);
+    lv_obj_add_style(keypad, &s_keypad, 0);
     app_ui_make_passive(keypad, false);
 
     const size_t rows = CALCULATOR_KEY_COUNT / CALCULATOR_KEY_COLUMNS;
@@ -340,7 +380,7 @@ static void _calculator_build_keypad(calculator_page_state_t *state)
         lv_obj_set_flex_flow(line, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(line, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_column(line, CALCULATOR_KEY_GAP, 0);
+        lv_obj_add_style(line, &s_key_row, 0);
         app_ui_make_passive(line, false);
 
         for (size_t column = 0U; column < CALCULATOR_KEY_COLUMNS; column++)
@@ -358,6 +398,7 @@ static void _calculator_mount(const app_manager_page_context_t *context)
      * itself restart from the initial state. */
     memset(state, 0, sizeof(*state));
     calculator_math_init(&state->math);
+    _calculator_styles_init();
     app_ui_page_create(&state->page, "计算器", true);
     lv_obj_set_scrollable(state->page.content, false);
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
