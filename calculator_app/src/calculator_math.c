@@ -18,7 +18,12 @@
 
 static void _calculator_copy(char *destination, size_t size, const char *text)
 {
-    (void)snprintf(destination, size, "%s", text != NULL ? text : "");
+    if (size == 0U)
+    {
+        return;
+    }
+    (void)snprintf(destination, size, "%.*s", (int)(size - 1U),
+                   text != NULL ? text : "");
 }
 
 /* The display mirrors the edited entry until an operation commits a result. */
