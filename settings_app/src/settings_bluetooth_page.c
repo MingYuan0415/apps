@@ -3,21 +3,9 @@
 
 #include "settings_app_internal.h"
 #include "apps_device_link_window.h"
-#include "chore_service.h"
 #include "event_bus.h"
 
-#include <stdatomic.h>
-
 #define SETTINGS_BT_WINDOW_TOTAL_MS APPS_DEVICE_LINK_WINDOW_TOTAL_MS
-#define SETTINGS_BT_SET_TIMEOUT_MS  1500U
-
-/* The enable toggle stores an NVS policy and waits (up to the timeout) for
- * NimBLE to apply; both must stay off the UI worker. The bounded job reports
- * through app-scope atomics (never UI, never the page arena), so it may
- * outlive PAUSE/UNMOUNT; the 1 s refresh timer settles the visible state. */
-static atomic_bool s_bt_busy;
-static atomic_bool s_bt_result_ready;
-static atomic_int s_bt_result;
 
 typedef struct settings_bluetooth_state
 {
@@ -82,11 +70,21 @@ static const char *_bluetooth_status_text(
 static void _bluetooth_render(settings_bluetooth_state_t *state,
                               const device_link_service_status_t *status)
 {
-    if (!atomic_load(&s_bt_busy) &&
-            lv_obj_has_state(state->enable_switch, LV_STATE_CHECKED) !=
-            status->enabled)
+    const bool toggle_locked = !status->available || status->transitioning;
+    const bool target = status->transitioning ?
+                        status->desired_enabled : status->enabled;
+
+    if (toggle_locked)
     {
-        if (status->enabled)
+        lv_obj_add_state(state->enable_switch, LV_STATE_DISABLED);
+    }
+    else
+    {
+        lv_obj_remove_state(state->enable_switch, LV_STATE_DISABLED);
+    }
+    if (lv_obj_has_state(state->enable_switch, LV_STATE_CHECKED) != target)
+    {
+        if (target)
         {
             lv_obj_add_state(state->enable_switch, LV_STATE_CHECKED);
         }
@@ -95,11 +93,24 @@ static void _bluetooth_render(settings_bluetooth_state_t *state,
             lv_obj_remove_state(state->enable_switch, LV_STATE_CHECKED);
         }
     }
-    app_ui_set_status_text(state->status_value,
-                           _bluetooth_status_text(status),
-                           status->bound ? APP_UI_STATUS_SUCCESS :
-                           (status->active ? APP_UI_STATUS_ACCENT :
-                            APP_UI_STATUS_NEUTRAL));
+    if (status->transitioning)
+    {
+        app_ui_set_status_text(state->status_value, "切换中",
+                               APP_UI_STATUS_ACCENT);
+    }
+    else if (status->policy_error != ESP_OK)
+    {
+        app_ui_set_status_text(state->status_value, "切换失败",
+                               APP_UI_STATUS_ERROR);
+    }
+    else
+    {
+        app_ui_set_status_text(state->status_value,
+                               _bluetooth_status_text(status),
+                               status->bound ? APP_UI_STATUS_SUCCESS :
+                               (status->active ? APP_UI_STATUS_ACCENT :
+                                APP_UI_STATUS_NEUTRAL));
+    }
 
     char detail[48];
     if (status->active)
@@ -175,29 +186,10 @@ static void _bluetooth_refresh(settings_bluetooth_state_t *state)
     }
 }
 
-static void _bluetooth_settle_toggle(settings_bluetooth_state_t *state)
-{
-    if (atomic_load(&s_bt_busy) ||
-            !atomic_exchange(&s_bt_result_ready, false))
-    {
-        return;
-    }
-    const esp_err_t result = (esp_err_t)atomic_load(&s_bt_result);
-    _bluetooth_refresh(state);
-    if (result != ESP_OK)
-    {
-        /* Written after the refresh so the render cannot overwrite it. */
-        app_ui_set_status_text(state->status_value, "切换失败",
-                               APP_UI_STATUS_ERROR);
-        LOG_W("bluetooth enable failed: %s", esp_err_to_name(result));
-    }
-}
-
 static void _bluetooth_timer(lv_timer_t *timer)
 {
     settings_bluetooth_state_t *state = lv_timer_get_user_data(timer);
     _bluetooth_refresh(state);
-    _bluetooth_settle_toggle(state);
 }
 
 static void _bluetooth_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
@@ -222,42 +214,28 @@ static void _bluetooth_event(event_bus_msg_id_t msg_id, uint32_t sub_type,
     _bluetooth_render(state, status);
 }
 
-static void _bluetooth_set_job(const chore_service_cancel_token_t *cancel,
-                               void *arg)
-{
-    (void)cancel;
-    const esp_err_t result = device_link_service_set_enabled(
-                                 (bool)(uintptr_t)arg, SETTINGS_BT_SET_TIMEOUT_MS);
-    atomic_store(&s_bt_result, (int)result);
-    atomic_store(&s_bt_result_ready, true);
-    atomic_store(&s_bt_busy, false);
-}
-
 static void _bluetooth_enable_event(lv_event_t *event)
 {
     settings_bluetooth_state_t *state = lv_event_get_user_data(event);
     const bool enable = lv_obj_has_state(state->enable_switch, LV_STATE_CHECKED);
-    if (atomic_load(&s_bt_busy))
+    device_link_service_status_t status;
+
+    if (device_link_service_get_status(&status) != ESP_OK ||
+            status.transitioning)
     {
+        _bluetooth_refresh(state);
         return;
     }
-    atomic_store(&s_bt_result_ready, false);
-    atomic_store(&s_bt_busy, true);
-    const chore_service_job_t job =
+    /* The service records the target and converges on its worker; the status
+       event drives the transition and the policy error. */
+    const esp_err_t result = device_link_service_set_enabled(enable, 0U);
+
+    _bluetooth_refresh(state);
+    if (result != ESP_OK)
     {
-        .run = _bluetooth_set_job,
-        .arg = (void *)(uintptr_t)enable,
-    };
-    chore_service_handle_t handle;
-    if (chore_service_submit(&job, &handle) != ESP_OK)
-    {
-        atomic_store(&s_bt_busy, false);
-        _bluetooth_refresh(state);
         app_ui_set_status_text(state->status_value, "切换失败",
                                APP_UI_STATUS_ERROR);
-        return;
     }
-    app_ui_set_status_text(state->status_value, "切换中", APP_UI_STATUS_ACCENT);
 }
 
 static void _bluetooth_pair_event(lv_event_t *event)
@@ -446,7 +424,6 @@ static void _bluetooth_resume(const app_manager_page_context_t *context)
     }
     state->rendered_generation = 0U;
     _bluetooth_refresh(state);
-    _bluetooth_settle_toggle(state);
 }
 
 static esp_err_t _bluetooth_pause(const app_manager_page_context_t *context)
