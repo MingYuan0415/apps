@@ -98,7 +98,8 @@ static void _app_ui_styles_init_layout(void)
     lv_style_set_pad_row(&s_page_content_home, APP_UI_GAP);
 
     /* 64 px title-only header (36 px title). The trailing action is pinned to
-     * the bottom so it stays below the 20 px control-center capture band. */
+     * the bottom, as low as the header allows, so the 40 px control-center pull
+     * band only reaches the button's top edge and never its glyph. */
     lv_style_init(&s_page_header);
     lv_style_set_bg_color(&s_page_header, lv_color_hex(COLOR_BACKGROUND));
     lv_style_set_bg_opa(&s_page_header, LV_OPA_COVER);
