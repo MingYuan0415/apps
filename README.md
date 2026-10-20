@@ -4,10 +4,11 @@
 
 ## 目录结构与应用
 
-- `common/`：统一 368 x 448 页面骨架、标题栏、导航/命令行、值行和语义状态，保留异步导航 API；新增分组列表（`app_ui_group_*`）、页内模态底部面板（`app_ui_sheet_*`）与共享 SVG 图标集（`assets/ui_*.svg`，经 `app_ui_image`/`app_ui_icon_set_color` 及行/动作/分组行的 `image_id` 变体使用）。
-- `home_app/`：顶部 Wi-Fi/蓝牙/电池状态条、数字大时钟（日期与时间源质量）、天气卡、计时卡（倒计时/专注进度环）与底部四枚图标 Dock（时钟/录音/水平仪/设置）；天气卡与 Dock 点击进入对应应用。
-- `menu_app/`：三列应用图标网格，按 `launcher_order` 展示图标与名称。
-- `clock_app/`：时钟枢纽页聚合四张卡片（倒计时、时长选择、秒表、专注），子页共享 App-scope
+- `common/`：统一 368 x 448 页面骨架（64 px 标题栏，36 px 标题）、圆形图标底的导航/命令行、值行和语义状态，保留异步导航 API；分组列表（`app_ui_group_*`，行间 1 px 分隔）、胶囊按钮（`app_ui_button_set_kind` 主要/次要/危险）、分段控件（`app_ui_chip_*`）、状态胶囊（`app_ui_add_pill`）、页内模态底部面板（`app_ui_sheet_*`）与共享 SVG 图标集（`assets/ui_*.svg`，经 `app_ui_image`/`app_ui_icon_set_color` 及行/动作/分组行的 `image_id` 变体使用）。尺寸与间距常量（4 px 网格、圆角 12/20/全圆、触控高度）位于 `app_ui_theme.h`。
+- `home_app/`：表盘式主页：顶部 Wi-Fi/蓝牙/电池状态条、96 px 数字时钟、日期与时间源质量点，以及 2 x 2 信息卡（天气、时钟计时进度环、录音实时状态、水平仪），点击卡片进入对应应用；应用目录经 HOME 键进入。
+- `menu_app/`：三列应用图标网格（72 px 圆形图标底），按 `launcher_order` 展示图标与名称。
+- `clock_app/`：时钟枢纽页顶部为秒级数字时钟（日期与时间来源），下方分组列表含倒计时、
+秒表、专注三行（带进度环摘要），时长选择从倒计时页的「自定义」进入；子页共享 App-scope
 选中时长与运行会话；专注支持周期模式。
 - `recorder_app/`：双声道录音主页与文件页；删除在页内底部面板中二次确认；录制、播放、删除与 `.part` finalize 全部经由
 `recorder_service` worker，页面只提交命令并轮询 generation 快照。
@@ -16,8 +17,8 @@
 - `level_app/`：IMU 气泡水平仪；校准偏移经 `chore_service` 短任务读写并跨挂载保留，
 恢复出厂后重载为零。
 - `diagnostics_app/`：硬件自检页，由设置页五次点击入口打开，`HIDDEN` 标志使其不出现在普通应用目录。
-- `settings_app/`：分组列表（显示/连接/系统）；提供亮度、固定熄屏/待机延迟选项、电源详情、连接管理、时间状态、SD 存储状态、运行时固件描述及恢复出厂设置确认页。忘记网络与解绑在页内底部面板中二次确认；恢复请求只有在 reset journal 持久化成功后才进入不可重复点击的重启等待状态；保存失败时页面保留并允许重试。
-- `setup_app/`：开启限时 BLE 绑定窗口，显示六位 Numeric Comparison 并在本机确认，同时管理已保存网络的断开、重连、自动连接和忘记操作；网络选择与密码输入在手机侧完成，设备只显示六位 Numeric Comparison 并本机确认。
+- `settings_app/`：单卡片分组列表（六行：显示与电源、Wi-Fi、蓝牙、连接向导、设备状态、关于与维护）；提供亮度、固定熄屏/待机延迟选项、电源详情、连接管理、时间状态、SD 存储状态、运行时固件描述及恢复出厂设置确认页。忘记网络与解绑在页内底部面板中二次确认；恢复请求只有在 reset journal 持久化成功后才进入不可重复点击的重启等待状态；保存失败时页面保留并允许重试。
+- `setup_app/`：`HIDDEN` 应用，从设置根页的「连接向导」行进入；开启限时 BLE 绑定窗口，显示六位 Numeric Comparison 并在本机确认，同时管理已保存网络的断开、重连、自动连接和忘记操作；网络选择与密码输入在手机侧完成，设备只显示六位 Numeric Comparison 并本机确认。
 - `weather_app/`：展示当前天气、预警、24 小时和 7 日预报，包含预警列表与详情页；只消费 `weather_service` 快照，不执行网络、JSON 或缓存 I/O。
 - `tests/host/`：共用导航、天气图标映射表、恢复出厂确认页、Setup Wi-Fi adapter、apps 持久化，以及各 App 纯逻辑模块（`*_math`）的宿主测试及最小依赖 fake；测试目标清单以该目录 `CMakeLists.txt` 的 `add_apps_host_test` 为准。
 
@@ -34,9 +35,9 @@ symbol；新增资源需要同时更新 manifest、语义 ID 和 `tests/resource
 vendor 源，随附 `weather_app/assets/qweather-icons-LICENSE.txt`。
 
 普通 `lv_image` 按原尺寸绘制、在对象框内居中裁剪且不缩放，因此**图标的图形必须落在
-消费者实际绘制的窗口内**：App 图标 record 为 64，而启动器瓦片只给 40 px、任务切换器
-给 56 px，全部图形须落在居中的 `x,y = 13..50`；主页 dock 瓦片只出现在 40 px 窗口，
-故按 40 导出；主页时钟卡的小环字形只出现在 28 px，单独用 `APP_IMAGE_HOME_RING_CLOCK`
+消费者实际绘制的窗口内**：App 图标以 64 单位设计框绘制、按 72 px 导出，启动器图标底
+给 72 px、任务切换器给 56 px，全部图形须落在设计框居中的 `x,y = 13..50`；主页信息卡
+字形只出现在 40 px 窗口，故按 40 导出；主页时钟卡的小环字形只出现在 28 px，单独用 `APP_IMAGE_HOME_RING_CLOCK`
 记录。`tests/resources/test_icon_fit.py` 按语义 ID 记录每个绘制窗口并校验墨迹框，
 新增或改动图标必须让它保持通过。
 
@@ -44,7 +45,7 @@ vendor 源，随附 `weather_app/assets/qweather-icons-LICENSE.txt`。
 `APP_IMAGE_UI_*` 语义段，以中性 INK 终色入库，运行时经
 `lv_obj_set_style_image_recolor` 着色；`app_ui_image()` 在图片缺失时回退 LVGL symbol。
 Setup 页的 Wi-Fi 卡片、绑定/断开/忘记/取消/完成/稍后等行图标均已改用该集合。页头动作
-按钮（`app_ui_page_set_action`）为 40 x 40 且右下对齐，位于系统控制中心顶部下拉捕获带
+按钮（`app_ui_page_set_action`）为 42 x 42 圆形且右下对齐，位于系统控制中心顶部下拉捕获带
 （屏幕顶部 20 px）之下，因此页头内容不得占用该顶部区域。
 
 下拉刷新由 `app_ui_pull_refresh_attach()` 提供：在页顶放置一条被页头/内容遮挡的提示条，

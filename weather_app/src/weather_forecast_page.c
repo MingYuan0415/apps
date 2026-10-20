@@ -62,9 +62,11 @@ static lv_obj_t *_weather_forecast_metric(lv_obj_t *parent, const char *name,
     lv_obj_t *cell = weather_ui_surface(parent, LV_SIZE_CONTENT);
     lv_obj_set_width(cell, LV_PCT(48));
     lv_obj_set_flex_flow(cell, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(cell, 2, 0);
+    lv_obj_set_style_pad_hor(cell, 14, 0);
+    lv_obj_set_style_pad_ver(cell, 10, 0);
+    lv_obj_set_style_pad_row(cell, 0, 0);
     lv_obj_t *name_label = weather_ui_text_label(cell, APP_THEME_FONT_SMALL);
-    lv_obj_set_style_text_color(name_label, lv_color_hex(WEATHER_COLOR_MUTED),
+    lv_obj_set_style_text_color(name_label, lv_color_hex(APP_UI_COLOR_FAINT),
                                 0);
     lv_label_set_text(name_label, name);
     lv_obj_t *value_label = weather_ui_text_label(cell, APP_THEME_FONT_BODY);
@@ -98,24 +100,24 @@ static void _weather_forecast_add_meta(
     weather_ui_format_dataset_time(meta, updated, sizeof(updated));
     (void)snprintf(text, sizeof(text), "更新时间：%s",
                    updated[0] != '\0' ? updated : "未提供");
-    lv_obj_t *time = weather_ui_text_label(parent, APP_THEME_FONT_BODY);
+    lv_obj_t *time = weather_ui_text_label(parent, APP_THEME_FONT_SMALL);
     lv_obj_set_width(time, LV_PCT(100));
     lv_label_set_long_mode(time, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_color(time, lv_color_hex(WEATHER_COLOR_MUTED), 0);
+    lv_obj_set_style_text_color(time, lv_color_hex(APP_UI_COLOR_FAINT), 0);
     lv_label_set_text(time, text);
     (void)snprintf(text, sizeof(text), "有效性：%s",
                    weather_ui_dataset_state(meta));
-    lv_obj_t *validity = weather_ui_text_label(parent, APP_THEME_FONT_BODY);
+    lv_obj_t *validity = weather_ui_text_label(parent, APP_THEME_FONT_SMALL);
     lv_obj_set_width(validity, LV_PCT(100));
     lv_label_set_long_mode(validity, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_color(validity, lv_color_hex(WEATHER_COLOR_MUTED),
+    lv_obj_set_style_text_color(validity, lv_color_hex(APP_UI_COLOR_FAINT),
                                 0);
     lv_label_set_text(validity, text);
     (void)snprintf(text, sizeof(text), "数据来源：%s", source);
-    lv_obj_t *provider = weather_ui_text_label(parent, APP_THEME_FONT_BODY);
+    lv_obj_t *provider = weather_ui_text_label(parent, APP_THEME_FONT_SMALL);
     lv_obj_set_width(provider, LV_PCT(100));
     lv_label_set_long_mode(provider, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_color(provider, lv_color_hex(WEATHER_COLOR_MUTED),
+    lv_obj_set_style_text_color(provider, lv_color_hex(APP_UI_COLOR_FAINT),
                                 0);
     lv_label_set_text(provider, text);
     _weather_forecast_add_service_status(parent);
@@ -204,7 +206,7 @@ static void _weather_forecast_render_chart(weather_forecast_state_t *state)
     lv_obj_set_style_bg_color(chart, lv_color_hex(WEATHER_COLOR_SURFACE), 0);
     lv_obj_set_style_bg_opa(chart, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(chart, 0, 0);
-    lv_obj_set_style_radius(chart, 6, 0);
+    lv_obj_set_style_radius(chart, APP_UI_RADIUS_CARD, 0);
     lv_obj_t *scale = weather_ui_container(
                           chart_row, 116, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(scale, LV_SIZE_CONTENT);
@@ -267,12 +269,13 @@ static void _weather_forecast_render_hourly(weather_forecast_state_t *state)
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_all(row, 8, 0);
-        lv_obj_set_style_pad_column(row, 6, 0);
+        lv_obj_set_style_pad_hor(row, 14, 0);
+        lv_obj_set_style_pad_ver(row, 10, 0);
+        lv_obj_set_style_pad_column(row, 10, 0);
         char text[48];
         weather_ui_format_time(&hour->forecast_at, "%m-%d\n%H:%M", text,
                                sizeof(text));
-        lv_obj_t *time = weather_ui_text_label(row, APP_THEME_FONT_BODY);
+        lv_obj_t *time = weather_ui_text_label(row, APP_THEME_FONT_SMALL);
         lv_obj_set_size(time, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
         lv_label_set_long_mode(time, LV_LABEL_LONG_CLIP);
         lv_obj_set_style_text_color(time, lv_color_hex(WEATHER_COLOR_MUTED),
@@ -292,7 +295,7 @@ static void _weather_forecast_render_hourly(weather_forecast_state_t *state)
         (void)snprintf(text, sizeof(text), "%.0f°",
                        hour->temperature_tenths_c / 10.0);
         lv_obj_t *temperature = weather_ui_text_label(top,
-                                APP_THEME_FONT_SMALL);
+                                APP_THEME_FONT_HEAD);
         lv_obj_set_size(temperature, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
         lv_obj_set_style_text_color(temperature,
                                     lv_color_hex(WEATHER_COLOR_TEXT), 0);
@@ -300,7 +303,7 @@ static void _weather_forecast_render_hourly(weather_forecast_state_t *state)
         (void)snprintf(text, sizeof(text), "降水 %u%%",
                        (unsigned)hour->precipitation_chance_percent);
         lv_obj_t *precipitation = weather_ui_text_label(top,
-                                  APP_THEME_FONT_BODY);
+                                  APP_THEME_FONT_SMALL);
         lv_obj_set_size(precipitation, 0, LV_SIZE_CONTENT);
         lv_obj_set_flex_grow(precipitation, 1);
         lv_label_set_long_mode(precipitation, LV_LABEL_LONG_WRAP);
@@ -310,11 +313,11 @@ static void _weather_forecast_render_hourly(weather_forecast_state_t *state)
         (void)snprintf(text, sizeof(text), "湿度 %u%% · %.0f km/h",
                        (unsigned)hour->humidity_percent,
                        hour->wind_speed_tenths_kmh / 10.0);
-        lv_obj_t *details = weather_ui_text_label(info, APP_THEME_FONT_BODY);
+        lv_obj_t *details = weather_ui_text_label(info, APP_THEME_FONT_SMALL);
         lv_obj_set_size(details, LV_PCT(100), LV_SIZE_CONTENT);
         lv_label_set_long_mode(details, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(details,
-                                    lv_color_hex(WEATHER_COLOR_MUTED), 0);
+                                    lv_color_hex(APP_UI_COLOR_FAINT), 0);
         lv_label_set_text(details, text);
     }
     _weather_forecast_add_meta(state->body, &hourly->meta,
@@ -396,14 +399,15 @@ static void _weather_forecast_render_daily(weather_forecast_state_t *state)
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_column(row, 7, 0);
+        lv_obj_set_style_pad_hor(row, 14, 0);
+        lv_obj_set_style_pad_column(row, 10, 0);
         char text[96];
         (void)snprintf(text, sizeof(text), "%s\n%.5s",
                        _weather_forecast_weekday_text(
                            _weather_forecast_weekday(day->date)),
                        day->date + 5);
         lv_obj_t *date = weather_ui_text_label(row, APP_THEME_FONT_SMALL);
-        lv_obj_set_width(date, 52);
+        lv_obj_set_width(date, 60);
         lv_label_set_long_mode(date, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(date, lv_color_hex(WEATHER_COLOR_MUTED),
                                     0);
@@ -426,21 +430,21 @@ static void _weather_forecast_render_daily(weather_forecast_state_t *state)
                        day->maximum_temperature_tenths_c / 10.0,
                        day->minimum_temperature_tenths_c / 10.0);
         lv_obj_t *range = weather_ui_text_label(summary,
-                                                APP_THEME_FONT_SMALL);
+                                                APP_THEME_FONT_BODY);
         lv_obj_set_width(range, LV_PCT(100));
         lv_label_set_long_mode(range, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(range, lv_color_hex(WEATHER_COLOR_TEXT),
                                     0);
         lv_label_set_text(range, text);
         lv_obj_t *bar = lv_bar_create(summary);
-        lv_obj_set_size(bar, LV_PCT(100), 6);
+        lv_obj_set_size(bar, LV_PCT(100), 8);
         lv_bar_set_range(bar, full_minimum, full_maximum);
         lv_bar_set_mode(bar, LV_BAR_MODE_RANGE);
         lv_bar_set_start_value(bar, day->minimum_temperature_tenths_c,
                                LV_ANIM_OFF);
         lv_bar_set_value(bar, day->maximum_temperature_tenths_c,
                          LV_ANIM_OFF);
-        lv_obj_set_style_bg_color(bar, lv_color_hex(WEATHER_COLOR_SURFACE_HI),
+        lv_obj_set_style_bg_color(bar, lv_color_hex(APP_UI_COLOR_TRACK),
                                   LV_PART_MAIN);
         lv_obj_set_style_bg_color(bar, lv_color_hex(WEATHER_COLOR_SUN),
                                   LV_PART_INDICATOR);
@@ -452,7 +456,7 @@ static void _weather_forecast_render_daily(weather_forecast_state_t *state)
         lv_obj_set_width(details, LV_PCT(100));
         lv_label_set_long_mode(details, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(details,
-                                    lv_color_hex(WEATHER_COLOR_MUTED), 0);
+                                    lv_color_hex(APP_UI_COLOR_FAINT), 0);
         lv_label_set_text(details, text);
     }
     _weather_forecast_add_meta(state->body, &daily->meta,
@@ -530,24 +534,29 @@ static void _weather_forecast_build(weather_forecast_state_t *state)
 {
     app_ui_page_create(&state->page, "详细预报", true);
     lv_obj_t *segments = weather_ui_container(
-                             state->page.content, 50, LV_FLEX_FLOW_ROW);
+                             state->page.content, APP_UI_CHIP_HEIGHT,
+                             LV_FLEX_FLOW_ROW);
     lv_obj_set_style_bg_color(segments, lv_color_hex(WEATHER_COLOR_SURFACE), 0);
     lv_obj_set_style_bg_opa(segments, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(segments, 6, 0);
-    lv_obj_set_style_pad_all(segments, 3, 0);
-    lv_obj_set_style_pad_column(segments, 3, 0);
+    lv_obj_set_style_radius(segments, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_pad_all(segments, 4, 0);
+    lv_obj_set_style_pad_column(segments, 2, 0);
     static const char *const titles[] = {"实况", "逐小时", "7 天"};
     for (uintptr_t index = 0U; index < WEATHER_FORECAST_SEGMENT_COUNT; ++index)
     {
         lv_obj_t *button = lv_button_create(segments);
         app_ui_click_only(button);
-        lv_obj_set_size(button, LV_PCT(32), LV_PCT(100));
-        lv_obj_set_style_radius(button, 4, 0);
+        lv_obj_set_size(button, 0, LV_PCT(100));
+        lv_obj_set_flex_grow(button, 1);
+        lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_bg_color(button,
                                   lv_color_hex(WEATHER_COLOR_SURFACE), 0);
+        lv_obj_set_style_bg_color(button, lv_color_hex(APP_UI_COLOR_TRACK),
+                                  LV_STATE_CHECKED);
         lv_obj_set_style_bg_color(button,
                                   lv_color_hex(WEATHER_COLOR_SURFACE_HI),
-                                  LV_STATE_CHECKED);
+                                  LV_STATE_PRESSED);
+        lv_obj_set_style_border_width(button, 0, 0);
         lv_obj_set_style_shadow_width(button, 0, 0);
         lv_obj_set_user_data(button, (void *)index);
         lv_obj_add_event_cb(button, _weather_forecast_segment_event,

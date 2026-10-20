@@ -189,16 +189,16 @@ static void _clock_root_render(clock_root_state_t *state)
     switch (time_service_get_quality())
     {
     case TIME_SERVICE_QUALITY_NTP:
-        lv_label_set_text(state->source_label, "来源：NTP 校时");
+        lv_label_set_text(state->source_label, "NTP 校时");
         break;
     case TIME_SERVICE_QUALITY_RTC:
-        lv_label_set_text(state->source_label, "来源：RTC 恢复");
+        lv_label_set_text(state->source_label, "RTC 时间");
         break;
     case TIME_SERVICE_QUALITY_MANUAL:
-        lv_label_set_text(state->source_label, "来源：手动设置");
+        lv_label_set_text(state->source_label, "手动设置");
         break;
     default:
-        lv_label_set_text(state->source_label, "来源：未就绪");
+        lv_label_set_text(state->source_label, "未校准");
         break;
     }
 
@@ -291,52 +291,23 @@ static void _clock_open_card(lv_event_t *event)
     app_ui_request_open_page(APP_MANAGER_ID_CLOCK, page_id);
 }
 
-static void _clock_root_add_card(clock_root_state_t *state, const char *name,
-                                 const char *page_id, clock_card_t card)
+static void _clock_root_add_card(clock_root_state_t *state, lv_obj_t *group,
+                                 const char *name, const char *page_id,
+                                 clock_card_t card)
 {
-    lv_obj_t *row = lv_button_create(state->page.content);
-    app_ui_click_only(row);
-    lv_obj_set_width(row, LV_PCT(100));
-    lv_obj_set_height(row, 68);
-    lv_obj_set_style_radius(row, 8, 0);
-    lv_obj_set_style_bg_color(row, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
-    lv_obj_set_style_bg_color(row, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
-                              LV_STATE_PRESSED);
-    lv_obj_set_style_shadow_width(row, 0, 0);
-    lv_obj_set_style_pad_left(row, 14, 0);
-    lv_obj_set_style_pad_right(row, 10, 0);
-    lv_obj_set_style_pad_column(row, 10, 0);
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_add_event_cb(row, _clock_open_card, LV_EVENT_CLICKED,
-                        (void *)page_id);
-
-    lv_obj_t *text = lv_obj_create(row);
-    lv_obj_remove_style_all(text);
-    lv_obj_set_width(text, 0);
-    lv_obj_set_flex_grow(text, 1);
-    lv_obj_set_height(text, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(text, 2, 0);
-    app_ui_make_passive(text, false);
-
-    lv_obj_t *title = lv_label_create(text);
-    lv_obj_set_width(title, LV_PCT(100));
-    lv_obj_set_style_text_color(title, lv_color_hex(APP_UI_COLOR_TEXT), 0);
-    lv_obj_set_style_text_font(title, app_ui_font(APP_THEME_FONT_BODY), 0);
-    lv_label_set_text(title, name);
-
-    lv_obj_t *summary = lv_label_create(text);
-    lv_obj_set_width(summary, LV_PCT(100));
-    lv_label_set_long_mode(summary, LV_LABEL_LONG_DOT);
-    lv_obj_set_style_text_color(summary, lv_color_hex(APP_UI_COLOR_MUTED), 0);
-    lv_obj_set_style_text_font(summary, app_ui_font(APP_THEME_FONT_SMALL), 0);
-    lv_label_set_text(summary, "");
-    state->card_summary[card] = summary;
-
-    state->card_ring[card] = app_ui_ring_create(row, 44, 4,
-                             APP_UI_COLOR_SURFACE_HI);
+    lv_obj_t *row = app_ui_group_add_nav(group, NULL, name, "",
+                                         _clock_open_card, (void *)page_id);
+    lv_obj_t *text = lv_obj_get_child(row, 0);
+    state->card_summary[card] = lv_obj_get_child(text, 1);
+    /* The row has no leading well, so the chevron is its last child. The ring
+     * replaces that chevron as the row's trailing element. */
+    lv_obj_t *chevron = lv_obj_get_child(row, -1);
+    if (chevron != NULL)
+    {
+        lv_obj_delete(chevron);
+    }
+    state->card_ring[card] = app_ui_ring_create(row, 40, 5,
+                             APP_UI_COLOR_TRACK);
 }
 
 static void _clock_root_mount(const app_manager_page_context_t *context)
@@ -344,8 +315,8 @@ static void _clock_root_mount(const app_manager_page_context_t *context)
     clock_root_state_t *state = context->state;
     memset(state, 0, sizeof(*state));
     app_ui_page_create(&state->page, "时钟", true);
-    app_ui_page_set_subtitle(&state->page, "时间与计时");
     lv_obj_set_style_pad_bottom(state->page.content, 12, 0);
+    lv_obj_set_style_pad_row(state->page.content, 4, 0);
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
     lv_obj_set_scrollable(state->page.content, false);
 
@@ -355,7 +326,8 @@ static void _clock_root_mount(const app_manager_page_context_t *context)
     lv_obj_set_height(clock_row, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(clock_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(clock_row, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+                          LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    lv_obj_set_style_pad_column(clock_row, 6, 0);
     app_ui_make_passive(clock_row, false);
 
     state->time_label = lv_label_create(clock_row);
@@ -369,33 +341,42 @@ static void _clock_root_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_color(state->seconds_label,
                                 lv_color_hex(APP_UI_COLOR_RAIN), 0);
     lv_obj_set_style_text_font(state->seconds_label,
-                               app_ui_font(APP_THEME_FONT_BODY), 0);
-    lv_obj_set_style_pad_top(state->seconds_label, 10, 0);
+                               app_ui_font(APP_THEME_FONT_HEAD), 0);
+    lv_obj_set_style_pad_bottom(state->seconds_label, 10, 0);
     lv_label_set_text(state->seconds_label, "");
 
-    state->date_label = lv_label_create(state->page.content);
-    lv_obj_set_width(state->date_label, LV_PCT(100));
-    lv_obj_set_style_text_align(state->date_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_t *meta = lv_obj_create(state->page.content);
+    lv_obj_remove_style_all(meta);
+    lv_obj_set_width(meta, LV_PCT(100));
+    lv_obj_set_height(meta, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(meta, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(meta, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(meta, 12, 0);
+    lv_obj_set_style_pad_bottom(meta, 12, 0);
+    app_ui_make_passive(meta, false);
+
+    state->date_label = lv_label_create(meta);
     lv_obj_set_style_text_color(state->date_label,
-                                lv_color_hex(APP_UI_COLOR_TEXT), 0);
+                                lv_color_hex(APP_UI_COLOR_MUTED), 0);
     lv_obj_set_style_text_font(state->date_label,
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_label_set_text(state->date_label, "");
 
-    state->source_label = lv_label_create(state->page.content);
-    lv_obj_set_width(state->source_label, LV_PCT(100));
-    lv_obj_set_style_text_align(state->source_label, LV_TEXT_ALIGN_CENTER, 0);
+    state->source_label = lv_label_create(meta);
     lv_obj_set_style_text_color(state->source_label,
-                                lv_color_hex(APP_UI_COLOR_MUTED), 0);
+                                lv_color_hex(APP_UI_COLOR_FAINT), 0);
     lv_obj_set_style_text_font(state->source_label,
-                               app_ui_font(APP_THEME_FONT_BODY), 0);
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_label_set_text(state->source_label, "");
 
-    _clock_root_add_card(state, "倒计时", CLOCK_PAGE_COUNTDOWN,
+    lv_obj_t *group = app_ui_group_create(state->page.content);
+    _clock_root_add_card(state, group, "倒计时", CLOCK_PAGE_COUNTDOWN,
                          CLOCK_CARD_COUNTDOWN);
-    _clock_root_add_card(state, "秒表", CLOCK_PAGE_STOPWATCH,
+    _clock_root_add_card(state, group, "秒表", CLOCK_PAGE_STOPWATCH,
                          CLOCK_CARD_STOPWATCH);
-    _clock_root_add_card(state, "专注", CLOCK_PAGE_FOCUS, CLOCK_CARD_FOCUS);
+    _clock_root_add_card(state, group, "专注", CLOCK_PAGE_FOCUS,
+                         CLOCK_CARD_FOCUS);
 
     state->refresh_timer = lv_timer_create(_clock_root_refresh, 250U, state);
     _clock_root_render(state);

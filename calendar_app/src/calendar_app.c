@@ -21,8 +21,8 @@
 #define CALENDAR_COLOR_ACCENT    APP_UI_COLOR_RAIN
 #define CALENDAR_COLOR_WARNING   APP_UI_COLOR_WARNING
 
-#define CALENDAR_NAV_HEIGHT        40
-#define CALENDAR_NAV_BUTTON_WIDTH  40
+#define CALENDAR_NAV_HEIGHT        44
+#define CALENDAR_NAV_BUTTON_WIDTH  44
 #define CALENDAR_TODAY_WIDTH       58
 #define CALENDAR_WEEKDAY_HEIGHT    22
 #define CALENDAR_CELL_HEIGHT       34
@@ -59,7 +59,7 @@ static void _calendar_styles_init(void)
     lv_style_set_pad_column(&s_nav, 8);
 
     lv_style_init(&s_nav_button);
-    lv_style_set_radius(&s_nav_button, 6);
+    lv_style_set_radius(&s_nav_button, LV_RADIUS_CIRCLE);
     lv_style_set_bg_color(&s_nav_button, lv_color_hex(CALENDAR_COLOR_SURFACE));
     lv_style_set_shadow_width(&s_nav_button, 0);
 
@@ -85,7 +85,7 @@ static void _calendar_styles_init(void)
     lv_style_set_text_color(&s_detail_label, lv_color_hex(CALENDAR_COLOR_TEXT));
 
     lv_style_init(&s_cell_base);
-    lv_style_set_radius(&s_cell_base, 8);
+    lv_style_set_radius(&s_cell_base, APP_UI_RADIUS_CONTROL);
     lv_style_set_shadow_width(&s_cell_base, 0);
     lv_style_set_pad_all(&s_cell_base, 0);
     lv_style_set_border_width(&s_cell_base, 0);

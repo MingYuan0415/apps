@@ -24,16 +24,14 @@
 /* Display block plus a five-row keypad fills the 384 px content area, so the
  * page is pinned and only the keys are interactive. */
 #define CALCULATOR_DISPLAY_HEIGHT 88
-#define CALCULATOR_KEY_RADIUS     12
+#define CALCULATOR_KEY_RADIUS     LV_RADIUS_CIRCLE
 #define CALCULATOR_KEY_GAP        8
-
-/* The primary action is expressed as an accent outline plus accent caption on
- * the shared surface, the same selection idiom the calendar marks a day with;
- * no key paints a full accent block. */
-#define CALCULATOR_RING_OPA       LV_OPA_40
 
 static lv_style_t s_key_base;
 static lv_style_t s_key_ring;
+static lv_style_t s_key_ring_pressed;
+static lv_style_t s_key_operator;
+static lv_style_t s_key_function;
 static lv_style_t s_key_pressed;
 static lv_style_t s_display;
 static lv_style_t s_keypad;
@@ -54,14 +52,26 @@ static void _calculator_styles_init(void)
     lv_style_set_bg_color(&s_key_base, lv_color_hex(CALCULATOR_COLOR_SURFACE));
     lv_style_set_bg_opa(&s_key_base, LV_OPA_COVER);
 
+    /* Key weight follows the pill-button scale: the one primary action is an
+     * accent fill, operators an accent tint, functions the L2 surface. */
     lv_style_init(&s_key_ring);
-    lv_style_set_border_width(&s_key_ring, 1);
-    lv_style_set_border_color(&s_key_ring, lv_color_hex(CALCULATOR_COLOR_ACCENT));
-    lv_style_set_border_opa(&s_key_ring, CALCULATOR_RING_OPA);
+    lv_style_set_bg_color(&s_key_ring, lv_color_hex(CALCULATOR_COLOR_ACCENT));
+
+    lv_style_init(&s_key_ring_pressed);
+    lv_style_set_bg_color(&s_key_ring_pressed,
+                          lv_color_hex(APP_UI_COLOR_RAIN_HI));
+
+    lv_style_init(&s_key_operator);
+    lv_style_set_bg_color(&s_key_operator,
+                          lv_color_hex(APP_UI_COLOR_RAIN_TINT));
+
+    lv_style_init(&s_key_function);
+    lv_style_set_bg_color(&s_key_function,
+                          lv_color_hex(CALCULATOR_COLOR_SURFACE_HI));
 
     lv_style_init(&s_key_pressed);
     lv_style_set_bg_color(&s_key_pressed,
-                          lv_color_hex(CALCULATOR_COLOR_SURFACE_HI));
+                          lv_color_hex(APP_UI_COLOR_TRACK));
 
     lv_style_init(&s_display);
     lv_style_set_pad_row(&s_display, 2);
@@ -100,7 +110,7 @@ typedef struct calculator_key
     char digit;                  /**< Digit appended by a DIGIT key. */
     uint32_t text_color;         /**< Caption colour. */
     bool symbol;                 /**< Caption needs the built-in symbol font. */
-    bool ring;                   /**< Key carries the accent outline. */
+    bool ring;                   /**< Key is the accent-filled primary action. */
 } calculator_key_t;
 
 typedef struct calculator_page_state
@@ -289,11 +299,21 @@ static lv_obj_t *_calculator_make_key(lv_obj_t *row,
     lv_obj_set_flex_grow(key, 1);
     lv_obj_set_height(key, LV_PCT(100));
     lv_obj_add_style(key, &s_key_base, 0);
+    lv_obj_add_style(key, &s_key_pressed, LV_STATE_PRESSED);
     if (descriptor->ring)
     {
         lv_obj_add_style(key, &s_key_ring, 0);
+        lv_obj_add_style(key, &s_key_ring_pressed, LV_STATE_PRESSED);
     }
-    lv_obj_add_style(key, &s_key_pressed, LV_STATE_PRESSED);
+    else if (descriptor->kind == CALCULATOR_KEY_OPERATOR)
+    {
+        lv_obj_add_style(key, &s_key_operator, 0);
+    }
+    else if (descriptor->kind != CALCULATOR_KEY_DIGIT &&
+             descriptor->kind != CALCULATOR_KEY_DECIMAL)
+    {
+        lv_obj_add_style(key, &s_key_function, 0);
+    }
     lv_obj_set_user_data(key, (void *)(uintptr_t)index);
     lv_obj_add_event_cb(key, _calculator_key_event, LV_EVENT_CLICKED,
                         user_data);
@@ -304,8 +324,10 @@ static lv_obj_t *_calculator_make_key(lv_obj_t *row,
         /* LVGL symbol glyphs only exist in the built-in default font. */
         lv_obj_set_style_text_font(caption, descriptor->symbol ? LV_FONT_DEFAULT :
                                    app_ui_font(APP_THEME_FONT_HEAD), 0);
-        lv_obj_set_style_text_color(caption,
-                                    lv_color_hex(descriptor->text_color), 0);
+        lv_obj_set_style_text_color(caption, lv_color_hex(
+                                        descriptor->ring ?
+                                        APP_UI_COLOR_ON_ACCENT :
+                                        descriptor->text_color), 0);
         lv_label_set_text(caption, descriptor->caption);
         lv_obj_center(caption);
     }

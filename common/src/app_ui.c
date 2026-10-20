@@ -1,6 +1,7 @@
 #define DBG_TAG "app_ui"
 #include "mt_log.h"
 
+#include "app_image_ids.h"
 #include "app_ui.h"
 #include "app_ui_theme.h"
 #include <string.h>
@@ -12,14 +13,20 @@
 #define COLOR_TEXT       APP_UI_COLOR_TEXT
 #define COLOR_MUTED      APP_UI_COLOR_MUTED
 
-/* ~70% black scrim behind a modal bottom sheet. */
-#define APP_UI_SHEET_SCRIM_OPA 179
+/* ~78% black scrim behind a modal bottom sheet. */
+#define APP_UI_SHEET_SCRIM_OPA 200
 /* A sheet's action list is unbounded; cap the panel and scroll the excess. */
-#define APP_UI_SHEET_MAX_HEIGHT 400
+#define APP_UI_SHEET_MAX_HEIGHT 420
+/* Sheet panel floats inset from the screen edges like a card. */
+#define APP_UI_SHEET_INSET 8
 
-/* One-line height for a grouped value; bounds DOT truncation so a long value
- * ellipsizes inside the row instead of wrapping or overflowing. */
-#define APP_UI_VALUE_LINE_PX 36
+/* Row glyph art is authored at 28 px; the circular well frames it. */
+#define APP_UI_ROW_GLYPH 28
+#define APP_UI_ROW_WELL  40
+
+/* Launcher icon well; the 64 px record is drawn 1:1 inside it. */
+#define APP_UI_TILE_WELL  72
+#define APP_UI_TILE_IMAGE 64
 
 /* Shared local styles. Instantiating one style per property on every widget
  * fragments the heap and costs more than the widgets themselves; this table
@@ -36,15 +43,21 @@ static lv_style_t s_subtitle_label;
 static lv_style_t s_body_label;
 static lv_style_t s_chevron;
 static lv_style_t s_text_column;
-static lv_style_t s_action_button;
-static lv_style_t s_entry_row;
+static lv_style_t s_card_row;
+static lv_style_t s_row_well;
+static lv_style_t s_row_well_danger;
+static lv_style_t s_button;
+static lv_style_t s_button_primary;
+static lv_style_t s_button_primary_pressed;
+static lv_style_t s_button_danger;
+static lv_style_t s_button_danger_pressed;
 static lv_style_t s_chip_button;
-static lv_style_t s_icon_button;
+static lv_style_t s_chip_selected;
 static lv_style_t s_icon_tile;
 static lv_style_t s_icon_chip;
 static lv_style_t s_group;
 static lv_style_t s_group_row;
-static lv_style_t s_value_row;
+static lv_style_t s_group_divider;
 static lv_style_t s_value_label;
 static lv_style_t s_empty_state;
 static lv_style_t s_sheet_scrim;
@@ -55,16 +68,11 @@ static lv_style_t s_tile_pressed;
 static lv_style_t s_switch_main;
 static lv_style_t s_switch_indicator_checked;
 static lv_style_t s_switch_knob;
-static lv_style_t s_switch_knob_checked;
+static lv_style_t s_pill;
 static bool s_styles_ready;
 
-static void _app_ui_styles_init(void)
+static void _app_ui_styles_init_layout(void)
 {
-    if (s_styles_ready)
-    {
-        return;
-    }
-
     lv_style_init(&s_page_root);
     lv_style_set_bg_color(&s_page_root, lv_color_hex(COLOR_BACKGROUND));
     lv_style_set_bg_opa(&s_page_root, LV_OPA_COVER);
@@ -74,36 +82,39 @@ static void _app_ui_styles_init(void)
     lv_style_init(&s_page_content);
     lv_style_set_bg_color(&s_page_content, lv_color_hex(COLOR_BACKGROUND));
     lv_style_set_bg_opa(&s_page_content, LV_OPA_COVER);
-    lv_style_set_pad_left(&s_page_content, 18);
-    lv_style_set_pad_right(&s_page_content, 18);
-    lv_style_set_pad_top(&s_page_content, 10);
-    lv_style_set_pad_bottom(&s_page_content, 18);
-    lv_style_set_pad_row(&s_page_content, 10);
+    lv_style_set_pad_left(&s_page_content, APP_UI_PAGE_MARGIN);
+    lv_style_set_pad_right(&s_page_content, APP_UI_PAGE_MARGIN);
+    lv_style_set_pad_top(&s_page_content, 8);
+    lv_style_set_pad_bottom(&s_page_content, 24);
+    lv_style_set_pad_row(&s_page_content, APP_UI_GAP);
 
     lv_style_init(&s_page_content_home);
     lv_style_set_bg_color(&s_page_content_home, lv_color_hex(COLOR_BACKGROUND));
     lv_style_set_bg_opa(&s_page_content_home, LV_OPA_COVER);
-    lv_style_set_pad_left(&s_page_content_home, 12);
-    lv_style_set_pad_right(&s_page_content_home, 12);
-    lv_style_set_pad_top(&s_page_content_home, 8);
-    lv_style_set_pad_bottom(&s_page_content_home, 12);
-    lv_style_set_pad_row(&s_page_content_home, 8);
+    lv_style_set_pad_left(&s_page_content_home, APP_UI_PAGE_MARGIN);
+    lv_style_set_pad_right(&s_page_content_home, APP_UI_PAGE_MARGIN);
+    lv_style_set_pad_top(&s_page_content_home, 10);
+    lv_style_set_pad_bottom(&s_page_content_home, APP_UI_PAGE_MARGIN);
+    lv_style_set_pad_row(&s_page_content_home, APP_UI_GAP);
 
+    /* 64 px title-only header (36 px title). The trailing action is pinned to
+     * the bottom so it stays below the 20 px control-center capture band. */
     lv_style_init(&s_page_header);
     lv_style_set_bg_color(&s_page_header, lv_color_hex(COLOR_BACKGROUND));
     lv_style_set_bg_opa(&s_page_header, LV_OPA_COVER);
-    lv_style_set_pad_left(&s_page_header, 12);
-    lv_style_set_pad_right(&s_page_header, 16);
-    lv_style_set_pad_top(&s_page_header, 10);
-    lv_style_set_pad_bottom(&s_page_header, 10);
-    lv_style_set_pad_column(&s_page_header, 8);
+    lv_style_set_pad_left(&s_page_header, APP_UI_PAGE_MARGIN + 4);
+    lv_style_set_pad_right(&s_page_header, APP_UI_PAGE_MARGIN);
+    lv_style_set_pad_top(&s_page_header, 12);
+    lv_style_set_pad_bottom(&s_page_header, 4);
+    lv_style_set_pad_column(&s_page_header, APP_UI_GAP);
 
     lv_style_init(&s_header_text);
-    lv_style_set_pad_row(&s_header_text, 1);
+    lv_style_set_pad_row(&s_header_text, 0);
 
     lv_style_init(&s_section_label);
-    lv_style_set_text_color(&s_section_label, lv_color_hex(COLOR_MUTED));
-    lv_style_set_pad_top(&s_section_label, 5);
+    lv_style_set_text_color(&s_section_label, lv_color_hex(APP_UI_COLOR_FAINT));
+    lv_style_set_pad_top(&s_section_label, 8);
+    lv_style_set_pad_left(&s_section_label, 4);
 
     lv_style_init(&s_symbol);
     lv_style_set_text_align(&s_symbol, LV_TEXT_ALIGN_CENTER);
@@ -120,124 +131,191 @@ static void _app_ui_styles_init(void)
     lv_style_set_text_line_space(&s_body_label, 6);
 
     lv_style_init(&s_chevron);
-    lv_style_set_text_color(&s_chevron, lv_color_hex(COLOR_MUTED));
+    lv_style_set_text_color(&s_chevron, lv_color_hex(APP_UI_COLOR_FAINT));
 
     lv_style_init(&s_text_column);
     lv_style_set_pad_row(&s_text_column, 2);
 
-    lv_style_init(&s_action_button);
-    lv_style_set_radius(&s_action_button, 8);
-    lv_style_set_bg_color(&s_action_button, lv_color_hex(COLOR_SURFACE));
-    lv_style_set_shadow_width(&s_action_button, 0);
-    lv_style_set_pad_left(&s_action_button, 14);
-    lv_style_set_pad_right(&s_action_button, 14);
-    lv_style_set_pad_top(&s_action_button, 8);
-    lv_style_set_pad_bottom(&s_action_button, 8);
-    lv_style_set_pad_column(&s_action_button, 12);
+    lv_style_init(&s_value_label);
+    lv_style_set_text_align(&s_value_label, LV_TEXT_ALIGN_RIGHT);
+    lv_style_set_text_color(&s_value_label, lv_color_hex(COLOR_MUTED));
 
-    lv_style_init(&s_entry_row);
-    lv_style_set_radius(&s_entry_row, 8);
-    lv_style_set_bg_color(&s_entry_row, lv_color_hex(COLOR_SURFACE));
-    lv_style_set_shadow_width(&s_entry_row, 0);
-    lv_style_set_pad_left(&s_entry_row, 14);
-    lv_style_set_pad_right(&s_entry_row, 12);
-    lv_style_set_pad_column(&s_entry_row, 10);
+    lv_style_init(&s_empty_state);
+    lv_style_set_pad_top(&s_empty_state, 56);
+    lv_style_set_pad_bottom(&s_empty_state, 24);
+    lv_style_set_pad_row(&s_empty_state, 8);
+}
+static void _app_ui_styles_init_surfaces(void)
+{
+    lv_style_init(&s_card_row);
+    lv_style_set_radius(&s_card_row, APP_UI_RADIUS_CARD);
+    lv_style_set_bg_color(&s_card_row, lv_color_hex(COLOR_SURFACE));
+    lv_style_set_bg_opa(&s_card_row, LV_OPA_COVER);
+    lv_style_set_border_width(&s_card_row, 0);
+    lv_style_set_shadow_width(&s_card_row, 0);
+    lv_style_set_pad_left(&s_card_row, APP_UI_CARD_PAD);
+    lv_style_set_pad_right(&s_card_row, 14);
+    lv_style_set_pad_top(&s_card_row, 10);
+    lv_style_set_pad_bottom(&s_card_row, 10);
+    lv_style_set_pad_column(&s_card_row, 14);
 
-    lv_style_init(&s_chip_button);
-    lv_style_set_radius(&s_chip_button, 6);
-    lv_style_set_bg_color(&s_chip_button, lv_color_hex(COLOR_SURFACE));
-    lv_style_set_shadow_width(&s_chip_button, 0);
+    lv_style_init(&s_row_well);
+    lv_style_set_radius(&s_row_well, LV_RADIUS_CIRCLE);
+    lv_style_set_bg_color(&s_row_well, lv_color_hex(APP_UI_COLOR_RAIN_TINT));
+    lv_style_set_bg_opa(&s_row_well, LV_OPA_COVER);
 
-    lv_style_init(&s_icon_button);
-    lv_style_set_radius(&s_icon_button, 6);
-    lv_style_set_shadow_width(&s_icon_button, 0);
-    lv_style_set_pad_all(&s_icon_button, 4);
-
-    lv_style_init(&s_icon_tile);
-    lv_style_set_radius(&s_icon_tile, 16);
-    lv_style_set_bg_opa(&s_icon_tile, LV_OPA_TRANSP);
-    lv_style_set_shadow_width(&s_icon_tile, 0);
-    lv_style_set_pad_all(&s_icon_tile, 4);
-    lv_style_set_pad_row(&s_icon_tile, 6);
-
-    lv_style_init(&s_icon_chip);
-    lv_style_set_radius(&s_icon_chip, 15);
-    lv_style_set_bg_color(&s_icon_chip, lv_color_hex(APP_UI_COLOR_SURFACE_LO));
-    lv_style_set_bg_opa(&s_icon_chip, LV_OPA_COVER);
+    lv_style_init(&s_row_well_danger);
+    lv_style_set_bg_color(&s_row_well_danger,
+                          lv_color_hex(APP_UI_COLOR_WARNING_TINT));
 
     lv_style_init(&s_group);
     lv_style_set_bg_color(&s_group, lv_color_hex(COLOR_SURFACE));
     lv_style_set_bg_opa(&s_group, LV_OPA_COVER);
-    lv_style_set_radius(&s_group, 16);
-    lv_style_set_pad_all(&s_group, 0);
+    lv_style_set_radius(&s_group, APP_UI_RADIUS_CARD);
+    lv_style_set_pad_all(&s_group, 4);
     lv_style_set_pad_row(&s_group, 0);
 
+    /* Rows stay square so the 1 px divider is a straight line; the pressed
+     * state rounds the highlight inside the group's 4 px inset. */
     lv_style_init(&s_group_row);
     lv_style_set_radius(&s_group_row, 0);
     lv_style_set_bg_opa(&s_group_row, LV_OPA_TRANSP);
     lv_style_set_shadow_width(&s_group_row, 0);
-    lv_style_set_pad_left(&s_group_row, 14);
-    lv_style_set_pad_right(&s_group_row, 12);
-    lv_style_set_pad_column(&s_group_row, 12);
+    lv_style_set_border_width(&s_group_row, 0);
+    lv_style_set_pad_left(&s_group_row, 12);
+    lv_style_set_pad_right(&s_group_row, 10);
+    lv_style_set_pad_column(&s_group_row, 14);
 
-    lv_style_init(&s_value_row);
-    lv_style_set_bg_color(&s_value_row, lv_color_hex(COLOR_SURFACE));
-    lv_style_set_bg_opa(&s_value_row, LV_OPA_COVER);
-    lv_style_set_radius(&s_value_row, 8);
-    lv_style_set_pad_left(&s_value_row, 14);
-    lv_style_set_pad_right(&s_value_row, 14);
-    lv_style_set_pad_top(&s_value_row, 8);
-    lv_style_set_pad_bottom(&s_value_row, 8);
-
-    lv_style_init(&s_value_label);
-    lv_style_set_text_align(&s_value_label, LV_TEXT_ALIGN_RIGHT);
-    lv_style_set_text_color(&s_value_label, lv_color_hex(COLOR_TEXT));
-
-    lv_style_init(&s_empty_state);
-    lv_style_set_pad_top(&s_empty_state, 48);
-    lv_style_set_pad_row(&s_empty_state, 6);
-
-    lv_style_init(&s_sheet_scrim);
-    lv_style_set_bg_color(&s_sheet_scrim, lv_color_hex(COLOR_BACKGROUND));
-    lv_style_set_bg_opa(&s_sheet_scrim, APP_UI_SHEET_SCRIM_OPA);
-    lv_style_set_pad_all(&s_sheet_scrim, 0);
-
-    lv_style_init(&s_sheet_panel);
-    lv_style_set_bg_color(&s_sheet_panel, lv_color_hex(COLOR_SHEET));
-    lv_style_set_bg_opa(&s_sheet_panel, LV_OPA_COVER);
-    lv_style_set_radius(&s_sheet_panel, 20);
-    lv_style_set_pad_left(&s_sheet_panel, 20);
-    lv_style_set_pad_right(&s_sheet_panel, 20);
-    lv_style_set_pad_top(&s_sheet_panel, 20);
-    lv_style_set_pad_bottom(&s_sheet_panel, 24);
-    lv_style_set_pad_row(&s_sheet_panel, 10);
-
-    lv_style_init(&s_page_action_button);
-    lv_style_set_radius(&s_page_action_button, 12);
-    lv_style_set_bg_color(&s_page_action_button, lv_color_hex(COLOR_SURFACE));
-    lv_style_set_shadow_width(&s_page_action_button, 0);
-
-    lv_style_init(&s_surface_pressed);
-    lv_style_set_bg_color(&s_surface_pressed, lv_color_hex(COLOR_SURFACE_HI));
+    lv_style_init(&s_group_divider);
+    lv_style_set_border_side(&s_group_divider, LV_BORDER_SIDE_TOP);
+    lv_style_set_border_width(&s_group_divider, 1);
+    lv_style_set_border_color(&s_group_divider,
+                              lv_color_hex(APP_UI_COLOR_HAIRLINE));
+    lv_style_set_border_opa(&s_group_divider, LV_OPA_COVER);
 
     lv_style_init(&s_tile_pressed);
     lv_style_set_bg_color(&s_tile_pressed, lv_color_hex(COLOR_SURFACE_HI));
     lv_style_set_bg_opa(&s_tile_pressed, LV_OPA_COVER);
+    lv_style_set_radius(&s_tile_pressed, 16);
+    lv_style_set_border_opa(&s_tile_pressed, LV_OPA_TRANSP);
+
+    lv_style_init(&s_surface_pressed);
+    lv_style_set_bg_color(&s_surface_pressed, lv_color_hex(COLOR_SURFACE_HI));
+
+    lv_style_init(&s_sheet_scrim);
+    lv_style_set_bg_color(&s_sheet_scrim, lv_color_hex(APP_THEME_COLOR_SCRIM));
+    lv_style_set_bg_opa(&s_sheet_scrim, APP_UI_SHEET_SCRIM_OPA);
+    lv_style_set_pad_all(&s_sheet_scrim, APP_UI_SHEET_INSET);
+
+    lv_style_init(&s_sheet_panel);
+    lv_style_set_bg_color(&s_sheet_panel, lv_color_hex(COLOR_SHEET));
+    lv_style_set_bg_opa(&s_sheet_panel, LV_OPA_COVER);
+    lv_style_set_radius(&s_sheet_panel, APP_UI_RADIUS_SHEET);
+    lv_style_set_pad_left(&s_sheet_panel, 20);
+    lv_style_set_pad_right(&s_sheet_panel, 20);
+    lv_style_set_pad_top(&s_sheet_panel, 24);
+    lv_style_set_pad_bottom(&s_sheet_panel, 20);
+    lv_style_set_pad_row(&s_sheet_panel, 10);
+
+    lv_style_init(&s_pill);
+    lv_style_set_radius(&s_pill, LV_RADIUS_CIRCLE);
+    lv_style_set_bg_opa(&s_pill, LV_OPA_COVER);
+    lv_style_set_pad_left(&s_pill, 12);
+    lv_style_set_pad_right(&s_pill, 12);
+    lv_style_set_pad_top(&s_pill, 4);
+    lv_style_set_pad_bottom(&s_pill, 4);
+    lv_style_set_pad_column(&s_pill, 8);
+}
+static void _app_ui_styles_init_controls(void)
+{
+    /* Pill buttons: secondary is the default, primary/danger are accent fills.
+     * Pressed states always lighten (emissive panel). */
+    lv_style_init(&s_button);
+    lv_style_set_radius(&s_button, LV_RADIUS_CIRCLE);
+    lv_style_set_bg_color(&s_button, lv_color_hex(COLOR_SURFACE_HI));
+    lv_style_set_bg_opa(&s_button, LV_OPA_COVER);
+    lv_style_set_border_width(&s_button, 0);
+    lv_style_set_shadow_width(&s_button, 0);
+    lv_style_set_text_color(&s_button, lv_color_hex(COLOR_TEXT));
+
+    lv_style_init(&s_button_primary);
+    lv_style_set_bg_color(&s_button_primary, lv_color_hex(APP_UI_COLOR_RAIN));
+    lv_style_set_text_color(&s_button_primary,
+                            lv_color_hex(APP_UI_COLOR_ON_ACCENT));
+
+    lv_style_init(&s_button_primary_pressed);
+    lv_style_set_bg_color(&s_button_primary_pressed,
+                          lv_color_hex(APP_UI_COLOR_RAIN_HI));
+
+    lv_style_init(&s_button_danger);
+    lv_style_set_bg_color(&s_button_danger,
+                          lv_color_hex(APP_UI_COLOR_WARNING_TINT));
+    lv_style_set_text_color(&s_button_danger,
+                            lv_color_hex(APP_UI_COLOR_WARNING));
+
+    lv_style_init(&s_button_danger_pressed);
+    lv_style_set_bg_color(&s_button_danger_pressed,
+                          lv_color_hex(APP_UI_COLOR_SURFACE_HI));
+
+    /* Segmented control: the row is the pill track, chips are transparent
+     * segments and the selected one lifts onto the L2 surface. */
+    lv_style_init(&s_chip_button);
+    lv_style_set_radius(&s_chip_button, LV_RADIUS_CIRCLE);
+    lv_style_set_bg_opa(&s_chip_button, LV_OPA_TRANSP);
+    lv_style_set_border_width(&s_chip_button, 0);
+    lv_style_set_shadow_width(&s_chip_button, 0);
+    lv_style_set_pad_left(&s_chip_button, 2);
+    lv_style_set_pad_right(&s_chip_button, 2);
+
+    lv_style_init(&s_chip_selected);
+    lv_style_set_bg_color(&s_chip_selected, lv_color_hex(APP_UI_COLOR_TRACK));
+    lv_style_set_bg_opa(&s_chip_selected, LV_OPA_COVER);
+
+    lv_style_init(&s_icon_tile);
+    lv_style_set_radius(&s_icon_tile, APP_UI_RADIUS_CARD);
+    lv_style_set_bg_opa(&s_icon_tile, LV_OPA_TRANSP);
+    lv_style_set_shadow_width(&s_icon_tile, 0);
+    lv_style_set_border_width(&s_icon_tile, 0);
+    lv_style_set_pad_all(&s_icon_tile, 4);
+    lv_style_set_pad_row(&s_icon_tile, 8);
+
+    lv_style_init(&s_icon_chip);
+    lv_style_set_radius(&s_icon_chip, LV_RADIUS_CIRCLE);
+    lv_style_set_bg_color(&s_icon_chip, lv_color_hex(COLOR_SURFACE));
+    lv_style_set_bg_opa(&s_icon_chip, LV_OPA_COVER);
+
+    lv_style_init(&s_page_action_button);
+    lv_style_set_radius(&s_page_action_button, LV_RADIUS_CIRCLE);
+    lv_style_set_bg_color(&s_page_action_button, lv_color_hex(COLOR_SURFACE));
+    lv_style_set_bg_opa(&s_page_action_button, LV_OPA_COVER);
+    lv_style_set_border_width(&s_page_action_button, 0);
+    lv_style_set_shadow_width(&s_page_action_button, 0);
 
     lv_style_init(&s_switch_main);
-    lv_style_set_bg_color(&s_switch_main, lv_color_hex(COLOR_SURFACE_HI));
+    lv_style_set_bg_color(&s_switch_main, lv_color_hex(APP_UI_COLOR_TRACK));
+    lv_style_set_bg_opa(&s_switch_main, LV_OPA_COVER);
+    lv_style_set_border_width(&s_switch_main, 0);
 
     lv_style_init(&s_switch_indicator_checked);
     lv_style_set_bg_color(&s_switch_indicator_checked,
                           lv_color_hex(APP_UI_COLOR_RAIN));
+    lv_style_set_bg_opa(&s_switch_indicator_checked, LV_OPA_COVER);
 
     lv_style_init(&s_switch_knob);
     lv_style_set_bg_color(&s_switch_knob, lv_color_hex(COLOR_TEXT));
+    lv_style_set_bg_opa(&s_switch_knob, LV_OPA_COVER);
+    lv_style_set_pad_all(&s_switch_knob, -4);
+}
 
-    lv_style_init(&s_switch_knob_checked);
-    lv_style_set_bg_color(&s_switch_knob_checked,
-                          lv_color_hex(APP_UI_COLOR_ON_ACCENT));
-
+static void _app_ui_styles_init(void)
+{
+    if (s_styles_ready)
+    {
+        return;
+    }
+    _app_ui_styles_init_layout();
+    _app_ui_styles_init_surfaces();
+    _app_ui_styles_init_controls();
     s_styles_ready = true;
 }
 
@@ -370,7 +448,8 @@ static void _app_ui_page_create_root(app_ui_page_t *page, bool with_header)
     page->header = lv_obj_create(page->root);
     lv_obj_remove_style_all(page->header);
     lv_obj_set_width(page->header, LV_PCT(100));
-    lv_obj_set_height(page->header, 64);
+    lv_obj_set_height(page->header, LV_SIZE_CONTENT);
+    lv_obj_set_style_min_height(page->header, 64, 0);
     lv_obj_add_style(page->header, &s_page_header, 0);
     lv_obj_set_flex_flow(page->header, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(page->header, LV_FLEX_ALIGN_START,
@@ -389,7 +468,7 @@ static void _app_ui_page_create_root(app_ui_page_t *page, bool with_header)
     page->title = lv_label_create(page->header_text);
     lv_obj_set_width(page->title, LV_PCT(100));
     lv_obj_add_style(page->title, &s_title_label, 0);
-    lv_obj_set_style_text_font(page->title, app_ui_font(APP_THEME_FONT_HEAD), 0);
+    lv_obj_set_style_text_font(page->title, app_ui_font(APP_THEME_FONT_BIGL), 0);
     lv_label_set_long_mode(page->title, LV_LABEL_LONG_SCROLL_CIRCULAR);
 
     page->content = lv_obj_create(page->root);
@@ -518,35 +597,58 @@ void app_ui_icon_set_color(lv_obj_t *icon, uint32_t color)
     lv_obj_set_style_image_recolor_opa(icon, LV_OPA_COVER, 0);
 }
 
-static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, uint32_t image_id,
-                                    const char *symbol,
-                                    const char *title, const char *subtitle,
-                                    lv_event_cb_t callback, void *user_data,
-                                    bool navigation, lv_obj_t **title_out)
+/* Circular tinted well framing one 28 px row glyph. */
+static lv_obj_t *_app_ui_row_well(lv_obj_t *parent, uint32_t image_id,
+                                  const char *symbol, bool danger)
 {
-    _app_ui_styles_init();
-    lv_obj_t *button = lv_button_create(parent);
-    app_ui_click_only(button);
-    lv_obj_set_width(button, LV_PCT(100));
-    lv_obj_set_height(button, LV_SIZE_CONTENT);
-    lv_obj_add_style(button, &s_action_button, 0);
-    lv_obj_add_style(button, &s_surface_pressed, LV_STATE_PRESSED);
-    lv_obj_set_flex_flow(button, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(button, LV_FLEX_ALIGN_START,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-    lv_obj_t *icon = app_ui_image(button, image_id,
+    lv_obj_t *well = lv_obj_create(parent);
+    lv_obj_remove_style_all(well);
+    lv_obj_set_size(well, APP_UI_ROW_WELL, APP_UI_ROW_WELL);
+    lv_obj_add_style(well, &s_row_well, 0);
+    if (danger)
+    {
+        lv_obj_add_style(well, &s_row_well_danger, 0);
+    }
+    app_ui_make_passive(well, false);
+    lv_obj_t *icon = app_ui_image(well, image_id,
                                   symbol != NULL ? symbol : LV_SYMBOL_RIGHT,
-                                  28);
+                                  APP_UI_ROW_GLYPH);
     if (icon != NULL)
     {
-        app_ui_icon_set_color(icon, APP_UI_COLOR_RAIN);
+        app_ui_icon_set_color(icon, danger ? APP_UI_COLOR_WARNING :
+                              APP_UI_COLOR_RAIN);
+        lv_obj_center(icon);
     }
+    return well;
+}
 
-    lv_obj_t *text = lv_obj_create(button);
+static void _app_ui_chevron(lv_obj_t *parent)
+{
+    lv_obj_t *chevron = app_ui_image(parent, APP_IMAGE_UI_CHEVRON_RIGHT,
+                                     LV_SYMBOL_RIGHT, APP_UI_ROW_GLYPH);
+    if (chevron != NULL)
+    {
+        lv_obj_add_style(chevron, &s_chevron, 0);
+        app_ui_icon_set_color(chevron, APP_UI_COLOR_FAINT);
+    }
+}
+
+/* Title/subtitle column that grows between a row's leading and trailing
+ * elements. Long titles ellipsize; subtitles wrap when @p wrap is set. */
+static lv_obj_t *_app_ui_row_text(lv_obj_t *row, const char *title,
+                                  const char *subtitle, uint32_t title_color,
+                                  bool wrap, lv_obj_t **title_out,
+                                  lv_obj_t **subtitle_out)
+{
+    if (subtitle_out != NULL)
+    {
+        *subtitle_out = NULL;
+    }
+    lv_obj_t *text = lv_obj_create(row);
     lv_obj_remove_style_all(text);
-    lv_obj_set_height(text, LV_SIZE_CONTENT);
+    lv_obj_set_width(text, 0);
     lv_obj_set_flex_grow(text, 1);
+    lv_obj_set_height(text, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
     lv_obj_add_style(text, &s_text_column, 0);
     app_ui_make_passive(text, false);
@@ -554,35 +656,60 @@ static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, uint32_t image_id,
     lv_obj_t *title_label = lv_label_create(text);
     lv_obj_set_width(title_label, LV_PCT(100));
     lv_label_set_long_mode(title_label, LV_LABEL_LONG_DOT);
-    lv_obj_add_style(title_label, &s_title_label, 0);
+    lv_obj_set_style_text_color(title_label, lv_color_hex(title_color), 0);
     lv_obj_set_style_text_font(title_label, app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_label_set_text(title_label, title != NULL ? title : "");
+    app_ui_make_passive(title_label, false);
     if (title_out != NULL)
     {
         *title_out = title_label;
     }
-
     if (subtitle != NULL)
     {
         lv_obj_t *subtitle_label = lv_label_create(text);
         lv_obj_set_width(subtitle_label, LV_PCT(100));
         lv_obj_set_height(subtitle_label, LV_SIZE_CONTENT);
-        lv_label_set_long_mode(subtitle_label, LV_LABEL_LONG_WRAP);
+        lv_label_set_long_mode(subtitle_label,
+                               wrap ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
         lv_obj_add_style(subtitle_label, &s_subtitle_label, 0);
         lv_obj_set_style_text_font(subtitle_label,
                                    app_ui_font(APP_THEME_FONT_SMALL), 0);
         lv_label_set_text(subtitle_label, subtitle);
+        app_ui_make_passive(subtitle_label, false);
+        if (subtitle_out != NULL)
+        {
+            *subtitle_out = subtitle_label;
+        }
     }
+    return text;
+}
 
+static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, uint32_t image_id,
+                                    const char *symbol,
+                                    const char *title, const char *subtitle,
+                                    lv_event_cb_t callback, void *user_data,
+                                    bool navigation, bool danger)
+{
+    _app_ui_styles_init();
+    lv_obj_t *button = lv_button_create(parent);
+    app_ui_click_only(button);
+    lv_obj_set_width(button, LV_PCT(100));
+    lv_obj_set_height(button, LV_SIZE_CONTENT);
+    lv_obj_set_style_min_height(button, APP_UI_ROW_HEIGHT_TALL, 0);
+    lv_obj_add_style(button, &s_card_row, 0);
+    lv_obj_add_style(button, &s_surface_pressed, LV_STATE_PRESSED);
+    lv_obj_set_flex_flow(button, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(button, LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    (void)_app_ui_row_well(button, image_id, symbol, danger);
+    (void)_app_ui_row_text(button, title, subtitle,
+                           danger ? APP_UI_COLOR_WARNING : COLOR_TEXT, true,
+                           NULL, NULL);
     if (navigation)
     {
-        lv_obj_t *chevron = lv_label_create(button);
-        lv_obj_add_style(chevron, &s_chevron, 0);
-        lv_obj_set_style_text_font(chevron, LV_FONT_DEFAULT, 0);
-        app_ui_make_passive(chevron, false);
-        lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
+        _app_ui_chevron(button);
     }
-
     if (callback != NULL)
     {
         lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
@@ -595,7 +722,7 @@ lv_obj_t *app_ui_add_action(lv_obj_t *parent, const char *symbol,
                             lv_event_cb_t callback, void *user_data)
 {
     return _app_ui_add_action(parent, 0U, symbol, title, subtitle, callback,
-                              user_data, true, NULL);
+                              user_data, true, false);
 }
 
 lv_obj_t *app_ui_add_action_image(lv_obj_t *parent, uint32_t image_id,
@@ -604,7 +731,7 @@ lv_obj_t *app_ui_add_action_image(lv_obj_t *parent, uint32_t image_id,
                                   lv_event_cb_t callback, void *user_data)
 {
     return _app_ui_add_action(parent, image_id, fallback_symbol, title,
-                              subtitle, callback, user_data, true, NULL);
+                              subtitle, callback, user_data, true, false);
 }
 
 lv_obj_t *app_ui_add_command(lv_obj_t *parent, const char *symbol,
@@ -612,7 +739,7 @@ lv_obj_t *app_ui_add_command(lv_obj_t *parent, const char *symbol,
                              lv_event_cb_t callback, void *user_data)
 {
     return _app_ui_add_action(parent, 0U, symbol, title, subtitle, callback,
-                              user_data, false, NULL);
+                              user_data, false, false);
 }
 
 lv_obj_t *app_ui_add_command_image(lv_obj_t *parent, uint32_t image_id,
@@ -621,7 +748,7 @@ lv_obj_t *app_ui_add_command_image(lv_obj_t *parent, uint32_t image_id,
                                    lv_event_cb_t callback, void *user_data)
 {
     return _app_ui_add_action(parent, image_id, fallback_symbol, title,
-                              subtitle, callback, user_data, false, NULL);
+                              subtitle, callback, user_data, false, false);
 }
 
 lv_obj_t *app_ui_add_entry_row(lv_obj_t *parent, const char *title,
@@ -632,8 +759,8 @@ lv_obj_t *app_ui_add_entry_row(lv_obj_t *parent, const char *title,
     lv_obj_t *button = lv_button_create(parent);
     app_ui_click_only(button);
     lv_obj_set_width(button, LV_PCT(100));
-    lv_obj_set_height(button, 64);
-    lv_obj_add_style(button, &s_entry_row, 0);
+    lv_obj_set_height(button, APP_UI_ROW_HEIGHT_TALL);
+    lv_obj_add_style(button, &s_card_row, 0);
     lv_obj_add_style(button, &s_surface_pressed, LV_STATE_PRESSED);
     lv_obj_set_flex_flow(button, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(button, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
@@ -642,40 +769,14 @@ lv_obj_t *app_ui_add_entry_row(lv_obj_t *parent, const char *title,
     {
         lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
     }
-
-    lv_obj_t *text = lv_obj_create(button);
-    lv_obj_remove_style_all(text);
-    lv_obj_set_width(text, 0);
-    lv_obj_set_flex_grow(text, 1);
-    lv_obj_set_height(text, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
-    lv_obj_add_style(text, &s_text_column, 0);
-    app_ui_make_passive(text, false);
-
-    lv_obj_t *title_label = lv_label_create(text);
-    lv_obj_set_width(title_label, LV_PCT(100));
-    lv_label_set_long_mode(title_label, LV_LABEL_LONG_DOT);
-    lv_obj_add_style(title_label, &s_title_label, 0);
-    lv_obj_set_style_text_font(title_label,
-                               app_ui_font(APP_THEME_FONT_BODY), 0);
-    lv_label_set_text(title_label, title != NULL ? title : "");
-
-    lv_obj_t *summary = lv_label_create(text);
-    lv_obj_set_width(summary, LV_PCT(100));
-    lv_label_set_long_mode(summary, LV_LABEL_LONG_DOT);
-    lv_obj_add_style(summary, &s_subtitle_label, 0);
-    lv_obj_set_style_text_font(summary, app_ui_font(APP_THEME_FONT_SMALL), 0);
-    lv_label_set_text(summary, "");
+    lv_obj_t *summary = NULL;
+    (void)_app_ui_row_text(button, title, "", COLOR_TEXT, false, NULL,
+                           &summary);
     if (summary_out != NULL)
     {
         *summary_out = summary;
     }
-
-    lv_obj_t *chevron = lv_label_create(button);
-    lv_obj_add_style(chevron, &s_chevron, 0);
-    lv_obj_set_style_text_font(chevron, LV_FONT_DEFAULT, 0);
-    app_ui_make_passive(chevron, false);
-    lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
+    _app_ui_chevron(button);
     return button;
 }
 
@@ -683,16 +784,8 @@ lv_obj_t *app_ui_add_danger_action(lv_obj_t *parent, const char *symbol,
                                    const char *title, const char *subtitle,
                                    lv_event_cb_t callback, void *user_data)
 {
-    lv_obj_t *title_label = NULL;
-    lv_obj_t *button = _app_ui_add_action(parent, 0U, symbol, title, subtitle,
-                                          callback, user_data, true,
-                                          &title_label);
-    if (title_label != NULL)
-    {
-        lv_obj_set_style_text_color(title_label,
-                                    lv_color_hex(APP_UI_COLOR_WARNING), 0);
-    }
-    return button;
+    return _app_ui_add_action(parent, 0U, symbol, title, subtitle, callback,
+                              user_data, true, true);
 }
 
 lv_obj_t *app_ui_add_danger_action_image(lv_obj_t *parent, uint32_t image_id,
@@ -702,16 +795,8 @@ lv_obj_t *app_ui_add_danger_action_image(lv_obj_t *parent, uint32_t image_id,
         lv_event_cb_t callback,
         void *user_data)
 {
-    lv_obj_t *title_label = NULL;
-    lv_obj_t *button = _app_ui_add_action(parent, image_id, fallback_symbol,
-                                          title, subtitle, callback, user_data,
-                                          true, &title_label);
-    if (title_label != NULL)
-    {
-        lv_obj_set_style_text_color(title_label,
-                                    lv_color_hex(APP_UI_COLOR_WARNING), 0);
-    }
-    return button;
+    return _app_ui_add_action(parent, image_id, fallback_symbol, title,
+                              subtitle, callback, user_data, true, true);
 }
 
 lv_obj_t *app_ui_button_row_create(lv_obj_t *parent, int32_t height)
@@ -723,6 +808,7 @@ lv_obj_t *app_ui_button_row_create(lv_obj_t *parent, int32_t height)
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, APP_UI_GAP, 0);
     app_ui_make_passive(row, false);
     return row;
 }
@@ -736,18 +822,41 @@ lv_obj_t *app_ui_button_create(lv_obj_t *row, const char *text,
     lv_obj_set_width(button, 0);
     lv_obj_set_flex_grow(button, 1);
     lv_obj_set_height(button, LV_PCT(100));
-    lv_obj_add_style(button, &s_chip_button, 0);
-    lv_obj_add_style(button, &s_surface_pressed, LV_STATE_PRESSED);
+    lv_obj_add_style(button, &s_button, 0);
+    lv_obj_add_style(button, &s_tile_pressed, LV_STATE_PRESSED);
+    lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, LV_STATE_PRESSED);
     if (callback != NULL)
     {
         lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
     }
     lv_obj_t *label = lv_label_create(button);
     lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
-    lv_obj_add_style(label, &s_title_label, 0);
     lv_label_set_text(label, text != NULL ? text : "");
     lv_obj_center(label);
     return button;
+}
+
+void app_ui_button_set_kind(lv_obj_t *button, app_ui_button_kind_t kind)
+{
+    if (button == NULL)
+    {
+        return;
+    }
+    _app_ui_styles_init();
+    lv_obj_remove_style(button, &s_button_primary, 0);
+    lv_obj_remove_style(button, &s_button_primary_pressed, LV_STATE_PRESSED);
+    lv_obj_remove_style(button, &s_button_danger, 0);
+    lv_obj_remove_style(button, &s_button_danger_pressed, LV_STATE_PRESSED);
+    if (kind == APP_UI_BUTTON_PRIMARY)
+    {
+        lv_obj_add_style(button, &s_button_primary, 0);
+        lv_obj_add_style(button, &s_button_primary_pressed, LV_STATE_PRESSED);
+    }
+    else if (kind == APP_UI_BUTTON_DANGER)
+    {
+        lv_obj_add_style(button, &s_button_danger, 0);
+        lv_obj_add_style(button, &s_button_danger_pressed, LV_STATE_PRESSED);
+    }
 }
 
 void app_ui_button_set_text(lv_obj_t *button, const char *text)
@@ -755,13 +864,20 @@ void app_ui_button_set_text(lv_obj_t *button, const char *text)
     lv_obj_t *label = lv_obj_get_child(button, 0);
     if (label != NULL)
     {
-        lv_label_set_text(label, text != NULL ? text : "");
+        app_ui_label_set_text_if(label, text != NULL ? text : "");
     }
 }
 
 lv_obj_t *app_ui_chip_row_create(lv_obj_t *parent)
 {
-    return app_ui_button_row_create(parent, 44);
+    _app_ui_styles_init();
+    lv_obj_t *row = app_ui_button_row_create(parent, APP_UI_CHIP_HEIGHT);
+    lv_obj_set_style_radius(row, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(row, lv_color_hex(COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(row, 4, 0);
+    lv_obj_set_style_pad_column(row, 2, 0);
+    return row;
 }
 
 lv_obj_t *app_ui_chip_create(lv_obj_t *row, const char *text,
@@ -774,7 +890,9 @@ lv_obj_t *app_ui_chip_create(lv_obj_t *row, const char *text,
     lv_obj_set_flex_grow(chip, 1);
     lv_obj_set_height(chip, LV_PCT(100));
     lv_obj_add_style(chip, &s_chip_button, 0);
-    lv_obj_add_style(chip, &s_surface_pressed, LV_STATE_PRESSED);
+    lv_obj_add_style(chip, &s_tile_pressed, LV_STATE_PRESSED);
+    lv_obj_add_style(chip, &s_chip_selected, LV_STATE_CHECKED);
+    lv_obj_set_style_radius(chip, LV_RADIUS_CIRCLE, LV_STATE_PRESSED);
     if (callback != NULL)
     {
         lv_obj_add_event_cb(chip, callback, LV_EVENT_CLICKED, user_data);
@@ -794,62 +912,22 @@ void app_ui_chip_set_selected(lv_obj_t *chip, bool selected)
     {
         return;
     }
+    if (selected)
+    {
+        lv_obj_add_state(chip, LV_STATE_CHECKED);
+    }
+    else
+    {
+        lv_obj_remove_state(chip, LV_STATE_CHECKED);
+    }
     lv_obj_set_style_text_color(label,
-                                lv_color_hex(selected ? APP_UI_COLOR_RAIN :
+                                lv_color_hex(selected ? COLOR_TEXT :
                                         COLOR_MUTED), 0);
 }
 
 void app_ui_click_only(lv_obj_t *obj)
 {
     lv_obj_set_press_lock(obj, false);
-}
-
-lv_obj_t *app_ui_add_icon_button(lv_obj_t *parent, uint32_t image_id,
-                                 const char *fallback_symbol,
-                                 lv_event_cb_t callback, void *user_data)
-{
-    _app_ui_styles_init();
-    lv_obj_t *button = lv_button_create(parent);
-    if (button == NULL)
-    {
-        return NULL;
-    }
-    app_ui_click_only(button);
-    lv_obj_set_width(button, 0);
-    lv_obj_set_height(button, 56);
-    lv_obj_set_flex_grow(button, 1);
-    lv_obj_add_style(button, &s_icon_button, 0);
-    if (callback != NULL)
-    {
-        lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
-    }
-
-    const lv_image_dsc_t *descriptor = NULL;
-    if (image_id != 0U && app_manager_get_image(image_id, &descriptor) == ESP_OK)
-    {
-        lv_obj_t *image = lv_image_create(button);
-        if (image != NULL)
-        {
-            lv_obj_set_size(image, 40, 40);
-            lv_image_set_src(image, descriptor);
-            app_ui_make_passive(image, false);
-            lv_obj_center(image);
-            return button;
-        }
-    }
-
-    lv_obj_t *symbol = lv_label_create(button);
-    if (symbol != NULL)
-    {
-        lv_obj_set_size(symbol, 40, 40);
-        lv_obj_set_style_text_align(symbol, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_text_font(symbol, LV_FONT_DEFAULT, 0);
-        lv_label_set_text(symbol, fallback_symbol != NULL ? fallback_symbol :
-                          LV_SYMBOL_RIGHT);
-        app_ui_make_passive(symbol, false);
-        lv_obj_center(symbol);
-    }
-    return button;
 }
 
 lv_obj_t *app_ui_add_icon_tile(lv_obj_t *parent, uint32_t image_id,
@@ -863,9 +941,10 @@ lv_obj_t *app_ui_add_icon_tile(lv_obj_t *parent, uint32_t image_id,
         return NULL;
     }
     app_ui_click_only(tile);
-    lv_obj_set_height(tile, 92);
+    lv_obj_set_height(tile, LV_SIZE_CONTENT);
     lv_obj_add_style(tile, &s_icon_tile, 0);
     lv_obj_add_style(tile, &s_tile_pressed, LV_STATE_PRESSED);
+    lv_obj_set_style_radius(tile, APP_UI_RADIUS_CARD, LV_STATE_PRESSED);
     lv_obj_set_flex_flow(tile, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(tile, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
@@ -878,7 +957,7 @@ lv_obj_t *app_ui_add_icon_tile(lv_obj_t *parent, uint32_t image_id,
     if (chip != NULL)
     {
         lv_obj_remove_style_all(chip);
-        lv_obj_set_size(chip, 52, 52);
+        lv_obj_set_size(chip, APP_UI_TILE_WELL, APP_UI_TILE_WELL);
         lv_obj_add_style(chip, &s_icon_chip, 0);
         app_ui_make_passive(chip, false);
 
@@ -890,7 +969,8 @@ lv_obj_t *app_ui_add_icon_tile(lv_obj_t *parent, uint32_t image_id,
             lv_obj_t *image = lv_image_create(chip);
             if (image != NULL)
             {
-                lv_obj_set_size(image, 40, 40);
+                /* The record is drawn 1:1 and clipped to this window. */
+                lv_obj_set_size(image, 72, 72);
                 lv_image_set_src(image, descriptor);
                 app_ui_make_passive(image, false);
                 lv_obj_center(image);
@@ -917,7 +997,7 @@ lv_obj_t *app_ui_add_icon_tile(lv_obj_t *parent, uint32_t image_id,
         lv_obj_set_height(caption, LV_SIZE_CONTENT);
         lv_label_set_long_mode(caption, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(caption, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_add_style(caption, &s_title_label, 0);
+        lv_obj_add_style(caption, &s_subtitle_label, 0);
         lv_obj_set_style_text_font(caption, app_ui_font(APP_THEME_FONT_SMALL), 0);
         lv_label_set_text(caption, label != NULL ? label : "");
     }
@@ -997,6 +1077,7 @@ static lv_obj_t *_app_ui_group_row(lv_obj_t *group, int32_t height)
         return NULL;
     }
     _app_ui_styles_init();
+    const bool divider = lv_obj_get_child_count(group) > 0U;
     lv_obj_t *row = lv_button_create(group);
     if (row == NULL)
     {
@@ -1006,6 +1087,10 @@ static lv_obj_t *_app_ui_group_row(lv_obj_t *group, int32_t height)
     lv_obj_set_width(row, LV_PCT(100));
     lv_obj_set_height(row, height);
     lv_obj_add_style(row, &s_group_row, 0);
+    if (divider)
+    {
+        lv_obj_add_style(row, &s_group_divider, 0);
+    }
     lv_obj_add_style(row, &s_tile_pressed, LV_STATE_PRESSED);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
@@ -1013,67 +1098,29 @@ static lv_obj_t *_app_ui_group_row(lv_obj_t *group, int32_t height)
     return row;
 }
 
-static void _app_ui_group_row_text(lv_obj_t *row, const char *title,
-                                   const char *subtitle, uint32_t title_color)
-{
-    lv_obj_t *text = lv_obj_create(row);
-    if (text == NULL)
-    {
-        return;
-    }
-    lv_obj_remove_style_all(text);
-    lv_obj_set_width(text, 0);
-    lv_obj_set_flex_grow(text, 1);
-    lv_obj_set_height(text, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
-    lv_obj_add_style(text, &s_text_column, 0);
-    app_ui_make_passive(text, false);
-
-    lv_obj_t *title_label = lv_label_create(text);
-    lv_obj_set_width(title_label, LV_PCT(100));
-    lv_label_set_long_mode(title_label, LV_LABEL_LONG_DOT);
-    lv_obj_set_style_text_color(title_label, lv_color_hex(title_color), 0);
-    lv_obj_set_style_text_font(title_label, app_ui_font(APP_THEME_FONT_BODY), 0);
-    lv_label_set_text(title_label, title != NULL ? title : "");
-    if (subtitle != NULL)
-    {
-        lv_obj_t *subtitle_label = lv_label_create(text);
-        lv_obj_set_width(subtitle_label, LV_PCT(100));
-        lv_label_set_long_mode(subtitle_label, LV_LABEL_LONG_DOT);
-        lv_obj_add_style(subtitle_label, &s_subtitle_label, 0);
-        lv_obj_set_style_text_font(subtitle_label,
-                                   app_ui_font(APP_THEME_FONT_SMALL), 0);
-        lv_label_set_text(subtitle_label, subtitle);
-    }
-}
-
 static lv_obj_t *_app_ui_group_nav(lv_obj_t *group, uint32_t image_id,
                                    const char *symbol,
                                    const char *title, const char *subtitle,
-                                   uint32_t title_color, bool navigation,
+                                   bool danger, bool navigation,
                                    lv_event_cb_t callback, void *user_data)
 {
-    lv_obj_t *row = _app_ui_group_row(group, 60);
+    lv_obj_t *row = _app_ui_group_row(group, subtitle != NULL ?
+                                      APP_UI_ROW_HEIGHT_TALL :
+                                      APP_UI_ROW_HEIGHT);
     if (row == NULL)
     {
         return NULL;
     }
     if (image_id != 0U || symbol != NULL)
     {
-        lv_obj_t *icon = app_ui_image(row, image_id, symbol, 24);
-        if (icon != NULL)
-        {
-            app_ui_icon_set_color(icon, APP_UI_COLOR_RAIN);
-        }
+        (void)_app_ui_row_well(row, image_id, symbol, danger);
     }
-    _app_ui_group_row_text(row, title, subtitle, title_color);
+    (void)_app_ui_row_text(row, title, subtitle,
+                           danger ? APP_UI_COLOR_WARNING : COLOR_TEXT, false,
+                           NULL, NULL);
     if (navigation)
     {
-        lv_obj_t *chevron = lv_label_create(row);
-        lv_obj_add_style(chevron, &s_chevron, 0);
-        lv_obj_set_style_text_font(chevron, LV_FONT_DEFAULT, 0);
-        app_ui_make_passive(chevron, false);
-        lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
+        _app_ui_chevron(row);
     }
     if (callback != NULL)
     {
@@ -1086,7 +1133,7 @@ lv_obj_t *app_ui_group_add_nav(lv_obj_t *group, const char *symbol,
                                const char *title, const char *subtitle,
                                lv_event_cb_t callback, void *user_data)
 {
-    return _app_ui_group_nav(group, 0U, symbol, title, subtitle, COLOR_TEXT,
+    return _app_ui_group_nav(group, 0U, symbol, title, subtitle, false,
                              true, callback, user_data);
 }
 
@@ -1096,14 +1143,14 @@ lv_obj_t *app_ui_group_add_nav_image(lv_obj_t *group, uint32_t image_id,
                                      lv_event_cb_t callback, void *user_data)
 {
     return _app_ui_group_nav(group, image_id, fallback_symbol, title, subtitle,
-                             COLOR_TEXT, true, callback, user_data);
+                             false, true, callback, user_data);
 }
 
 lv_obj_t *app_ui_group_add_command(lv_obj_t *group, const char *symbol,
                                    const char *title, const char *subtitle,
                                    lv_event_cb_t callback, void *user_data)
 {
-    return _app_ui_group_nav(group, 0U, symbol, title, subtitle, COLOR_TEXT,
+    return _app_ui_group_nav(group, 0U, symbol, title, subtitle, false,
                              false, callback, user_data);
 }
 
@@ -1115,15 +1162,15 @@ lv_obj_t *app_ui_group_add_command_image(lv_obj_t *group, uint32_t image_id,
         void *user_data)
 {
     return _app_ui_group_nav(group, image_id, fallback_symbol, title, subtitle,
-                             COLOR_TEXT, false, callback, user_data);
+                             false, false, callback, user_data);
 }
 
 lv_obj_t *app_ui_group_add_danger(lv_obj_t *group, const char *symbol,
                                   const char *title, const char *subtitle,
                                   lv_event_cb_t callback, void *user_data)
 {
-    return _app_ui_group_nav(group, 0U, symbol, title, subtitle,
-                             APP_UI_COLOR_WARNING, true, callback, user_data);
+    return _app_ui_group_nav(group, 0U, symbol, title, subtitle, true, true,
+                             callback, user_data);
 }
 
 lv_obj_t *app_ui_group_add_danger_image(lv_obj_t *group, uint32_t image_id,
@@ -1133,39 +1180,47 @@ lv_obj_t *app_ui_group_add_danger_image(lv_obj_t *group, uint32_t image_id,
                                         void *user_data)
 {
     return _app_ui_group_nav(group, image_id, fallback_symbol, title, subtitle,
-                             APP_UI_COLOR_WARNING, true, callback, user_data);
+                             true, true, callback, user_data);
 }
 
+/* Single-line entry: title on the left, the live summary right-aligned as the
+ * row value, chevron last. Two-line rows are reserved for subtitles that carry
+ * explanatory copy. */
 lv_obj_t *app_ui_group_add_entry(lv_obj_t *group, const char *title,
                                  lv_obj_t **summary_out,
                                  lv_event_cb_t callback, void *user_data)
 {
-    lv_obj_t *row = _app_ui_group_row(group, 62);
+    lv_obj_t *row = _app_ui_group_row(group, APP_UI_ROW_HEIGHT);
     if (row == NULL)
     {
         return NULL;
     }
-    _app_ui_group_row_text(row, title, NULL, COLOR_TEXT);
-    lv_obj_t *text = lv_obj_get_child(row, 0);
-    lv_obj_t *summary = NULL;
-    if (text != NULL)
-    {
-        summary = lv_label_create(text);
-        lv_obj_set_width(summary, LV_PCT(100));
-        lv_label_set_long_mode(summary, LV_LABEL_LONG_DOT);
-        lv_obj_add_style(summary, &s_subtitle_label, 0);
-        lv_obj_set_style_text_font(summary, app_ui_font(APP_THEME_FONT_SMALL), 0);
-        lv_label_set_text(summary, "");
-    }
+    lv_obj_t *title_label = lv_label_create(row);
+    lv_obj_add_style(title_label, &s_title_label, 0);
+    lv_obj_set_style_text_font(title_label, app_ui_font(APP_THEME_FONT_BODY),
+                               0);
+    lv_label_set_long_mode(title_label, LV_LABEL_LONG_DOT);
+    lv_label_set_text(title_label, title != NULL ? title : "");
+    /* DOT only truncates once the label has a width; the summary keeps the
+     * rest of the row. */
+    lv_obj_set_style_max_width(title_label, LV_PCT(50), 0);
+    app_ui_make_passive(title_label, false);
+
+    const lv_font_t *font = app_ui_font(APP_THEME_FONT_SMALL);
+    lv_obj_t *summary = lv_label_create(row);
+    lv_obj_set_width(summary, 0);
+    lv_obj_set_flex_grow(summary, 1);
+    lv_obj_set_height(summary, lv_font_get_line_height(font));
+    lv_label_set_long_mode(summary, LV_LABEL_LONG_DOT);
+    lv_obj_add_style(summary, &s_value_label, 0);
+    lv_obj_set_style_text_font(summary, font, 0);
+    lv_label_set_text(summary, "");
+    app_ui_make_passive(summary, false);
     if (summary_out != NULL)
     {
         *summary_out = summary;
     }
-    lv_obj_t *chevron = lv_label_create(row);
-    lv_obj_add_style(chevron, &s_chevron, 0);
-    lv_obj_set_style_text_font(chevron, LV_FONT_DEFAULT, 0);
-    app_ui_make_passive(chevron, false);
-    lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
+    _app_ui_chevron(row);
     if (callback != NULL)
     {
         lv_obj_add_event_cb(row, callback, LV_EVENT_CLICKED, user_data);
@@ -1173,32 +1228,43 @@ lv_obj_t *app_ui_group_add_entry(lv_obj_t *group, const char *title,
     return row;
 }
 
+/* Name on the left, muted value right-aligned in the remaining width and
+ * bounded to one line so a long value ellipsizes instead of wrapping. */
+static lv_obj_t *_app_ui_value_pair(lv_obj_t *row, const char *name,
+                                    const char *value)
+{
+    lv_obj_t *name_label = lv_label_create(row);
+    lv_obj_add_style(name_label, &s_title_label, 0);
+    lv_obj_set_style_text_font(name_label, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_long_mode(name_label, LV_LABEL_LONG_DOT);
+    lv_label_set_text(name_label, name != NULL ? name : "");
+    lv_obj_set_style_max_width(name_label, LV_PCT(50), 0);
+    app_ui_make_passive(name_label, false);
+
+    const lv_font_t *font = app_ui_font(APP_THEME_FONT_BODY);
+    lv_obj_t *value_label = lv_label_create(row);
+    lv_obj_set_width(value_label, 0);
+    lv_obj_set_flex_grow(value_label, 1);
+    lv_obj_set_height(value_label, lv_font_get_line_height(font));
+    lv_label_set_long_mode(value_label, LV_LABEL_LONG_DOT);
+    lv_obj_add_style(value_label, &s_value_label, 0);
+    lv_obj_set_style_text_font(value_label, font, 0);
+    lv_label_set_text(value_label, value != NULL ? value : "");
+    app_ui_make_passive(value_label, false);
+    return value_label;
+}
+
 lv_obj_t *app_ui_group_add_value(lv_obj_t *group, const char *name,
                                  const char *value, lv_obj_t **value_out)
 {
-    lv_obj_t *row = _app_ui_group_row(group, 52);
+    lv_obj_t *row = _app_ui_group_row(group, APP_UI_VALUE_ROW_HEIGHT);
     if (row == NULL)
     {
         return NULL;
     }
-    lv_obj_t *name_label = lv_label_create(row);
-    lv_obj_add_style(name_label, &s_subtitle_label, 0);
-    lv_obj_set_style_text_font(name_label, app_ui_font(APP_THEME_FONT_SMALL), 0);
-    lv_label_set_text(name_label, name != NULL ? name : "");
-
-    lv_obj_t *value_box = lv_obj_create(row);
-    lv_obj_remove_style_all(value_box);
-    lv_obj_set_width(value_box, 0);
-    lv_obj_set_flex_grow(value_box, 1);
-    lv_obj_set_height(value_box, LV_SIZE_CONTENT);
-    app_ui_make_passive(value_box, false);
-    lv_obj_t *value_label = lv_label_create(value_box);
-    lv_obj_set_width(value_label, LV_PCT(100));
-    lv_obj_set_height(value_label, APP_UI_VALUE_LINE_PX);
-    lv_label_set_long_mode(value_label, LV_LABEL_LONG_DOT);
-    lv_obj_add_style(value_label, &s_value_label, 0);
-    lv_obj_set_style_text_font(value_label, app_ui_font(APP_THEME_FONT_BODY), 0);
-    lv_label_set_text(value_label, value != NULL ? value : "");
+    /* Read-only: drags over it belong to the page scroll. */
+    app_ui_make_passive(row, false);
+    lv_obj_t *value_label = _app_ui_value_pair(row, name, value);
     if (value_out != NULL)
     {
         *value_out = value_label;
@@ -1228,31 +1294,39 @@ static void _app_ui_group_switch_event(lv_event_t *event)
     }
 }
 
-lv_obj_t *app_ui_group_add_switch(lv_obj_t *group, const char *title,
-                                  const char *subtitle,
-                                  lv_event_cb_t callback, void *user_data,
-                                  lv_obj_t **switch_out)
+/* iOS-proportioned switch: L3 track, azure when on, ink knob inset 4 px. */
+static lv_obj_t *_app_ui_switch(lv_obj_t *row, lv_event_cb_t callback,
+                                void *user_data)
 {
-    lv_obj_t *row = _app_ui_group_row(group, 60);
-    if (row == NULL)
-    {
-        return NULL;
-    }
-    _app_ui_group_row_text(row, title, subtitle, COLOR_TEXT);
-
     lv_obj_t *toggle = lv_switch_create(row);
     app_ui_click_only(toggle);
+    lv_obj_set_size(toggle, 60, 34);
     lv_obj_add_style(toggle, &s_switch_main, 0);
     lv_obj_add_style(toggle, &s_switch_indicator_checked,
                      LV_PART_INDICATOR | LV_STATE_CHECKED);
     lv_obj_add_style(toggle, &s_switch_knob, LV_PART_KNOB);
-    lv_obj_add_style(toggle, &s_switch_knob_checked,
-                     LV_PART_KNOB | LV_STATE_CHECKED);
     if (callback != NULL)
     {
         lv_obj_add_event_cb(toggle, callback, LV_EVENT_VALUE_CHANGED,
                             user_data);
     }
+    return toggle;
+}
+
+lv_obj_t *app_ui_group_add_switch(lv_obj_t *group, const char *title,
+                                  const char *subtitle,
+                                  lv_event_cb_t callback, void *user_data,
+                                  lv_obj_t **switch_out)
+{
+    lv_obj_t *row = _app_ui_group_row(group, subtitle != NULL ?
+                                      APP_UI_ROW_HEIGHT_TALL :
+                                      APP_UI_ROW_HEIGHT);
+    if (row == NULL)
+    {
+        return NULL;
+    }
+    (void)_app_ui_row_text(row, title, subtitle, COLOR_TEXT, false, NULL, NULL);
+    lv_obj_t *toggle = _app_ui_switch(row, callback, user_data);
     lv_obj_add_event_cb(row, _app_ui_group_switch_event, LV_EVENT_CLICKED,
                         toggle);
     if (switch_out != NULL)
@@ -1277,9 +1351,9 @@ lv_obj_t *app_ui_page_set_action(app_ui_page_t *page, uint32_t image_id,
         return NULL;
     }
     app_ui_click_only(button);
-    lv_obj_set_size(button, 40, 40);
+    lv_obj_set_size(button, 42, 42);
     lv_obj_set_ignore_layout(button, true);
-    lv_obj_align(button, LV_ALIGN_BOTTOM_RIGHT, -8, 8);
+    lv_obj_align(button, LV_ALIGN_BOTTOM_RIGHT, 0, 2);
     lv_obj_add_style(button, &s_page_action_button, 0);
     lv_obj_add_style(button, &s_surface_pressed, LV_STATE_PRESSED);
     if (callback != NULL)
@@ -1288,13 +1362,78 @@ lv_obj_t *app_ui_page_set_action(app_ui_page_t *page, uint32_t image_id,
     }
     lv_obj_t *icon = app_ui_image(button, image_id,
                                   fallback_symbol != NULL ? fallback_symbol :
-                                  LV_SYMBOL_RIGHT, 24);
+                                  LV_SYMBOL_RIGHT, APP_UI_ROW_GLYPH);
     if (icon != NULL)
     {
         app_ui_icon_set_color(icon, COLOR_TEXT);
         lv_obj_center(icon);
     }
     return button;
+}
+
+lv_obj_t *app_ui_add_pill(lv_obj_t *parent, const char *text,
+                          app_ui_status_t status)
+{
+    _app_ui_styles_init();
+    lv_obj_t *pill = lv_obj_create(parent);
+    lv_obj_remove_style_all(pill);
+    lv_obj_set_size(pill, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_add_style(pill, &s_pill, 0);
+    lv_obj_set_flex_flow(pill, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(pill, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    app_ui_make_passive(pill, false);
+
+    lv_obj_t *dot = lv_obj_create(pill);
+    lv_obj_remove_style_all(dot);
+    lv_obj_set_size(dot, 8, 8);
+    lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+    app_ui_make_passive(dot, false);
+
+    lv_obj_t *label = lv_label_create(pill);
+    lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_SMALL), 0);
+    app_ui_make_passive(label, false);
+    app_ui_pill_set(pill, text, status);
+    return pill;
+}
+
+void app_ui_pill_set(lv_obj_t *pill, const char *text, app_ui_status_t status)
+{
+    lv_obj_t *dot = pill != NULL ? lv_obj_get_child(pill, 0) : NULL;
+    lv_obj_t *label = pill != NULL ? lv_obj_get_child(pill, 1) : NULL;
+    if (dot == NULL || label == NULL)
+    {
+        return;
+    }
+    uint32_t ink = COLOR_MUTED;
+    uint32_t fill = COLOR_SURFACE;
+    switch (status)
+    {
+    case APP_UI_STATUS_ACCENT:
+        ink = APP_UI_COLOR_RAIN;
+        fill = APP_UI_COLOR_RAIN_TINT;
+        break;
+    case APP_UI_STATUS_SUCCESS:
+        ink = APP_UI_COLOR_SUCCESS;
+        fill = APP_UI_COLOR_SUCCESS_TINT;
+        break;
+    case APP_UI_STATUS_WARNING:
+        ink = APP_UI_COLOR_SUN;
+        fill = APP_UI_COLOR_SUN_TINT;
+        break;
+    case APP_UI_STATUS_ERROR:
+        ink = APP_UI_COLOR_WARNING;
+        fill = APP_UI_COLOR_WARNING_TINT;
+        break;
+    case APP_UI_STATUS_NEUTRAL:
+    default:
+        break;
+    }
+    lv_obj_set_style_bg_color(pill, lv_color_hex(fill), 0);
+    lv_obj_set_style_bg_color(dot, lv_color_hex(ink), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(ink), 0);
+    app_ui_label_set_text_if(label, text != NULL ? text : "");
 }
 
 static void _app_ui_sheet_delete_async(void *object)
@@ -1355,6 +1494,7 @@ lv_obj_t *app_ui_sheet_open(lv_obj_t *parent, const char *title,
     if (title_label != NULL)
     {
         lv_obj_set_width(title_label, LV_PCT(100));
+        lv_label_set_long_mode(title_label, LV_LABEL_LONG_WRAP);
         lv_obj_add_style(title_label, &s_title_label, 0);
         lv_obj_set_style_text_font(title_label, app_ui_font(APP_THEME_FONT_HEAD),
                                    0);
@@ -1370,6 +1510,8 @@ lv_obj_t *app_ui_sheet_open(lv_obj_t *parent, const char *title,
             lv_obj_add_style(message_label, &s_subtitle_label, 0);
             lv_obj_set_style_text_font(message_label,
                                        app_ui_font(APP_THEME_FONT_SMALL), 0);
+            lv_obj_set_style_text_line_space(message_label, 4, 0);
+            lv_obj_set_style_pad_bottom(message_label, 8, 0);
             lv_label_set_text(message_label, message);
         }
     }
@@ -1397,9 +1539,14 @@ lv_obj_t *app_ui_sheet_add_action(lv_obj_t *sheet, const char *text,
     }
     app_ui_click_only(button);
     lv_obj_set_width(button, LV_PCT(100));
-    lv_obj_set_height(button, 48);
-    lv_obj_add_style(button, &s_page_action_button, 0);
-    lv_obj_add_style(button, &s_surface_pressed, LV_STATE_PRESSED);
+    lv_obj_set_height(button, 56);
+    lv_obj_add_style(button, &s_button, 0);
+    lv_obj_add_style(button, &s_tile_pressed, LV_STATE_PRESSED);
+    lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, LV_STATE_PRESSED);
+    if (danger)
+    {
+        app_ui_button_set_kind(button, APP_UI_BUTTON_DANGER);
+    }
     if (callback != NULL)
     {
         lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
@@ -1408,8 +1555,6 @@ lv_obj_t *app_ui_sheet_add_action(lv_obj_t *sheet, const char *text,
     if (label != NULL)
     {
         lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
-        lv_obj_set_style_text_color(label, lv_color_hex(
-                                        danger ? APP_UI_COLOR_WARNING : COLOR_TEXT), 0);
         lv_label_set_text(label, text != NULL ? text : "");
         lv_obj_center(label);
     }
@@ -1440,6 +1585,7 @@ lv_obj_t *app_ui_ring_create(lv_obj_t *parent, int32_t size, int32_t width,
     lv_obj_set_style_arc_width(arc, width, LV_PART_MAIN);
     lv_obj_set_style_arc_color(arc, lv_color_hex(track_color), LV_PART_MAIN);
     lv_obj_set_style_arc_width(arc, width, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_rounded(arc, true, LV_PART_INDICATOR);
     lv_arc_set_bg_angles(arc, 0, 360);
     lv_arc_set_angles(arc, 0, 0);
     lv_arc_set_rotation(arc, 270);
@@ -1455,21 +1601,31 @@ lv_obj_t *app_ui_add_value_row(lv_obj_t *parent, const char *name,
     lv_obj_remove_style_all(row);
     lv_obj_set_width(row, LV_PCT(100));
     lv_obj_set_height(row, LV_SIZE_CONTENT);
-    lv_obj_add_style(row, &s_value_row, 0);
+    lv_obj_set_style_min_height(row, APP_UI_ROW_HEIGHT, 0);
+    lv_obj_add_style(row, &s_card_row, 0);
+    /* The card-row padding alone leaves a single-line value high in the 60 px
+     * minimum height; symmetric padding centres it and still lets a wrapped
+     * value grow the row. */
+    const int32_t value_line = lv_font_get_line_height(
+                                   app_ui_font(APP_THEME_FONT_BODY));
+    const int32_t value_pad = (APP_UI_ROW_HEIGHT - value_line) / 2;
+    lv_obj_set_style_pad_top(row, value_pad, 0);
+    lv_obj_set_style_pad_bottom(row, value_pad, 0);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
     app_ui_make_passive(row, false);
 
     lv_obj_t *name_label = lv_label_create(row);
-    lv_obj_set_width(name_label, LV_PCT(36));
-    lv_label_set_long_mode(name_label, LV_LABEL_LONG_WRAP);
-    lv_obj_add_style(name_label, &s_subtitle_label, 0);
-    lv_obj_set_style_text_font(name_label, app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_obj_add_style(name_label, &s_title_label, 0);
+    lv_obj_set_style_text_font(name_label, app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_label_set_long_mode(name_label, LV_LABEL_LONG_DOT);
     lv_label_set_text(name_label, name != NULL ? name : "");
+    lv_obj_set_style_max_width(name_label, LV_PCT(50), 0);
 
     lv_obj_t *current = lv_label_create(row);
-    lv_obj_set_width(current, LV_PCT(60));
+    lv_obj_set_width(current, 0);
+    lv_obj_set_flex_grow(current, 1);
     lv_label_set_long_mode(current, LV_LABEL_LONG_WRAP);
     lv_obj_add_style(current, &s_value_label, 0);
     lv_obj_set_style_text_font(current, app_ui_font(APP_THEME_FONT_BODY), 0);
@@ -1516,11 +1672,12 @@ lv_obj_t *app_ui_add_switch_row(lv_obj_t *parent, const char *title,
     lv_obj_remove_style_all(row);
     lv_obj_set_width(row, LV_PCT(100));
     lv_obj_set_height(row, LV_SIZE_CONTENT);
-    lv_obj_add_style(row, &s_value_row, 0);
-    lv_obj_set_style_pad_column(row, 10, 0);
+    lv_obj_set_style_min_height(row, subtitle != NULL ?
+                                APP_UI_ROW_HEIGHT_TALL : APP_UI_ROW_HEIGHT, 0);
+    lv_obj_add_style(row, &s_card_row, 0);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
     app_ui_make_passive(row, false);
     /* The whole row is the touch target; it forwards to the switch so the
      * small toggle never becomes a dead-zone hit. */
@@ -1528,50 +1685,8 @@ lv_obj_t *app_ui_add_switch_row(lv_obj_t *parent, const char *title,
     lv_obj_set_press_lock(row, false);
     lv_obj_add_style(row, &s_surface_pressed, LV_STATE_PRESSED);
 
-    lv_obj_t *text = lv_obj_create(row);
-    lv_obj_remove_style_all(text);
-    lv_obj_set_width(text, 0);
-    lv_obj_set_flex_grow(text, 1);
-    lv_obj_set_height(text, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
-    lv_obj_add_style(text, &s_text_column, 0);
-    app_ui_make_passive(text, false);
-
-    lv_obj_t *title_label = lv_label_create(text);
-    lv_obj_set_width(title_label, LV_PCT(100));
-    lv_label_set_long_mode(title_label, LV_LABEL_LONG_DOT);
-    lv_obj_add_style(title_label, &s_title_label, 0);
-    lv_obj_set_style_text_font(title_label,
-                               app_ui_font(APP_THEME_FONT_BODY), 0);
-    lv_label_set_text(title_label, title != NULL ? title : "");
-    /* Passive so the row (not the label) receives the click. */
-    app_ui_make_passive(title_label, false);
-
-    if (subtitle != NULL)
-    {
-        lv_obj_t *subtitle_label = lv_label_create(text);
-        lv_obj_set_width(subtitle_label, LV_PCT(100));
-        lv_label_set_long_mode(subtitle_label, LV_LABEL_LONG_WRAP);
-        lv_obj_add_style(subtitle_label, &s_subtitle_label, 0);
-        lv_obj_set_style_text_font(subtitle_label,
-                                   app_ui_font(APP_THEME_FONT_SMALL), 0);
-        lv_label_set_text(subtitle_label, subtitle);
-        app_ui_make_passive(subtitle_label, false);
-    }
-
-    lv_obj_t *toggle = lv_switch_create(row);
-    app_ui_click_only(toggle);
-    lv_obj_add_style(toggle, &s_switch_main, 0);
-    lv_obj_add_style(toggle, &s_switch_indicator_checked,
-                     LV_PART_INDICATOR | LV_STATE_CHECKED);
-    lv_obj_add_style(toggle, &s_switch_knob, LV_PART_KNOB);
-    lv_obj_add_style(toggle, &s_switch_knob_checked,
-                     LV_PART_KNOB | LV_STATE_CHECKED);
-    if (callback != NULL)
-    {
-        lv_obj_add_event_cb(toggle, callback, LV_EVENT_VALUE_CHANGED,
-                            user_data);
-    }
+    (void)_app_ui_row_text(row, title, subtitle, COLOR_TEXT, true, NULL, NULL);
+    lv_obj_t *toggle = _app_ui_switch(row, callback, user_data);
     lv_obj_add_event_cb(row, _app_ui_switch_row_event, LV_EVENT_CLICKED,
                         toggle);
     if (switch_out != NULL)

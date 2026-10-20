@@ -3,7 +3,7 @@
 # layers/apps/README.md 资源小节）。同一 SVG 登记 40/112 两条尺寸记录；
 # weather_app.svg 为自绘 App 图标，与 QWeather 无关。
 list(APPEND MICROTECH_APP_RESOURCE_RECORDS
-    "${CMAKE_CURRENT_LIST_DIR}/assets/weather_app.svg|weather_app.png|APP_IMAGE_WEATHER_APP|64|64|SVG"
+    "${CMAKE_CURRENT_LIST_DIR}/assets/weather_app.svg|weather_app.png|APP_IMAGE_WEATHER_APP|72|72|SVG"
     "${CMAKE_CURRENT_LIST_DIR}/assets/weather_clear_day.svg|weather_clear_day_112.png|APP_IMAGE_WEATHER_CLEAR_DAY_MAIN|112|112|SVG"
     "${CMAKE_CURRENT_LIST_DIR}/assets/weather_clear_day.svg|weather_clear_day_40.png|APP_IMAGE_WEATHER_CLEAR_DAY_SMALL|40|40|SVG"
     "${CMAKE_CURRENT_LIST_DIR}/assets/weather_clear_night.svg|weather_clear_night_112.png|APP_IMAGE_WEATHER_CLEAR_NIGHT_MAIN|112|112|SVG"

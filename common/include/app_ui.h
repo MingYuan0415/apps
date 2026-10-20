@@ -22,6 +22,14 @@ typedef struct app_ui_page
     lv_obj_t *subtitle; /**< Optional header subtitle label. */
 } app_ui_page_t;
 
+/** @brief Visual weight of a pill button. */
+typedef enum
+{
+    APP_UI_BUTTON_SECONDARY = 0, /**< L2 surface fill; default. */
+    APP_UI_BUTTON_PRIMARY,       /**< Accent fill; the one main action. */
+    APP_UI_BUTTON_DANGER,        /**< Destructive tint with coral caption. */
+} app_ui_button_kind_t;
+
 /** @brief Semantic color applied to dynamic status text. */
 typedef enum
 {
@@ -242,13 +250,19 @@ lv_obj_t *app_ui_button_row_create(lv_obj_t *parent, int32_t height);
 lv_obj_t *app_ui_button_create(lv_obj_t *row, const char *text,
                                lv_event_cb_t callback, void *user_data);
 /**
+ * @brief Switch an app_ui_button_create button between pill variants.
+ * @param button is an app_ui_button_create or sheet action button.
+ * @param kind selects the secondary, primary, or danger fill.
+ */
+void app_ui_button_set_kind(lv_obj_t *button, app_ui_button_kind_t kind);
+/**
  * @brief Replace the caption of an app_ui_button_create button.
  * @param button is an app_ui_button_create button.
  * @param text is the new caption.
  */
 void app_ui_button_set_text(lv_obj_t *button, const char *text);
 /**
- * @brief Create a 44 px selectable chip row.
+ * @brief Create a segmented-control track (pill row, 52 px).
  * @param parent is the page content or card owning the row.
  * @return Created passive row container for app_ui_chip_create.
  */
@@ -264,9 +278,9 @@ lv_obj_t *app_ui_chip_row_create(lv_obj_t *parent);
 lv_obj_t *app_ui_chip_create(lv_obj_t *row, const char *text,
                              lv_event_cb_t callback, void *user_data);
 /**
- * @brief Toggle the accent selection state of a chip.
+ * @brief Toggle the lifted selection state of a segmented-control chip.
  * @param chip is an app_ui_chip_create button.
- * @param selected uses the accent color when true.
+ * @param selected lifts the segment onto the L3 surface when true.
  */
 void app_ui_chip_set_selected(lv_obj_t *chip, bool selected);
 
@@ -280,19 +294,6 @@ void app_ui_chip_set_selected(lv_obj_t *chip, bool selected);
  * @param obj is a clickable control activated by LV_EVENT_CLICKED.
  */
 void app_ui_click_only(lv_obj_t *obj);
-
-/**
- * @brief Add a fixed-size semantic icon button.
- * @param parent is the row or container that owns the button.
- * @param image_id is the semantic image ID, or zero to skip image lookup.
- * @param fallback_symbol is used when the image is unavailable.
- * @param callback receives click events.
- * @param user_data is retained as LVGL event user data.
- * @return Created button, or NULL when allocation fails.
- */
-lv_obj_t *app_ui_add_icon_button(lv_obj_t *parent, uint32_t image_id,
-                                 const char *fallback_symbol,
-                                 lv_event_cb_t callback, void *user_data);
 
 /**
  * @brief Add a launcher tile: square icon well plus centered caption.
@@ -312,6 +313,27 @@ lv_obj_t *app_ui_add_icon_button(lv_obj_t *parent, uint32_t image_id,
 lv_obj_t *app_ui_add_icon_tile(lv_obj_t *parent, uint32_t image_id,
                                const char *fallback_symbol, const char *label,
                                lv_event_cb_t callback, void *user_data);
+
+/**
+ * @brief Add a status pill: tinted capsule, colored dot, and caption.
+ *
+ * The dot and tint repeat the semantic status, so state never relies on the
+ * caption color alone.
+ *
+ * @param parent is the LVGL parent object.
+ * @param text is the caption.
+ * @param status selects the semantic color pair.
+ * @return Created passive pill container.
+ */
+lv_obj_t *app_ui_add_pill(lv_obj_t *parent, const char *text,
+                          app_ui_status_t status);
+/**
+ * @brief Update an app_ui_add_pill caption and semantic status.
+ * @param pill is an app_ui_add_pill result, or NULL.
+ * @param text is the new caption.
+ * @param status selects the semantic color pair.
+ */
+void app_ui_pill_set(lv_obj_t *pill, const char *text, app_ui_status_t status);
 
 /**
  * @brief Add a centered empty-state block with a title and optional hint.
@@ -402,8 +424,8 @@ lv_obj_t *app_ui_page_set_action(app_ui_page_t *page, uint32_t image_id,
 /**
  * @brief Open a modal bottom sheet over a page root.
  *
- * Creates a dimming scrim plus a bottom-anchored panel carrying a title and an
- * optional message. The caller adds action rows with app_ui_sheet_add_action
+ * Creates a dimming scrim plus a bottom-anchored, edge-inset card panel
+ * carrying a title and an optional message. The caller adds action rows with app_ui_sheet_add_action
  * and closes the sheet with app_ui_sheet_dismiss. The scrim swallows touches so
  * the covered page receives none while the sheet is open; the panel keeps the
  * page's full-bleed opaque root intact for snapshot transitions.
@@ -417,10 +439,10 @@ lv_obj_t *app_ui_sheet_open(lv_obj_t *parent, const char *title,
                             const char *message);
 
 /**
- * @brief Append a full-width action row to a sheet.
+ * @brief Append a full-width pill action button to a sheet.
  * @param sheet is an app_ui_sheet_open handle.
  * @param text is the action caption.
- * @param danger renders the caption in the destructive color when true.
+ * @param danger renders the destructive pill variant when true.
  * @param callback receives click events.
  * @param user_data is retained as LVGL event user data.
  * @return Created button, or NULL on failure.

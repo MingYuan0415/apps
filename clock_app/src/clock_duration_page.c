@@ -47,14 +47,17 @@ static lv_obj_t *_duration_roller(lv_obj_t *parent, const char *options,
     lv_roller_set_options(roller, options, LV_ROLLER_MODE_NORMAL);
     lv_roller_set_visible_row_count(roller, 3);
     lv_roller_set_selected(roller, selected, LV_ANIM_OFF);
-    lv_obj_set_width(roller, 120);
+    lv_obj_set_width(roller, 112);
     lv_obj_set_style_bg_color(roller, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
     lv_obj_set_style_bg_opa(roller, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(roller, 8, 0);
-    lv_obj_set_style_text_color(roller, lv_color_hex(APP_UI_COLOR_MUTED), 0);
-    lv_obj_set_style_bg_color(roller, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
+    lv_obj_set_style_border_width(roller, 0, 0);
+    lv_obj_set_style_radius(roller, APP_UI_RADIUS_CARD, 0);
+    lv_obj_set_style_text_line_space(roller, 18, 0);
+    lv_obj_set_style_text_color(roller, lv_color_hex(APP_UI_COLOR_FAINT), 0);
+    lv_obj_set_style_bg_color(roller, lv_color_hex(APP_UI_COLOR_TRACK),
                               LV_PART_SELECTED);
     lv_obj_set_style_bg_opa(roller, LV_OPA_COVER, LV_PART_SELECTED);
+    lv_obj_set_style_radius(roller, APP_UI_RADIUS_CONTROL, LV_PART_SELECTED);
     lv_obj_set_style_text_color(roller, lv_color_hex(APP_UI_COLOR_TEXT),
                                 LV_PART_SELECTED);
     lv_obj_set_style_text_font(roller, app_ui_font(APP_THEME_FONT_HEAD), 0);
@@ -124,13 +127,14 @@ static void _duration_mount(const app_manager_page_context_t *context)
     lv_obj_set_flex_flow(pick_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(pick_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(pick_row, 8, 0);
+    lv_obj_set_style_pad_column(pick_row, 10, 0);
+    lv_obj_set_style_pad_top(pick_row, 8, 0);
     app_ui_make_passive(pick_row, false);
 
     state->hour_roller = _duration_roller(pick_row, s_hour_options,
                                           minutes / 60U);
     lv_obj_t *hour_unit = lv_label_create(pick_row);
-    lv_obj_set_style_text_color(hour_unit, lv_color_hex(APP_UI_COLOR_TEXT), 0);
+    lv_obj_set_style_text_color(hour_unit, lv_color_hex(APP_UI_COLOR_MUTED), 0);
     lv_obj_set_style_text_font(hour_unit,
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_label_set_text(hour_unit, "时");
@@ -138,7 +142,7 @@ static void _duration_mount(const app_manager_page_context_t *context)
                                             minutes % 60U);
     lv_obj_t *minute_unit = lv_label_create(pick_row);
     lv_obj_set_style_text_color(minute_unit,
-                                lv_color_hex(APP_UI_COLOR_TEXT), 0);
+                                lv_color_hex(APP_UI_COLOR_MUTED), 0);
     lv_obj_set_style_text_font(minute_unit,
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_label_set_text(minute_unit, "分");
@@ -152,16 +156,11 @@ static void _duration_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_font(state->summary_label,
                                app_ui_font(APP_THEME_FONT_BODY), 0);
 
-    lv_obj_t *controls = lv_obj_create(state->page.content);
-    lv_obj_remove_style_all(controls);
-    lv_obj_set_width(controls, LV_PCT(100));
-    lv_obj_set_height(controls, 52);
-    lv_obj_set_flex_flow(controls, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(controls, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    app_ui_make_passive(controls, false);
-    (void)app_ui_button_create(controls, "确定", _duration_confirm_event,
-                               state);
+    lv_obj_t *controls = app_ui_button_row_create(state->page.content,
+                         APP_UI_BUTTON_HEIGHT);
+    app_ui_button_set_kind(app_ui_button_create(controls, "确定",
+                           _duration_confirm_event, state),
+                           APP_UI_BUTTON_PRIMARY);
 
     lv_obj_add_event_cb(state->hour_roller, _duration_value_event,
                         LV_EVENT_VALUE_CHANGED, state);

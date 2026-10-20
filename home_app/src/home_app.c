@@ -10,6 +10,7 @@
 #include "device_link_service.h"
 #include "event_bus.h"
 #include "power_service.h"
+#include "recorder_service.h"
 #include "time_service.h"
 #include "timer_service.h"
 #include "weather_service.h"
@@ -20,11 +21,8 @@
 #include <time.h>
 
 #define HOME_STATUS_HEIGHT   24
-#define HOME_WEATHER_HEIGHT  84
-#define HOME_CLOCK_HEIGHT    76
-#define HOME_CLOCK_RING      48
-#define HOME_DOCK_HEIGHT     92
-#define HOME_DOCK_TILE       84
+#define HOME_CARD_HEIGHT     112
+#define HOME_CLOCK_RING      44
 
 typedef struct home_page_state
 {
@@ -36,8 +34,7 @@ typedef struct home_page_state
     lv_obj_t *battery_status;
     lv_obj_t *time_label;
     lv_obj_t *date_label;
-    lv_obj_t *quality_label;
-    lv_obj_t *weather_panel;
+    lv_obj_t *quality_pill;
     lv_obj_t *weather_image;
     lv_obj_t *weather_fallback;
     lv_obj_t *weather_city;
@@ -46,6 +43,9 @@ typedef struct home_page_state
     lv_obj_t *clock_ring;
     lv_obj_t *clock_title;
     lv_obj_t *clock_value;
+    lv_obj_t *clock_caption;
+    lv_obj_t *recorder_value;
+    lv_obj_t *recorder_caption;
     lv_timer_t *refresh_timer;
     event_bus_sub_handle_t power_subscription;
     event_bus_sub_handle_t wifi_subscription;
@@ -169,8 +169,8 @@ static void _home_render_clock(home_page_state_t *state)
     {
         app_ui_label_set_text_if(state->time_label, "--:--");
         app_ui_label_set_text_if(state->date_label, "等待有效时间");
-        app_ui_set_status_text(state->quality_label, "时间不可用",
-                               APP_UI_STATUS_WARNING);
+        app_ui_pill_set(state->quality_pill, "时间不可用",
+                        APP_UI_STATUS_WARNING);
         return;
     }
     char text[48];
@@ -187,10 +187,11 @@ static void _home_render_clock(home_page_state_t *state)
                    weekdays[weekday]);
     app_ui_label_set_text_if(state->date_label, text);
     const time_service_quality_t quality = time_service_get_quality();
-    app_ui_set_status_text(state->quality_label,
-                           _home_time_quality_text(quality),
-                           quality == TIME_SERVICE_QUALITY_INVALID ?
-                           APP_UI_STATUS_WARNING : APP_UI_STATUS_ACCENT);
+    const bool valid = quality != TIME_SERVICE_QUALITY_INVALID;
+    app_ui_pill_set(state->quality_pill, _home_time_quality_text(quality),
+                    quality == TIME_SERVICE_QUALITY_NTP ?
+                    APP_UI_STATUS_SUCCESS : valid ? APP_UI_STATUS_ACCENT :
+                    APP_UI_STATUS_WARNING);
 }
 
 static void _home_render_power(home_page_state_t *state)
@@ -359,10 +360,12 @@ static void _home_render_weather(home_page_state_t *state)
 static void _home_render_clock_card(home_page_state_t *state)
 {
     timer_service_snapshot_t snapshot;
-    const char *title = "计时";
-    const char *value = "时钟";
-    uint32_t accent = APP_UI_COLOR_MUTED;
+    const char *title = "时钟";
+    const char *value = "计时";
+    const char *caption = "倒计时 · 专注";
+    uint32_t accent = APP_UI_COLOR_RAIN;
     bool active = false;
+    bool paused = false;
     uint32_t remaining_ms = 0U;
     uint32_t total_ms = 0U;
     if (timer_service_get_snapshot(&snapshot) == ESP_OK)
@@ -374,8 +377,7 @@ static void _home_render_clock_card(home_page_state_t *state)
             title = "倒计时";
             remaining_ms = snapshot.countdown_remaining_ms;
             total_ms = snapshot.countdown_duration_ms;
-            accent = snapshot.countdown_state == TIMER_SERVICE_PAUSED ?
-                     APP_UI_COLOR_MUTED : APP_UI_COLOR_RAIN;
+            paused = snapshot.countdown_state == TIMER_SERVICE_PAUSED;
         }
         else if (snapshot.focus_state == TIMER_SERVICE_RUNNING ||
                  snapshot.focus_state == TIMER_SERVICE_PAUSED)
@@ -383,20 +385,26 @@ static void _home_render_clock_card(home_page_state_t *state)
             active = true;
             title = "专注";
             remaining_ms = snapshot.focus_remaining_ms;
-            accent = snapshot.focus_state == TIMER_SERVICE_PAUSED ?
-                     APP_UI_COLOR_MUTED : APP_UI_COLOR_SUN;
+            accent = APP_UI_COLOR_SUN;
+            paused = snapshot.focus_state == TIMER_SERVICE_PAUSED;
         }
     }
     char text[16];
-    if (active && remaining_ms > 0U)
+    if (active)
     {
         (void)snprintf(text, sizeof(text), "%u:%02u",
                        (unsigned)(remaining_ms / 60000U),
                        (unsigned)((remaining_ms / 1000U) % 60U));
         value = text;
+        caption = paused ? "已暂停" : "进行中";
+    }
+    if (paused)
+    {
+        accent = APP_UI_COLOR_MUTED;
     }
     app_ui_label_set_text_if(state->clock_title, title);
     app_ui_label_set_text_if(state->clock_value, value);
+    app_ui_label_set_text_if(state->clock_caption, caption);
     _home_set_color(state->clock_title, active ? accent : APP_UI_COLOR_MUTED);
     _home_set_color(state->clock_value,
                     active ? APP_UI_COLOR_TEXT : APP_UI_COLOR_MUTED);
@@ -420,6 +428,46 @@ static void _home_render_clock_card(home_page_state_t *state)
     lv_arc_set_angles(state->clock_ring, 0, (lv_value_precise_t)span);
 }
 
+static void _home_render_recorder(home_page_state_t *state)
+{
+    recorder_service_snapshot_t snapshot;
+    const char *value = "就绪";
+    const char *caption = "语音备忘";
+    uint32_t color = APP_UI_COLOR_MUTED;
+    char text[16];
+    if (recorder_service_get_snapshot(&snapshot) != ESP_OK)
+    {
+        value = "不可用";
+        caption = "检查存储卡";
+    }
+    else if (snapshot.state == RECORDER_SERVICE_RECORDING ||
+             snapshot.state == RECORDER_SERVICE_PAUSED)
+    {
+        const unsigned seconds = (unsigned)(snapshot.duration_ms / 1000U);
+        (void)snprintf(text, sizeof(text), "%u:%02u", seconds / 60U,
+                       seconds % 60U);
+        value = text;
+        const bool recording = snapshot.state == RECORDER_SERVICE_RECORDING;
+        caption = recording ? "录音中" : "已暂停";
+        color = recording ? APP_UI_COLOR_WARNING : APP_UI_COLOR_TEXT;
+    }
+    else if (snapshot.state == RECORDER_SERVICE_PLAYING)
+    {
+        value = "播放中";
+        caption = "点按查看";
+        color = APP_UI_COLOR_RAIN;
+    }
+    else if (snapshot.state == RECORDER_SERVICE_ERROR)
+    {
+        value = "异常";
+        caption = "点按查看";
+        color = APP_UI_COLOR_WARNING;
+    }
+    app_ui_label_set_text_if(state->recorder_value, value);
+    app_ui_label_set_text_if(state->recorder_caption, caption);
+    _home_set_color(state->recorder_value, color);
+}
+
 static void _home_refresh(home_page_state_t *state)
 {
     if (state->page.root == NULL)
@@ -432,6 +480,7 @@ static void _home_refresh(home_page_state_t *state)
     _home_render_bluetooth(state);
     _home_render_weather(state);
     _home_render_clock_card(state);
+    _home_render_recorder(state);
 }
 
 static void _home_refresh_timer(lv_timer_t *timer)
@@ -533,13 +582,13 @@ static void _home_build_status(home_page_state_t *state, lv_obj_t *content)
     app_ui_make_passive(battery_nub, false);
     lv_obj_set_overflow_visible(battery, true);
 
-    state->battery_status = _home_label(status, "--", APP_THEME_FONT_BODY,
+    state->battery_status = _home_label(status, "--", APP_THEME_FONT_SMALL,
                                         APP_UI_COLOR_MUTED);
     /* Stable width from the longest reading ("100%") measured with the live
      * theme font; a fixed 48 px clipped the leading digit at 100%. */
     lv_point_t battery_size;
     lv_text_get_size(&battery_size, "100%",
-                     app_ui_font(APP_THEME_FONT_BODY), 0, 0,
+                     app_ui_font(APP_THEME_FONT_SMALL), 0, 0,
                      LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_obj_set_width(state->battery_status, battery_size.x + 4);
     lv_obj_set_style_text_align(state->battery_status, LV_TEXT_ALIGN_RIGHT, 0);
@@ -556,186 +605,151 @@ static void _home_build_hero(home_page_state_t *state, lv_obj_t *content)
     lv_obj_set_flex_flow(hero, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(hero, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(hero, 2, 0);
     app_ui_make_passive(hero, false);
 
-    state->time_label = _home_label(hero, "--:--", APP_THEME_FONT_TITLE,
+    state->time_label = _home_label(hero, "--:--", APP_THEME_FONT_DISPLAY,
                                     APP_UI_COLOR_TEXT);
     lv_obj_set_style_text_align(state->time_label, LV_TEXT_ALIGN_CENTER, 0);
-    state->date_label = _home_label(hero, "等待有效时间", APP_THEME_FONT_BODY,
+
+    lv_obj_t *meta = lv_obj_create(hero);
+    lv_obj_remove_style_all(meta);
+    lv_obj_set_size(meta, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(meta, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(meta, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(meta, 10, 0);
+    app_ui_make_passive(meta, false);
+    state->date_label = _home_label(meta, "等待有效时间", APP_THEME_FONT_BODY,
                                     APP_UI_COLOR_MUTED);
-    lv_obj_set_style_text_align(state->date_label, LV_TEXT_ALIGN_CENTER, 0);
-    state->quality_label = _home_label(hero, "时间未校准", APP_THEME_FONT_SMALL,
-                                       APP_UI_COLOR_SUN);
-    lv_obj_set_style_text_align(state->quality_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(state->date_label, LV_SIZE_CONTENT);
+    lv_label_set_long_mode(state->date_label, LV_LABEL_LONG_CLIP);
+    state->quality_pill = app_ui_add_pill(meta, "时间未校准",
+                                          APP_UI_STATUS_WARNING);
+    /* The hero reserves 138 px; the shared pill's 4 px inset overshoots by 2. */
+    lv_obj_set_style_pad_top(state->quality_pill, 3, 0);
+    lv_obj_set_style_pad_bottom(state->quality_pill, 3, 0);
 }
 
-static void _home_build_weather(home_page_state_t *state, lv_obj_t *content)
+/* One complication: caption label, a value row with a trailing glyph slot,
+ * and a faint detail line. Returns the value row for the glyph. */
+static lv_obj_t *_home_card(lv_obj_t *grid, const char *app_id,
+                            const char *title, lv_obj_t **title_out,
+                            lv_obj_t **value_out, lv_obj_t **caption_out)
 {
-    state->weather_panel = lv_button_create(content);
-    app_ui_click_only(state->weather_panel);
-    lv_obj_set_width(state->weather_panel, LV_PCT(100));
-    lv_obj_set_height(state->weather_panel, HOME_WEATHER_HEIGHT);
-    lv_obj_set_style_radius(state->weather_panel, 16, 0);
-    lv_obj_set_style_bg_color(state->weather_panel,
-                              lv_color_hex(APP_UI_COLOR_SURFACE), 0);
-    lv_obj_set_style_bg_color(state->weather_panel,
-                              lv_color_hex(APP_UI_COLOR_SURFACE_HI),
-                              LV_STATE_PRESSED);
-    lv_obj_set_style_shadow_width(state->weather_panel, 0, 0);
-    lv_obj_set_style_pad_left(state->weather_panel, 14, 0);
-    lv_obj_set_style_pad_right(state->weather_panel, 14, 0);
-    lv_obj_set_style_pad_top(state->weather_panel, 8, 0);
-    lv_obj_set_style_pad_bottom(state->weather_panel, 8, 0);
-    lv_obj_set_style_pad_column(state->weather_panel, 12, 0);
-    lv_obj_set_flex_flow(state->weather_panel, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(state->weather_panel, LV_FLEX_ALIGN_START,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_add_event_cb(state->weather_panel, _home_open_app, LV_EVENT_CLICKED,
-                        (void *)APP_MANAGER_ID_WEATHER);
-
-    state->weather_image = lv_image_create(state->weather_panel);
-    lv_obj_set_size(state->weather_image, 44, 44);
-    app_ui_make_passive(state->weather_image, false);
-    state->weather_fallback = _home_symbol_label(state->weather_panel,
-                              LV_SYMBOL_IMAGE);
-    lv_obj_set_size(state->weather_fallback, 44, 44);
-    lv_obj_set_style_pad_top(state->weather_fallback, 11, 0);
-
-    lv_obj_t *info = lv_obj_create(state->weather_panel);
-    lv_obj_remove_style_all(info);
-    lv_obj_set_width(info, 0);
-    lv_obj_set_height(info, LV_SIZE_CONTENT);
-    lv_obj_set_flex_grow(info, 1);
-    lv_obj_set_flex_flow(info, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(info, 2, 0);
-    app_ui_make_passive(info, false);
-    state->weather_city = _home_label(info, "天气", APP_THEME_FONT_SMALL,
-                                      APP_UI_COLOR_MUTED);
-    state->weather_condition = _home_label(info, "等待天气数据",
-                                           APP_THEME_FONT_BODY,
-                                           APP_UI_COLOR_TEXT);
-    lv_label_set_long_mode(state->weather_city, LV_LABEL_LONG_CLIP);
-    lv_label_set_long_mode(state->weather_condition, LV_LABEL_LONG_CLIP);
-    lv_obj_set_width(state->weather_city, LV_PCT(100));
-    lv_obj_set_width(state->weather_condition, LV_PCT(100));
-
-    state->weather_value = _home_label(state->weather_panel, "--",
-                                       APP_THEME_FONT_HEAD, APP_UI_COLOR_SUN);
-    /* Stable width from the worst-case temperature ("-88.8°") measured with
-     * the live theme font; a fixed 76 px clipped leading digits at 26.0°. */
-    lv_point_t value_size;
-    lv_text_get_size(&value_size, "-88.8°", app_ui_font(APP_THEME_FONT_HEAD),
-                     0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    lv_obj_set_width(state->weather_value, value_size.x + 8);
-    lv_obj_set_style_text_align(state->weather_value, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_label_set_long_mode(state->weather_value, LV_LABEL_LONG_CLIP);
-}
-
-static void _home_build_clock_card(home_page_state_t *state, lv_obj_t *content)
-{
-    lv_obj_t *card = lv_button_create(content);
+    lv_obj_t *card = lv_button_create(grid);
     app_ui_click_only(card);
-    lv_obj_set_width(card, LV_PCT(100));
-    lv_obj_set_height(card, HOME_CLOCK_HEIGHT);
-    lv_obj_set_style_radius(card, 16, 0);
+    lv_obj_set_size(card, LV_PCT(48), HOME_CARD_HEIGHT);
+    lv_obj_set_style_radius(card, APP_UI_RADIUS_CARD, 0);
     lv_obj_set_style_bg_color(card, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(card, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
                               LV_STATE_PRESSED);
     lv_obj_set_style_shadow_width(card, 0, 0);
+    lv_obj_set_style_border_width(card, 0, 0);
     lv_obj_set_style_pad_left(card, 14, 0);
-    lv_obj_set_style_pad_right(card, 14, 0);
-    lv_obj_set_style_pad_column(card, 14, 0);
-    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_right(card, 10, 0);
+    lv_obj_set_style_pad_top(card, 10, 0);
+    lv_obj_set_style_pad_bottom(card, 10, 0);
+    lv_obj_set_style_pad_row(card, 0, 0);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                          LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_add_event_cb(card, _home_open_app, LV_EVENT_CLICKED,
-                        (void *)APP_MANAGER_ID_CLOCK);
+                        (void *)app_id);
 
-    state->clock_ring = _home_ring_arc(card, HOME_CLOCK_RING, 3,
-                                       APP_UI_COLOR_SURFACE_HI, true);
+    lv_obj_t *label = _home_label(card, title, APP_THEME_FONT_SMALL,
+                                  APP_UI_COLOR_MUTED);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
+    if (title_out != NULL)
+    {
+        *title_out = label;
+    }
+
+    lv_obj_t *row = lv_obj_create(card);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, 4, 0);
+    app_ui_make_passive(row, false);
+    lv_obj_t *value = _home_label(row, "--", APP_THEME_FONT_HEAD,
+                                  APP_UI_COLOR_TEXT);
+    lv_obj_set_width(value, 0);
+    lv_obj_set_flex_grow(value, 1);
+    lv_label_set_long_mode(value, LV_LABEL_LONG_CLIP);
+    *value_out = value;
+
+    lv_obj_t *caption = _home_label(card, "", APP_THEME_FONT_SMALL,
+                                    APP_UI_COLOR_FAINT);
+    lv_label_set_long_mode(caption, LV_LABEL_LONG_CLIP);
+    if (caption_out != NULL)
+    {
+        *caption_out = caption;
+    }
+    return row;
+}
+
+static void _home_card_glyph(lv_obj_t *row, uint32_t image_id,
+                             const char *fallback_symbol)
+{
+    lv_obj_t *glyph = app_ui_image(row, image_id, fallback_symbol, 40);
+    if (glyph != NULL)
+    {
+        app_ui_icon_set_color(glyph, APP_UI_COLOR_MUTED);
+    }
+}
+
+static void _home_build_cards(home_page_state_t *state, lv_obj_t *content)
+{
+    lv_obj_t *grid = lv_obj_create(content);
+    lv_obj_remove_style_all(grid);
+    lv_obj_set_size(grid, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(grid, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                          LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_row(grid, APP_UI_GAP, 0);
+    app_ui_make_passive(grid, false);
+
+    lv_obj_t *row = _home_card(grid, APP_MANAGER_ID_WEATHER, "天气",
+                               &state->weather_city, &state->weather_value,
+                               &state->weather_condition);
+    state->weather_image = lv_image_create(row);
+    lv_obj_set_size(state->weather_image, 40, 40);
+    app_ui_make_passive(state->weather_image, false);
+    state->weather_fallback = _home_symbol_label(row, LV_SYMBOL_IMAGE);
+    _home_set_color(state->weather_fallback, APP_UI_COLOR_MUTED);
+
+    row = _home_card(grid, APP_MANAGER_ID_CLOCK, "时钟", &state->clock_title,
+                     &state->clock_value, &state->clock_caption);
+    state->clock_ring = _home_ring_arc(row, HOME_CLOCK_RING, 4,
+                                       APP_UI_COLOR_TRACK, true);
     lv_arc_set_rotation(state->clock_ring, 270);
+    lv_obj_set_style_arc_rounded(state->clock_ring, true, LV_PART_INDICATOR);
     _home_ring_glyph(state->clock_ring, APP_IMAGE_HOME_RING_CLOCK,
                      LV_SYMBOL_BELL);
 
-    lv_obj_t *info = lv_obj_create(card);
-    lv_obj_remove_style_all(info);
-    lv_obj_set_width(info, 0);
-    lv_obj_set_height(info, LV_SIZE_CONTENT);
-    lv_obj_set_flex_grow(info, 1);
-    lv_obj_set_flex_flow(info, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(info, 0, 0);
-    app_ui_make_passive(info, false);
-    state->clock_title = _home_label(info, "计时", APP_THEME_FONT_SMALL,
-                                     APP_UI_COLOR_MUTED);
-    state->clock_value = _home_label(info, "时钟", APP_THEME_FONT_HEAD,
-                                     APP_UI_COLOR_TEXT);
-    lv_label_set_long_mode(state->clock_title, LV_LABEL_LONG_CLIP);
-    lv_label_set_long_mode(state->clock_value, LV_LABEL_LONG_CLIP);
+    row = _home_card(grid, APP_MANAGER_ID_RECORDER, "录音", NULL,
+                     &state->recorder_value, &state->recorder_caption);
+    _home_card_glyph(row, APP_IMAGE_HOME_RECORDER, LV_SYMBOL_AUDIO);
 
-    lv_obj_t *chevron = _home_symbol_label(card, LV_SYMBOL_RIGHT);
-    _home_set_color(chevron, APP_UI_COLOR_MUTED);
-}
-
-static void _home_build_dock(home_page_state_t *state, lv_obj_t *content)
-{
-    (void)state;
-    lv_obj_t *dock = lv_obj_create(content);
-    lv_obj_remove_style_all(dock);
-    lv_obj_set_width(dock, LV_PCT(100));
-    lv_obj_set_height(dock, HOME_DOCK_HEIGHT);
-    lv_obj_set_style_radius(dock, 20, 0);
-    lv_obj_set_style_bg_color(dock, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
-    lv_obj_set_style_bg_opa(dock, LV_OPA_COVER, 0);
-    lv_obj_set_style_pad_left(dock, 6, 0);
-    lv_obj_set_style_pad_right(dock, 6, 0);
-    lv_obj_set_style_pad_top(dock, 4, 0);
-    lv_obj_set_style_pad_bottom(dock, 4, 0);
-    lv_obj_set_style_pad_column(dock, 6, 0);
-    lv_obj_set_flex_flow(dock, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(dock, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    app_ui_make_passive(dock, false);
-
-    static const struct
-    {
-        uint32_t image_id;
-        const char *symbol;
-        const char *label;
-        const char *app_id;
-    } entries[] =
-    {
-        { APP_IMAGE_HOME_CLOCK,      LV_SYMBOL_BELL,     "时钟",  APP_MANAGER_ID_CLOCK },
-        { APP_IMAGE_HOME_RECORDER,   LV_SYMBOL_AUDIO,    "录音",  APP_MANAGER_ID_RECORDER },
-        { APP_IMAGE_HOME_LEVEL,      LV_SYMBOL_SHUFFLE,  "水平仪", APP_MANAGER_ID_LEVEL },
-        { APP_IMAGE_HOME_SETTINGS,   LV_SYMBOL_SETTINGS, "设置",  APP_MANAGER_ID_SETTINGS },
-    };
-    for (size_t index = 0U; index < sizeof(entries) / sizeof(entries[0]); index++)
-    {
-        lv_obj_t *tile = app_ui_add_icon_tile(dock, entries[index].image_id,
-                                              entries[index].symbol,
-                                              entries[index].label,
-                                              _home_open_app,
-                                              (void *)entries[index].app_id);
-        if (tile != NULL)
-        {
-            lv_obj_set_width(tile, 0);
-            lv_obj_set_flex_grow(tile, 1);
-            lv_obj_set_height(tile, HOME_DOCK_TILE);
-        }
-    }
+    lv_obj_t *level_value = NULL;
+    lv_obj_t *level_caption = NULL;
+    row = _home_card(grid, APP_MANAGER_ID_LEVEL, "水平仪", NULL, &level_value,
+                     &level_caption);
+    lv_label_set_text(level_value, "倾角");
+    _home_set_color(level_value, APP_UI_COLOR_MUTED);
+    lv_label_set_text(level_caption, "气泡水平仪");
+    _home_card_glyph(row, APP_IMAGE_HOME_LEVEL, LV_SYMBOL_SHUFFLE);
 }
 
 static void _home_page_build(home_page_state_t *state)
 {
     app_ui_page_create_home(&state->page);
     lv_obj_t *content = state->page.content;
-    lv_obj_set_style_pad_row(content, 8, 0);
     _home_build_status(state, content);
     _home_build_hero(state, content);
-    _home_build_weather(state, content);
-    _home_build_clock_card(state, content);
-    _home_build_dock(state, content);
+    _home_build_cards(state, content);
     _home_refresh(state);
 }
 
@@ -825,8 +839,7 @@ static void _home_page_unmount(const app_manager_page_context_t *context)
     state->battery_status = NULL;
     state->time_label = NULL;
     state->date_label = NULL;
-    state->quality_label = NULL;
-    state->weather_panel = NULL;
+    state->quality_pill = NULL;
     state->weather_image = NULL;
     state->weather_fallback = NULL;
     state->weather_city = NULL;
@@ -835,6 +848,9 @@ static void _home_page_unmount(const app_manager_page_context_t *context)
     state->clock_ring = NULL;
     state->clock_title = NULL;
     state->clock_value = NULL;
+    state->clock_caption = NULL;
+    state->recorder_value = NULL;
+    state->recorder_caption = NULL;
 }
 
 static const app_manager_page_ops_t s_home_ops =

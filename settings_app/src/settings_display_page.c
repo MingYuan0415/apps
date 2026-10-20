@@ -213,9 +213,10 @@ static void _display_mount(const app_manager_page_context_t *context)
     state->pending_screen_ms = SETTINGS_PM_PENDING_NONE;
     state->pending_standby_ms = SETTINGS_PM_PENDING_NONE;
     app_ui_page_create(&state->page, "显示与电源", true);
-    app_ui_page_set_subtitle(&state->page, "亮度 · 熄屏 · 待机");
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
     lv_obj_set_scrollable(state->page.content, false);
+    /* Everything, including the save-status line, must fit one screen. */
+    lv_obj_set_style_pad_bottom(state->page.content, 8, 0);
 
     lv_obj_t *card = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(card);
@@ -223,13 +224,13 @@ static void _display_mount(const app_manager_page_context_t *context)
     lv_obj_set_height(card, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_color(card, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(card, 8, 0);
-    lv_obj_set_style_pad_all(card, 14, 0);
-    lv_obj_set_style_pad_row(card, 10, 0);
+    lv_obj_set_style_radius(card, APP_UI_RADIUS_CARD, 0);
+    lv_obj_set_style_pad_all(card, 12, 0);
+    lv_obj_set_style_pad_row(card, 8, 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     app_ui_make_passive(card, false);
 
-    lv_obj_t *heading = app_ui_button_row_create(card, 24);
+    lv_obj_t *heading = app_ui_button_row_create(card, 28);
     lv_obj_t *label = lv_label_create(heading);
     lv_obj_set_style_text_color(label, lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
@@ -243,19 +244,20 @@ static void _display_mount(const app_manager_page_context_t *context)
 
     state->slider = lv_slider_create(card);
     lv_obj_set_width(state->slider, LV_PCT(100));
-    lv_obj_set_height(state->slider, 16);
+    lv_obj_set_height(state->slider, 28);
     lv_slider_set_range(state->slider, 10, 255);
-    lv_obj_set_style_bg_color(state->slider,
-                              lv_color_hex(APP_UI_COLOR_SURFACE_HI),
+    lv_obj_set_style_bg_color(state->slider, lv_color_hex(APP_UI_COLOR_TRACK),
                               LV_PART_MAIN);
     lv_obj_set_style_bg_color(state->slider, lv_color_hex(APP_UI_COLOR_RAIN),
                               LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(state->slider, lv_color_hex(APP_UI_COLOR_TEXT),
                               LV_PART_KNOB);
     lv_obj_set_style_radius(state->slider, LV_RADIUS_CIRCLE, LV_PART_KNOB);
-    lv_obj_set_style_pad_all(state->slider, 7, LV_PART_KNOB);
-    /* 16 px bar + 14 px each side keeps the drag band at the 44 px target. */
-    lv_obj_set_ext_click_area(state->slider, 14);
+    /* Thick pill track with the knob inset 4 px, iOS control-center style. */
+    lv_obj_set_style_pad_all(state->slider, -3, LV_PART_KNOB);
+    lv_obj_set_style_shadow_width(state->slider, 0, LV_PART_KNOB);
+    /* 28 px bar + 10 px each side keeps the drag band near 48 px. */
+    lv_obj_set_ext_click_area(state->slider, 10);
     lv_obj_add_event_cb(state->slider, _display_event, LV_EVENT_VALUE_CHANGED,
                         state);
     lv_obj_add_event_cb(state->slider, _display_event, LV_EVENT_RELEASED,
@@ -263,14 +265,21 @@ static void _display_mount(const app_manager_page_context_t *context)
 
     state->status_label = app_ui_add_body_label(card, "拖动即时预览,松手保存");
     lv_obj_set_width(state->status_label, LV_PCT(100));
-    lv_obj_set_style_text_align(state->status_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(state->status_label,
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_obj_set_style_text_color(state->status_label,
+                                lv_color_hex(APP_UI_COLOR_FAINT), 0);
 
-    app_ui_add_section(state->page.content, "自动熄屏");
+    lv_obj_t *screen_section = app_ui_add_section(state->page.content,
+                               "自动熄屏");
+    lv_obj_set_style_pad_top(screen_section, 4, 0);
     lv_obj_t *screen_row = app_ui_chip_row_create(state->page.content);
     _display_add_chips(state, screen_row, state->screen_chips, k_screen_text,
                        k_screen_ms, SETTINGS_SCREEN_CHIP_COUNT, 0U, false);
 
-    app_ui_add_section(state->page.content, "熄屏后待机");
+    lv_obj_t *standby_section = app_ui_add_section(state->page.content,
+                                "熄屏后待机");
+    lv_obj_set_style_pad_top(standby_section, 4, 0);
     lv_obj_t *standby_row = app_ui_chip_row_create(state->page.content);
     _display_add_chips(state, standby_row, state->standby_chips,
                        k_standby_text, k_standby_ms,

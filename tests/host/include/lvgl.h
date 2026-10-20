@@ -14,6 +14,12 @@ typedef struct lv_font_t
     uint8_t marker;
 } lv_font_t;
 /** @brief Measure one glyph's advance (defined by the text-wrapping test). */
+/** @brief Fake line height for single-line value bounds. */
+static inline int32_t lv_font_get_line_height(const lv_font_t *font)
+{
+    (void)font;
+    return 28;
+}
 int32_t lv_font_get_glyph_width(const lv_font_t *font, uint32_t letter,
                                 uint32_t letter_next);
 typedef struct lv_image_dsc_t
@@ -83,6 +89,8 @@ typedef struct lv_draw_buf
 #define LV_PART_KNOB                   2
 #define LV_SCROLLBAR_MODE_AUTO       0
 #define LV_SIZE_CONTENT              (-1)
+#define LV_RADIUS_CIRCLE             0x7FFF
+#define LV_BORDER_SIDE_TOP           0x02
 #define LV_STATE_DISABLED            2
 #define LV_STATE_PRESSED             1
 #define LV_STATE_CHECKED             4
@@ -126,6 +134,8 @@ void lv_obj_remove_style(lv_obj_t *object, void *style, int selector);
 void lv_image_set_src(lv_obj_t *object, const lv_image_dsc_t *source);
 /** @brief Return the index-th live fake child, or NULL. */
 lv_obj_t *lv_obj_get_child(lv_obj_t *object, int32_t index);
+/** @brief Return the number of live fake children. */
+uint32_t lv_obj_get_child_count(const lv_obj_t *object);
 /** @brief Delete a fake object. */
 void lv_obj_delete(lv_obj_t *object);
 /** @brief Register a fake object event callback. */
@@ -258,7 +268,10 @@ APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_color, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_image_recolor, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_image_recolor_opa, lv_obj_t *, int, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_line_space, lv_obj_t *, int32_t, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_min_height, lv_obj_t *, int32_t, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_arc_rounded, lv_obj_t *, bool, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_max_height, lv_obj_t *, int32_t, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_max_width, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_add_style, lv_obj_t *, const lv_style_t *, int)
 APPS_HOST_LV_NOOP_4(lv_obj_align, lv_obj_t *, int, int32_t, int32_t)
 APPS_HOST_LV_NOOP_4(lv_obj_set_flex_align, lv_obj_t *, int, int, int)
@@ -270,6 +283,7 @@ static inline void lv_style_init(lv_style_t *style)
 }
 APPS_HOST_LV_NOOP_2(lv_style_set_bg_color, lv_style_t *, lv_color_t)
 APPS_HOST_LV_NOOP_2(lv_style_set_bg_opa, lv_style_t *, int)
+APPS_HOST_LV_NOOP_2(lv_style_set_border_side, lv_style_t *, int)
 APPS_HOST_LV_NOOP_2(lv_style_set_border_color, lv_style_t *, lv_color_t)
 APPS_HOST_LV_NOOP_2(lv_style_set_border_opa, lv_style_t *, int)
 APPS_HOST_LV_NOOP_2(lv_style_set_border_width, lv_style_t *, int32_t)

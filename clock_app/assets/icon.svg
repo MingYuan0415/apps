@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- MicroTech app icon: dark-theme geometric glyph, transparent base. -->
-<!-- Shared icon rule: the launcher draws this 64 px source 1:1 inside a 40 px
-     window, so every art element stays inside the centred x,y = 12..52 box;
+<!-- Shared icon rule: the 64-unit design box is exported at 72 px and drawn
+     1:1 in the launcher well (72) and task switcher (56); every art element
+     stays inside the centred x,y = 12..52 design box;
      the task switcher's larger window then shows the whole glyph plus margin. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <circle cx="32" cy="32" r="16.5" stroke="#F2F5F6" stroke-width="4"/>

@@ -347,11 +347,14 @@ static void _bluetooth_mount(const app_manager_page_context_t *context)
     memset(state, 0, sizeof(*state));
     state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     app_ui_page_create(&state->page, "蓝牙", true);
-    app_ui_page_set_subtitle(&state->page, "手机绑定");
+    /* Three shorter gaps plus a compact bottom inset keep the destructive
+     * row on the first screen. */
+    lv_obj_set_style_pad_row(state->page.content, 8, 0);
+    lv_obj_set_style_pad_bottom(state->page.content, 8, 0);
 
     lv_obj_t *bt_conn = app_ui_group_create(state->page.content);
     (void)app_ui_group_add_switch(bt_conn, "蓝牙开关",
-                                  "关闭后暂停配对与手机连接",
+                                  "关闭后暂停配对与连接",
                                   _bluetooth_enable_event, state,
                                   &state->enable_switch);
     lv_obj_t *bt_info = app_ui_group_create(state->page.content);
@@ -373,7 +376,7 @@ static void _bluetooth_mount(const app_manager_page_context_t *context)
     lv_obj_set_flex_align(ring_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
     app_ui_make_passive(ring_row, false);
-    state->ring = app_ui_ring_create(ring_row, 96, 8, APP_UI_COLOR_SURFACE_HI);
+    state->ring = app_ui_ring_create(ring_row, 96, 8, APP_UI_COLOR_TRACK);
     lv_obj_set_hidden(ring_row, true);
     state->ring_row = ring_row;
 
@@ -386,7 +389,8 @@ static void _bluetooth_mount(const app_manager_page_context_t *context)
                                app_ui_font(APP_THEME_FONT_BIGL), 0);
     lv_label_set_text(state->passkey_label, "");
 
-    state->confirm_row = app_ui_button_row_create(state->page.content, 44);
+    state->confirm_row = app_ui_button_row_create(state->page.content,
+                         APP_UI_BUTTON_HEIGHT);
     (void)app_ui_button_create(state->confirm_row, "确认",
                                _bluetooth_confirm_event, state);
     (void)app_ui_button_create(state->confirm_row, "拒绝",
@@ -396,8 +400,7 @@ static void _bluetooth_mount(const app_manager_page_context_t *context)
     lv_obj_t *bt_danger = app_ui_group_create(state->page.content);
     state->unbind_action = app_ui_group_add_danger(
                                bt_danger, LV_SYMBOL_TRASH, "解除绑定",
-                               "清除与当前手机的配对", _bluetooth_unbind_event,
-                               state);
+                               NULL, _bluetooth_unbind_event, state);
     state->unbind_status = app_ui_add_body_label(state->page.content, " ");
     lv_obj_set_hidden(state->unbind_status, true);
 

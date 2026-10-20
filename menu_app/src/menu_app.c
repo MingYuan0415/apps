@@ -12,10 +12,11 @@
 #include <stdint.h>
 #include <string.h>
 
-/* Three columns: a 4-character launcher name ("系统设置") must stay on one
- * line at the SMALL theme role, so the cell is sized to its worst case. */
-#define MENU_TILE_WIDTH 100
-#define MENU_TILE_HEIGHT 104
+/* Three fixed columns, start-aligned so a short last row keeps the grid; a
+ * 4-character launcher name ("系统设置") must stay on one line at the SMALL
+ * role, so the cell is sized to its worst case. */
+#define MENU_TILE_WIDTH 104
+#define MENU_TILE_GAP   12
 
 typedef struct menu_page_state
 {
@@ -65,7 +66,6 @@ static void _menu_add_tile(menu_page_state_t *state,
         return;
     }
     lv_obj_set_width(tile, MENU_TILE_WIDTH);
-    lv_obj_set_height(tile, MENU_TILE_HEIGHT);
 }
 
 static void _menu_page_build(menu_page_state_t *state)
@@ -76,10 +76,10 @@ static void _menu_page_build(menu_page_state_t *state)
     lv_obj_set_style_pad_top(content, 12, 0);
     lv_obj_set_style_pad_bottom(content, 16, 0);
     lv_obj_set_flex_flow(content, LV_FLEX_FLOW_ROW_WRAP);
-    lv_obj_set_flex_align(content, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START,
+    lv_obj_set_flex_align(content, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_START);
-    lv_obj_set_style_pad_column(content, 8, 0);
-    lv_obj_set_style_pad_row(content, 10, 0);
+    lv_obj_set_style_pad_column(content, MENU_TILE_GAP, 0);
+    lv_obj_set_style_pad_row(content, 4, 0);
     /* Keep every launcher app reachable instead of rendering below a dead
      * edge when the registry grows past the viewport. */
     lv_obj_set_scrollable(content, true);

@@ -36,15 +36,18 @@ static void _files_add_row(recorder_files_state_t *state,
     app_ui_click_only(row);
     lv_obj_set_user_data(row, (void *)(uintptr_t)(file_index + 1U));
     lv_obj_set_width(row, LV_PCT(100));
-    lv_obj_set_height(row, 56);
-    lv_obj_set_style_radius(row, 8, 0);
+    lv_obj_set_height(row, APP_UI_ROW_HEIGHT);
+    lv_obj_set_style_radius(row, APP_UI_RADIUS_CARD, 0);
     lv_obj_set_style_bg_color(row,
-                              lv_color_hex(selected ? APP_UI_COLOR_SURFACE_HI :
+                              lv_color_hex(selected ? APP_UI_COLOR_RAIN_TINT :
                                            APP_UI_COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_color(row, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
+                              LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(row, 0, 0);
     lv_obj_set_style_shadow_width(row, 0, 0);
-    lv_obj_set_style_pad_left(row, 14, 0);
-    lv_obj_set_style_pad_right(row, 14, 0);
-    lv_obj_set_style_pad_column(row, 10, 0);
+    lv_obj_set_style_pad_left(row, 16, 0);
+    lv_obj_set_style_pad_right(row, 16, 0);
+    lv_obj_set_style_pad_column(row, 12, 0);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
@@ -94,9 +97,8 @@ static void _files_rebuild(recorder_files_state_t *state)
     }
     if (count == 0U)
     {
-        lv_obj_t *empty = app_ui_add_body_label(state->list,
-                                                "暂无已完成录音");
-        lv_obj_set_width(empty, LV_PCT(100));
+        (void)app_ui_add_empty_state(state->list, "暂无已完成录音",
+                                     "录音完成后会出现在这里");
         return;
     }
     for (size_t index = 0U; index < count; ++index)
@@ -333,7 +335,7 @@ static void _files_mount(const app_manager_page_context_t *context)
     memset(state, 0, sizeof(*state));
     state->last_generation = UINT32_MAX;
     app_ui_page_create(&state->page, "播放库", true);
-    app_ui_page_set_subtitle(&state->page, "本地录音");
+    lv_obj_set_style_pad_bottom(state->page.content, APP_UI_PAGE_MARGIN, 0);
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
     lv_obj_set_scrollable(state->page.content, false);
 
@@ -350,13 +352,14 @@ static void _files_mount(const app_manager_page_context_t *context)
 
     state->bar = lv_bar_create(state->page.content);
     lv_obj_set_width(state->bar, LV_PCT(100));
-    lv_obj_set_height(state->bar, 6);
+    lv_obj_set_height(state->bar, 8);
     lv_bar_set_range(state->bar, 0, 100);
-    lv_obj_set_style_bg_color(state->bar, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
+    lv_obj_set_style_bg_color(state->bar, lv_color_hex(APP_UI_COLOR_TRACK),
                               0);
     lv_obj_set_style_bg_color(state->bar, lv_color_hex(APP_UI_COLOR_RAIN),
                               LV_PART_INDICATOR);
-    lv_obj_set_style_radius(state->bar, 3, 0);
+    lv_obj_set_style_radius(state->bar, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_radius(state->bar, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
     app_ui_make_passive(state->bar, false);
     recorder_ui_set_visible(state->bar, false);
 
@@ -364,11 +367,14 @@ static void _files_mount(const app_manager_page_context_t *context)
     lv_obj_set_width(state->status_label, LV_PCT(100));
     lv_obj_set_style_text_align(state->status_label, LV_TEXT_ALIGN_CENTER, 0);
 
-    lv_obj_t *controls = app_ui_button_row_create(state->page.content, 52);
+    lv_obj_t *controls = app_ui_button_row_create(state->page.content,
+                         APP_UI_BUTTON_HEIGHT);
     state->btn_play = app_ui_button_create(controls, "播放",
                                            _files_play_event, state);
+    app_ui_button_set_kind(state->btn_play, APP_UI_BUTTON_PRIMARY);
     state->btn_delete = app_ui_button_create(controls, "删除",
                         _files_delete_event, state);
+    app_ui_button_set_kind(state->btn_delete, APP_UI_BUTTON_DANGER);
 
     _files_rebuild(state);
     state->refresh_timer = lv_timer_create(_files_refresh, 250U, state);

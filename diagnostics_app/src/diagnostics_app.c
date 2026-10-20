@@ -147,7 +147,6 @@ static void _diagnostics_mount(const app_manager_page_context_t *context)
     app_ui_page_create(&state->page, "诊断", false);
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
     lv_obj_set_scrollable(state->page.content, false);
-    app_ui_page_set_subtitle(&state->page, "工程信息");
     for (size_t index = 0U; index < 6U; ++index)
     {
         _diagnostics_add_row(state, &state->rows[index]);

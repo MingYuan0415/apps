@@ -57,6 +57,13 @@ static const contrast_case_t s_cases[] =
     { "ON_ACCENT/AZURE",    APP_THEME_COLOR_ON_ACCENT, APP_THEME_COLOR_AZURE,       7.0 },
     { "ON_ACCENT/AMBER",    APP_THEME_COLOR_ON_ACCENT, APP_THEME_COLOR_AMBER,       7.0 },
     { "ON_ACCENT/MINT",     APP_THEME_COLOR_ON_ACCENT, APP_THEME_COLOR_MINT,        7.0 },
+    { "INK_FAINT/VOID",     APP_THEME_COLOR_INK_FAINT, APP_THEME_COLOR_VOID,        5.0 },
+    { "INK_FAINT/PLUME",    APP_THEME_COLOR_INK_FAINT, APP_THEME_COLOR_PLUME,       4.0 },
+    { "AZURE/AZURE_TINT",   APP_THEME_COLOR_AZURE,     APP_THEME_COLOR_AZURE_TINT,  4.5 },
+    { "AMBER/AMBER_TINT",   APP_THEME_COLOR_AMBER,     APP_THEME_COLOR_AMBER_TINT,  4.5 },
+    { "MINT/MINT_TINT",     APP_THEME_COLOR_MINT,      APP_THEME_COLOR_MINT_TINT,   4.5 },
+    { "CORAL/CORAL_TINT",   APP_THEME_COLOR_CORAL,     APP_THEME_COLOR_CORAL_TINT,  4.5 },
+    { "INK/AZURE_TINT",     APP_THEME_COLOR_INK,       APP_THEME_COLOR_AZURE_TINT,  7.0 },
 };
 
 int main(void)
@@ -89,9 +96,12 @@ int main(void)
     }
     if (!(_luma(APP_THEME_COLOR_PLUME) < _luma(APP_THEME_COLOR_SHEET) &&
             _luma(APP_THEME_COLOR_SHEET) < _luma(APP_THEME_COLOR_PLUME_HI) &&
-            _luma(APP_THEME_COLOR_PLUME_HI) < _luma(APP_THEME_COLOR_INK_SOFT)))
+            _luma(APP_THEME_COLOR_PLUME_HI) < _luma(APP_THEME_COLOR_TRACK) &&
+            _luma(APP_THEME_COLOR_TRACK) < _luma(APP_THEME_COLOR_INK_FAINT) &&
+            _luma(APP_THEME_COLOR_INK_FAINT) < _luma(APP_THEME_COLOR_INK_SOFT)))
     {
-        printf("FAIL elevation ramp PLUME < SHEET < PLUME_HI < ink is not monotonic\n");
+        printf("FAIL elevation ramp PLUME < SHEET < PLUME_HI < TRACK < faint < soft "
+               "is not monotonic\n");
         failures++;
     }
     if (_luma(APP_THEME_COLOR_INK) > 0.93)

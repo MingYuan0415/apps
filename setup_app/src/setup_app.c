@@ -488,7 +488,7 @@ static void _setup_root_render(setup_root_state_t *state)
                                       "解除绑定",
                                       transport_fault ?
                                       "蓝牙关闭失败，需要重启" :
-                                      "清除本机保存的手机绑定",
+                                      "清除手机绑定",
                                       _setup_revoke_binding_event, state);
     }
     else
@@ -590,7 +590,6 @@ static void _setup_root_mount(setup_root_state_t *state)
 {
     memset(state, 0, sizeof(*state));
     app_ui_page_create(&state->page, "网络设置", true);
-    app_ui_page_set_subtitle(&state->page, "Wi-Fi 与手机绑定");
 
     lv_obj_t *card = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(card);
@@ -598,9 +597,9 @@ static void _setup_root_mount(setup_root_state_t *state)
     lv_obj_set_height(card, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_color(card, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(card, 8, 0);
-    lv_obj_set_style_pad_all(card, 14, 0);
-    lv_obj_set_style_pad_column(card, 12, 0);
+    lv_obj_set_style_radius(card, APP_UI_RADIUS_CARD, 0);
+    lv_obj_set_style_pad_all(card, APP_UI_CARD_PAD, 0);
+    lv_obj_set_style_pad_column(card, 14, 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
@@ -635,7 +634,7 @@ static void _setup_root_mount(setup_root_state_t *state)
     lv_obj_remove_style_all(state->controls);
     lv_obj_set_width(state->controls, LV_PCT(100));
     lv_obj_set_height(state->controls, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_row(state->controls, 8, 0);
+    lv_obj_set_style_pad_row(state->controls, APP_UI_GAP, 0);
     lv_obj_set_flex_flow(state->controls, LV_FLEX_FLOW_COLUMN);
     app_ui_make_passive(state->controls, false);
 }
@@ -905,7 +904,6 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
 {
     memset(state, 0, sizeof(*state));
     app_ui_page_create(&state->page, "手机绑定", true);
-    app_ui_page_set_subtitle(&state->page, "BLE 数字比对");
 
     lv_obj_t *ring_row = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(ring_row);
@@ -1123,5 +1121,5 @@ static const app_manager_page_route_t s_setup_routes[] =
 
 APP_MANAGER_APP_EXPORT_META(setup, APP_IMAGE_SETUP_ICON, "网络设置",
                             APP_MANAGER_ID_SETUP, "root",
-                            APP_MANAGER_APP_FLAG_NONE, s_setup_routes, 60U,
+                            APP_MANAGER_APP_FLAG_HIDDEN, s_setup_routes, 60U,
                             "手机配对与 Wi-Fi");

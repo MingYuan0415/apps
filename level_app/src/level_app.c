@@ -352,8 +352,8 @@ static void _level_mount(const app_manager_page_context_t *context)
     memset(state, 0, sizeof(*state));
     state->last_bubble_color = APP_UI_COLOR_RAIN;
     app_ui_page_create(&state->page, "水平仪", false);
-    app_ui_page_set_subtitle(&state->page, "倾角与稳定性");
-    lv_obj_set_style_pad_row(state->page.content, 8, 0);
+    lv_obj_set_style_pad_row(state->page.content, 4, 0);
+    lv_obj_set_style_pad_bottom(state->page.content, APP_UI_PAGE_MARGIN, 0);
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
     lv_obj_set_scrollable(state->page.content, false);
 
@@ -370,8 +370,7 @@ static void _level_mount(const app_manager_page_context_t *context)
     lv_obj_remove_style_all(board);
     lv_obj_set_size(board, LEVEL_BOARD_SIZE, LEVEL_BOARD_SIZE);
     app_ui_make_passive(board, false);
-    (void)app_ui_ring_create(board, LEVEL_BOARD_SIZE, 2,
-                             APP_UI_COLOR_SURFACE_HI);
+    (void)app_ui_ring_create(board, LEVEL_BOARD_SIZE, 3, APP_UI_COLOR_TRACK);
     (void)_level_line(board, horizontal, 2);
     (void)_level_line(board, vertical, 2);
 
@@ -381,7 +380,7 @@ static void _level_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_radius(state->target, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_border_width(state->target, 2, 0);
     lv_obj_set_style_border_color(state->target,
-                                  lv_color_hex(APP_UI_COLOR_SURFACE_HI), 0);
+                                  lv_color_hex(APP_UI_COLOR_TRACK), 0);
     lv_obj_set_style_bg_opa(state->target, LV_OPA_TRANSP, 0);
     app_ui_make_passive(state->target, false);
     lv_obj_center(state->target);
@@ -404,38 +403,46 @@ static void _level_mount(const app_manager_page_context_t *context)
     state->angle_label = lv_label_create(state->page.content);
     lv_obj_set_width(state->angle_label, LV_PCT(100));
     lv_obj_set_style_text_align(state->angle_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_line_space(state->angle_label, 2, 0);
+    lv_obj_set_style_pad_top(state->angle_label, 8, 0);
+    lv_obj_set_style_text_line_space(state->angle_label, 0, 0);
     lv_obj_set_style_text_color(state->angle_label,
                                 lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(state->angle_label,
-                               app_ui_font(APP_THEME_FONT_HEAD), 0);
+                               app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_label_set_text(state->angle_label, "左右 --\n前后 --");
 
     state->state_label = app_ui_add_body_label(state->page.content, "读取中");
     lv_obj_set_width(state->state_label, LV_PCT(100));
     lv_obj_set_style_text_align(state->state_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(state->state_label,
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
 
     state->info_label = app_ui_add_body_label(state->page.content,
                         "温度 -- °C");
     lv_obj_set_width(state->info_label, LV_PCT(100));
     lv_label_set_long_mode(state->info_label, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(state->info_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(state->info_label,
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_obj_set_style_text_color(state->info_label,
+                                lv_color_hex(APP_UI_COLOR_FAINT), 0);
+    lv_obj_set_flex_grow(state->info_label, 1);
 
     lv_obj_t *calibrate = lv_button_create(state->page.content);
     app_ui_click_only(calibrate);
     lv_obj_set_width(calibrate, LV_PCT(100));
-    lv_obj_set_height(calibrate, 52);
-    lv_obj_set_style_radius(calibrate, 6, 0);
-    lv_obj_set_style_bg_color(calibrate, lv_color_hex(APP_UI_COLOR_SURFACE),
-                              0);
+    lv_obj_set_height(calibrate, 56);
+    lv_obj_set_style_radius(calibrate, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(calibrate,
-                              lv_color_hex(APP_UI_COLOR_SURFACE_HI),
+                              lv_color_hex(APP_UI_COLOR_SURFACE_HI), 0);
+    lv_obj_set_style_bg_color(calibrate, lv_color_hex(APP_UI_COLOR_TRACK),
                               LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(calibrate, 0, 0);
     lv_obj_set_style_shadow_width(calibrate, 0, 0);
     lv_obj_add_event_cb(calibrate, _level_calibrate, LV_EVENT_CLICKED, state);
     lv_obj_t *calibrate_label = lv_label_create(calibrate);
     lv_obj_set_style_text_font(calibrate_label,
-                               app_ui_font(APP_THEME_FONT_SMALL), 0);
+                               app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_obj_set_style_text_color(calibrate_label,
                                 lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_label_set_text(calibrate_label, "校准当前位置");

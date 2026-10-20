@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- MicroTech home tile glyph: the home card is 76 px high and this 40 px record
-     maps into the bottom card; the launcher's clock tile uses icon.svg. -->
-<!-- Every element stays inside the centred x,y = 12..52 box so the 40 px
-     launcher/dock window shows it whole. -->
+<!-- MicroTech home clock-card glyph: exported at 28 px and drawn 1:1 inside
+     the card's progress ring; the launcher's clock tile uses icon.svg. -->
+<!-- Every element stays inside the centred x,y = 12..52 design box. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <circle cx="32" cy="32" r="16.5" stroke="#F2F5F6" stroke-width="4"/>
   <path d="M32 17.5v2.6M46.5 32h-2.6M32 46.5v-2.6M17.5 32h2.6" stroke="#93A0A6" stroke-width="2.6" stroke-linecap="round"/>

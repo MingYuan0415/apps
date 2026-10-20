@@ -218,6 +218,20 @@ lv_obj_t *lv_obj_get_child(lv_obj_t *object, int32_t index)
     return NULL;
 }
 
+uint32_t lv_obj_get_child_count(const lv_obj_t *object)
+{
+    uint32_t count = 0U;
+
+    for (size_t scan = 0U; scan < TEST_OBJECT_CAPACITY; ++scan)
+    {
+        if (s_objects[scan].live && s_objects[scan].parent == object)
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
 void lv_obj_delete(lv_obj_t *object)
 {
     if (object == NULL)

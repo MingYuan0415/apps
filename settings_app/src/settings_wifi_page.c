@@ -162,15 +162,15 @@ static void _wifi_render_scan(settings_wifi_state_t *state)
         lv_obj_t *row = lv_button_create(state->scan_list);
         app_ui_click_only(row);
         lv_obj_set_width(row, LV_PCT(100));
-        lv_obj_set_height(row, 48);
-        lv_obj_set_style_radius(row, 8, 0);
+        lv_obj_set_height(row, APP_UI_ROW_HEIGHT);
+        lv_obj_set_style_radius(row, APP_UI_RADIUS_CARD, 0);
         lv_obj_set_style_bg_color(row, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
         lv_obj_set_style_bg_color(row, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
                                   LV_STATE_PRESSED);
         lv_obj_set_style_shadow_width(row, 0, 0);
-        lv_obj_set_style_pad_left(row, 14, 0);
-        lv_obj_set_style_pad_right(row, 12, 0);
-        lv_obj_set_style_pad_column(row, 10, 0);
+        lv_obj_set_style_pad_left(row, 16, 0);
+        lv_obj_set_style_pad_right(row, 14, 0);
+        lv_obj_set_style_pad_column(row, 14, 0);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
@@ -456,15 +456,14 @@ static void _wifi_mount(const app_manager_page_context_t *context)
     memset(state, 0, sizeof(*state));
     state->rendered_scan_generation = UINT64_MAX;
     app_ui_page_create(&state->page, "Wi-Fi", true);
-    app_ui_page_set_subtitle(&state->page, "无线网络");
 
     lv_obj_t *conn_group = app_ui_group_create(state->page.content);
     (void)app_ui_group_add_switch(conn_group, "Wi-Fi 开关",
-                                  "关闭后保持离线至下次连接",
+                                  "关闭后保持离线",
                                   _wifi_online_event, state,
                                   &state->online_switch);
     (void)app_ui_group_add_switch(conn_group, "自动连接",
-                                  "开机后自动连接已保存网络",
+                                  "开机后自动连接",
                                   _wifi_auto_event, state, &state->auto_switch);
 
     lv_obj_t *info_group = app_ui_group_create(state->page.content);
@@ -478,7 +477,7 @@ static void _wifi_mount(const app_manager_page_context_t *context)
     lv_obj_t *danger_group = app_ui_group_create(state->page.content);
     state->forget_action = app_ui_group_add_danger(
                                danger_group, LV_SYMBOL_TRASH, "忘记网络",
-                               "清除本机保存的凭据并断开", _wifi_forget_event, state);
+                               "清除本机保存的凭据", _wifi_forget_event, state);
     state->forget_status = app_ui_add_body_label(state->page.content, " ");
     lv_obj_set_hidden(state->forget_status, true);
 

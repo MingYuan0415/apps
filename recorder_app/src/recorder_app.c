@@ -233,7 +233,6 @@ static void _recorder_root_mount(const app_manager_page_context_t *context)
     recorder_root_state_t *state = context->state;
     memset(state, 0, sizeof(*state));
     app_ui_page_create(&state->page, "录音", true);
-    app_ui_page_set_subtitle(&state->page, "语音备忘");
     /* The recording-state stack (duration + pause/stop + secondary rows) can
      * exceed one screen with CJK line heights; keep the fallback scroll. */
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_VER);
@@ -255,7 +254,7 @@ static void _recorder_root_mount(const app_manager_page_context_t *context)
     lv_obj_t *record_row = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(record_row);
     lv_obj_set_width(record_row, LV_PCT(100));
-    lv_obj_set_height(record_row, 96);
+    lv_obj_set_height(record_row, 104);
     lv_obj_set_flex_flow(record_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(record_row, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -263,22 +262,22 @@ static void _recorder_root_mount(const app_manager_page_context_t *context)
 
     state->record_button = lv_button_create(record_row);
     app_ui_click_only(state->record_button);
-    lv_obj_set_size(state->record_button, 96, 96);
+    lv_obj_set_size(state->record_button, 104, 104);
     lv_obj_set_style_radius(state->record_button, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(state->record_button,
-                              lv_color_hex(APP_UI_COLOR_SURFACE), 0);
+                              lv_color_hex(APP_UI_COLOR_WARNING_TINT), 0);
     lv_obj_set_style_bg_color(state->record_button,
                               lv_color_hex(APP_UI_COLOR_SURFACE_HI),
                               LV_STATE_PRESSED);
     lv_obj_set_style_shadow_width(state->record_button, 0, 0);
-    lv_obj_set_style_border_width(state->record_button, 2, 0);
+    lv_obj_set_style_border_width(state->record_button, 3, 0);
     lv_obj_set_style_border_color(state->record_button,
-                                  lv_color_hex(APP_UI_COLOR_SURFACE_HI), 0);
+                                  lv_color_hex(APP_UI_COLOR_TRACK), 0);
     lv_obj_add_event_cb(state->record_button, _recorder_primary_event,
                         LV_EVENT_CLICKED, state);
     state->record_indicator = lv_obj_create(state->record_button);
     lv_obj_remove_style_all(state->record_indicator);
-    lv_obj_set_size(state->record_indicator, 30, 30);
+    lv_obj_set_size(state->record_indicator, 40, 40);
     lv_obj_set_style_bg_color(state->record_indicator,
                               lv_color_hex(APP_UI_COLOR_WARNING), 0);
     lv_obj_set_style_bg_opa(state->record_indicator, LV_OPA_COVER, 0);
@@ -286,7 +285,8 @@ static void _recorder_root_mount(const app_manager_page_context_t *context)
     app_ui_make_passive(state->record_indicator, false);
     lv_obj_center(state->record_indicator);
 
-    state->secondary_row = app_ui_button_row_create(state->page.content, 52);
+    state->secondary_row = app_ui_button_row_create(state->page.content,
+                           APP_UI_BUTTON_HEIGHT);
     state->btn_secondary = app_ui_button_create(state->secondary_row, "暂停",
                            _recorder_secondary_event,
                            state);
@@ -298,48 +298,17 @@ static void _recorder_root_mount(const app_manager_page_context_t *context)
                          "可用空间 --");
     lv_obj_set_width(state->space_label, LV_PCT(100));
     lv_obj_set_style_text_align(state->space_label, LV_TEXT_ALIGN_CENTER, 0);
-
-    lv_obj_t *entry = lv_button_create(state->page.content);
-    app_ui_click_only(entry);
-    lv_obj_set_width(entry, LV_PCT(100));
-    lv_obj_set_height(entry, 56);
-    lv_obj_set_style_radius(entry, 8, 0);
-    lv_obj_set_style_bg_color(entry, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
-    lv_obj_set_style_bg_color(entry, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
-                              LV_STATE_PRESSED);
-    lv_obj_set_style_shadow_width(entry, 0, 0);
-    lv_obj_set_style_pad_left(entry, 14, 0);
-    lv_obj_set_style_pad_right(entry, 12, 0);
-    lv_obj_set_style_pad_column(entry, 10, 0);
-    lv_obj_set_flex_flow(entry, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(entry, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_add_event_cb(entry, _recorder_open_files, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *entry_text = lv_obj_create(entry);
-    lv_obj_remove_style_all(entry_text);
-    lv_obj_set_width(entry_text, 0);
-    lv_obj_set_flex_grow(entry_text, 1);
-    lv_obj_set_height(entry_text, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(entry_text, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(entry_text, 2, 0);
-    app_ui_make_passive(entry_text, false);
-    lv_obj_t *entry_title = lv_label_create(entry_text);
-    lv_obj_set_style_text_color(entry_title,
-                                lv_color_hex(APP_UI_COLOR_TEXT), 0);
-    lv_obj_set_style_text_font(entry_title,
-                               app_ui_font(APP_THEME_FONT_BODY), 0);
-    lv_label_set_text(entry_title, "播放库");
-    state->library_count_label = lv_label_create(entry_text);
-    lv_obj_set_style_text_color(state->library_count_label,
-                                lv_color_hex(APP_UI_COLOR_MUTED), 0);
-    lv_obj_set_style_text_font(state->library_count_label,
+    lv_obj_set_style_text_font(state->space_label,
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_obj_set_style_text_color(state->space_label,
+                                lv_color_hex(APP_UI_COLOR_FAINT), 0);
+
+    lv_obj_t *library = app_ui_group_create(state->page.content);
+    lv_obj_t *entry = app_ui_group_add_entry(library, "播放库",
+                      &state->library_count_label,
+                      _recorder_open_files, NULL);
+    (void)entry;
     lv_label_set_text(state->library_count_label, "暂无录音");
-    lv_obj_t *chevron = lv_label_create(entry);
-    lv_obj_set_style_text_color(chevron, lv_color_hex(APP_UI_COLOR_MUTED), 0);
-    lv_obj_set_style_text_font(chevron, LV_FONT_DEFAULT, 0);
-    app_ui_make_passive(chevron, false);
-    lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
 
     state->refresh_timer = lv_timer_create(_recorder_root_refresh, 250U,
                                            state);

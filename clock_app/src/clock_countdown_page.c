@@ -200,26 +200,27 @@ static void _countdown_mount(const app_manager_page_context_t *context)
     state->minutes = clock_ui_minutes_get();
     state->last_minutes = UINT32_MAX;
     app_ui_page_create(&state->page, "倒计时", true);
+    lv_obj_set_style_pad_row(state->page.content, APP_UI_GAP_TIGHT, 0);
+    lv_obj_set_style_pad_bottom(state->page.content, APP_UI_PAGE_MARGIN, 0);
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
     lv_obj_set_scrollable(state->page.content, false);
 
     lv_obj_t *ring_row = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(ring_row);
     lv_obj_set_width(ring_row, LV_PCT(100));
-    lv_obj_set_height(ring_row, 200);
+    lv_obj_set_height(ring_row, 196);
     lv_obj_set_flex_flow(ring_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(ring_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
     app_ui_make_passive(ring_row, false);
 
-    state->ring = app_ui_ring_create(ring_row, 200, 8,
-                                     APP_UI_COLOR_SURFACE_HI);
+    state->ring = app_ui_ring_create(ring_row, 196, 14, APP_UI_COLOR_TRACK);
 
     state->value_label = lv_label_create(state->ring);
     lv_obj_set_style_text_color(state->value_label,
                                 lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(state->value_label,
-                               app_ui_font(APP_THEME_FONT_HEAD), 0);
+                               app_ui_font(APP_THEME_FONT_HUGE), 0);
     lv_label_set_text(state->value_label, "05:00");
     lv_obj_center(state->value_label);
 
@@ -229,7 +230,7 @@ static void _countdown_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_color(state->hint_label,
                                 lv_color_hex(APP_UI_COLOR_MUTED), 0);
     lv_obj_set_style_text_font(state->hint_label,
-                               app_ui_font(APP_THEME_FONT_BODY), 0);
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_label_set_text(state->hint_label, "选择时长后开始");
 
     lv_obj_t *chip_row = app_ui_chip_row_create(state->page.content);
@@ -241,10 +242,12 @@ static void _countdown_mount(const app_manager_page_context_t *context)
     state->chips[4] = app_ui_chip_create(chip_row, "自定义",
                                          _countdown_chip_event, state);
 
-    lv_obj_t *controls = app_ui_button_row_create(state->page.content, 52);
+    lv_obj_t *controls = app_ui_button_row_create(state->page.content,
+                         APP_UI_BUTTON_HEIGHT);
     state->btn_primary = app_ui_button_create(controls, "开始",
                          _countdown_primary_event,
                          state);
+    app_ui_button_set_kind(state->btn_primary, APP_UI_BUTTON_PRIMARY);
     state->btn_reset = app_ui_button_create(controls, "重置",
                                             _countdown_reset_event, state);
     lv_obj_set_hidden(state->btn_reset, true);

@@ -129,6 +129,7 @@ static void _stopwatch_mount(const app_manager_page_context_t *context)
     clock_stopwatch_state_t *state = context->state;
     memset(state, 0, sizeof(*state));
     app_ui_page_create(&state->page, "秒表", true);
+    lv_obj_set_style_pad_bottom(state->page.content, APP_UI_PAGE_MARGIN, 0);
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
     lv_obj_set_scrollable(state->page.content, false);
 
@@ -155,15 +156,15 @@ static void _stopwatch_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_color(state->value_label,
                                 lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(state->value_label,
-                               app_ui_font(APP_THEME_FONT_HUGE), 0);
+                               app_ui_font(APP_THEME_FONT_TITLE), 0);
     lv_label_set_text(state->value_label, "00:00");
 
     state->ms_label = lv_label_create(value_row);
     lv_obj_set_style_text_color(state->ms_label,
                                 lv_color_hex(APP_UI_COLOR_RAIN), 0);
     lv_obj_set_style_text_font(state->ms_label,
-                               app_ui_font(APP_THEME_FONT_SMALL), 0);
-    lv_obj_set_style_pad_bottom(state->ms_label, 10, 0);
+                               app_ui_font(APP_THEME_FONT_HEAD), 0);
+    lv_obj_set_style_pad_bottom(state->ms_label, 8, 0);
     lv_label_set_text(state->ms_label, ".000");
 
     state->hint_label = lv_label_create(stage);
@@ -173,10 +174,12 @@ static void _stopwatch_mount(const app_manager_page_context_t *context)
                                app_ui_font(APP_THEME_FONT_BODY), 0);
     lv_label_set_text(state->hint_label, "未开始");
 
-    lv_obj_t *controls = app_ui_button_row_create(state->page.content, 52);
+    lv_obj_t *controls = app_ui_button_row_create(state->page.content,
+                         APP_UI_BUTTON_HEIGHT);
     state->btn_primary = app_ui_button_create(controls, "开始",
                          _stopwatch_primary_event,
                          state);
+    app_ui_button_set_kind(state->btn_primary, APP_UI_BUTTON_PRIMARY);
     state->btn_reset = app_ui_button_create(controls, "重置",
                                             _stopwatch_reset_event, state);
     lv_obj_set_hidden(state->btn_reset, true);

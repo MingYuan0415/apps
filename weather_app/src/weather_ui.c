@@ -28,8 +28,8 @@ lv_obj_t *weather_ui_surface(lv_obj_t *parent, int32_t height)
     lv_obj_set_height(surface, height);
     lv_obj_set_style_bg_color(surface, lv_color_hex(WEATHER_COLOR_SURFACE), 0);
     lv_obj_set_style_bg_opa(surface, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(surface, 6, 0);
-    lv_obj_set_style_pad_all(surface, 10, 0);
+    lv_obj_set_style_radius(surface, APP_UI_RADIUS_CARD, 0);
+    lv_obj_set_style_pad_all(surface, 12, 0);
     app_ui_make_passive(surface, false);
     return surface;
 }
