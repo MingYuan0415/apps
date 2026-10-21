@@ -244,20 +244,26 @@ static void _display_mount(const app_manager_page_context_t *context)
 
     state->slider = lv_slider_create(card);
     lv_obj_set_width(state->slider, LV_PCT(100));
-    lv_obj_set_height(state->slider, 28);
+    lv_obj_set_height(state->slider, 16);
     lv_slider_set_range(state->slider, 10, 255);
     lv_obj_set_style_bg_color(state->slider, lv_color_hex(APP_UI_COLOR_TRACK),
                               LV_PART_MAIN);
+    /* The knob overhangs the 16 px track by 6 px on each side, so inset the
+     * track by the same radius and the handle stays inside the card at both
+     * ends instead of being clipped by the surface edge. */
+    lv_obj_set_style_pad_left(state->slider, 14, LV_PART_MAIN);
+    lv_obj_set_style_pad_right(state->slider, 14, LV_PART_MAIN);
     lv_obj_set_style_bg_color(state->slider, lv_color_hex(APP_UI_COLOR_RAIN),
                               LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(state->slider, lv_color_hex(APP_UI_COLOR_TEXT),
                               LV_PART_KNOB);
     lv_obj_set_style_radius(state->slider, LV_RADIUS_CIRCLE, LV_PART_KNOB);
-    /* Thick pill track with the knob inset 4 px, iOS control-center style. */
-    lv_obj_set_style_pad_all(state->slider, -3, LV_PART_KNOB);
+    /* Classic track plus handle: 16 px capsule with a 28 px round knob
+     * (16 px object height + 6 px pad each side), not a ball inside a bar. */
+    lv_obj_set_style_pad_all(state->slider, 6, LV_PART_KNOB);
     lv_obj_set_style_shadow_width(state->slider, 0, LV_PART_KNOB);
-    /* 28 px bar + 10 px each side keeps the drag band near 48 px. */
-    lv_obj_set_ext_click_area(state->slider, 10);
+    /* 16 px track + 14 px each side keeps the drag band at 44 px. */
+    lv_obj_set_ext_click_area(state->slider, 14);
     lv_obj_add_event_cb(state->slider, _display_event, LV_EVENT_VALUE_CHANGED,
                         state);
     lv_obj_add_event_cb(state->slider, _display_event, LV_EVENT_RELEASED,
