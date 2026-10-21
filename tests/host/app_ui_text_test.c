@@ -22,8 +22,6 @@ struct lv_obj_t
 
 /** @brief Advance the fake font reports for every glyph. */
 #define GLYPH 10
-/** @brief Line width in clusters for a maximum width in pixels. */
-#define CLUSTERS(pixels) ((pixels) / GLYPH)
 
 static const lv_font_t s_font = { 0 };
 
@@ -288,11 +286,40 @@ int main(void)
     {
         const char *advice =
             "请做好防暴雨准备，尽量避免外出，注意道路积水与山洪风险。";
+        char reference[512];
 
+        const size_t needed = app_ui_wrap_prose(reference, sizeof(reference),
+                                                advice, &s_font, 0, GLYPH * 15);
+        if (needed == 0U)
+        {
+            printf("FAIL reference wrap failed\n");
+            failures++;
+        }
+
+        /* The return value excludes the terminator, so the buffer that holds
+         * the wrapped text exactly is @p needed + 1 bytes. Rejecting that size
+         * would drop a paragraph that does fit. */
+        char exact[512];
+
+        used = app_ui_wrap_prose(exact, needed + 1U, advice, &s_font, 0,
+                                 GLYPH * 15);
+        if ((used != needed) || (strcmp(exact, reference) != 0))
+        {
+            printf("FAIL exact-fit buffer (%zu B, needs %zu) reported %zu\n",
+                   needed + 1U, needed + 1U, used);
+            failures++;
+        }
         used = app_ui_wrap_prose(wrapped, 8U, advice, &s_font, 0, GLYPH * 15);
         if (used != 0U)
         {
             printf("FAIL undersized buffer reported %zu bytes\n", used);
+            failures++;
+        }
+        used = app_ui_wrap_prose(exact, needed, advice, &s_font, 0,
+                                 GLYPH * 15);
+        if (used != 0U)
+        {
+            printf("FAIL buffer one byte short reported %zu bytes\n", used);
             failures++;
         }
     }

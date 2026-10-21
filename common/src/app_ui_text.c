@@ -275,7 +275,12 @@ size_t app_ui_wrap_prose(char *out, size_t out_size, const char *text,
         {
             end = start + _cluster_bytes(text, start);
         }
-        if ((written + (end - start) + 2U) > out_size)
+        /* Reserve the terminator for the final segment and one extra byte for
+         * the break that precedes a following segment. Reserving two bytes on
+         * the final segment would reject a buffer that holds the text exactly. */
+        const size_t reserve = (end < length) ? 2U : 1U;
+
+        if ((written + (end - start) + reserve) > out_size)
         {
             /* Too small to hold the wrapped text: let the caller keep the
              * original rather than publish a truncated paragraph. */
@@ -288,11 +293,6 @@ size_t app_ui_wrap_prose(char *out, size_t out_size, const char *text,
         start = end;
         if (start < length)
         {
-            if ((written + 2U) > out_size)
-            {
-                out[0] = '\0';
-                return 0U;
-            }
             out[written] = '\n';
             written += 1U;
             out[written] = '\0';
