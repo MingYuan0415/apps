@@ -10,7 +10,6 @@
 #include "device_link_service.h"
 #include "event_bus.h"
 #include "power_service.h"
-#include "recorder_service.h"
 #include "time_service.h"
 #include "timer_service.h"
 #include "weather_service.h"
@@ -44,8 +43,6 @@ typedef struct home_page_state
     lv_obj_t *clock_title;
     lv_obj_t *clock_value;
     lv_obj_t *clock_caption;
-    lv_obj_t *recorder_value;
-    lv_obj_t *recorder_caption;
     lv_timer_t *refresh_timer;
     event_bus_sub_handle_t power_subscription;
     event_bus_sub_handle_t wifi_subscription;
@@ -428,46 +425,6 @@ static void _home_render_clock_card(home_page_state_t *state)
     lv_arc_set_angles(state->clock_ring, 0, (lv_value_precise_t)span);
 }
 
-static void _home_render_recorder(home_page_state_t *state)
-{
-    recorder_service_snapshot_t snapshot;
-    const char *value = "就绪";
-    const char *caption = "语音备忘";
-    uint32_t color = APP_UI_COLOR_MUTED;
-    char text[16];
-    if (recorder_service_get_snapshot(&snapshot) != ESP_OK)
-    {
-        value = "不可用";
-        caption = "检查存储卡";
-    }
-    else if (snapshot.state == RECORDER_SERVICE_RECORDING ||
-             snapshot.state == RECORDER_SERVICE_PAUSED)
-    {
-        const unsigned seconds = (unsigned)(snapshot.duration_ms / 1000U);
-        (void)snprintf(text, sizeof(text), "%u:%02u", seconds / 60U,
-                       seconds % 60U);
-        value = text;
-        const bool recording = snapshot.state == RECORDER_SERVICE_RECORDING;
-        caption = recording ? "录音中" : "已暂停";
-        color = recording ? APP_UI_COLOR_WARNING : APP_UI_COLOR_TEXT;
-    }
-    else if (snapshot.state == RECORDER_SERVICE_PLAYING)
-    {
-        value = "播放中";
-        caption = "点按查看";
-        color = APP_UI_COLOR_RAIN;
-    }
-    else if (snapshot.state == RECORDER_SERVICE_ERROR)
-    {
-        value = "异常";
-        caption = "点按查看";
-        color = APP_UI_COLOR_WARNING;
-    }
-    app_ui_label_set_text_if(state->recorder_value, value);
-    app_ui_label_set_text_if(state->recorder_caption, caption);
-    _home_set_color(state->recorder_value, color);
-}
-
 static void _home_refresh(home_page_state_t *state)
 {
     if (state->page.root == NULL)
@@ -480,7 +437,6 @@ static void _home_refresh(home_page_state_t *state)
     _home_render_bluetooth(state);
     _home_render_weather(state);
     _home_render_clock_card(state);
-    _home_render_recorder(state);
 }
 
 static void _home_refresh_timer(lv_timer_t *timer)
@@ -729,18 +685,23 @@ static void _home_build_cards(home_page_state_t *state, lv_obj_t *content)
     _home_ring_glyph(state->clock_ring, APP_IMAGE_HOME_RING_CLOCK,
                      LV_SYMBOL_BELL);
 
-    row = _home_card(grid, APP_MANAGER_ID_RECORDER, "录音", NULL,
-                     &state->recorder_value, &state->recorder_caption);
-    _home_card_glyph(row, APP_IMAGE_HOME_RECORDER, LV_SYMBOL_AUDIO);
+    lv_obj_t *calculator_value = NULL;
+    lv_obj_t *calculator_caption = NULL;
+    row = _home_card(grid, APP_MANAGER_ID_CALCULATOR, "计算器", NULL,
+                     &calculator_value, &calculator_caption);
+    lv_label_set_text(calculator_value, "计算");
+    _home_set_color(calculator_value, APP_UI_COLOR_MUTED);
+    lv_label_set_text(calculator_caption, "四则运算");
+    _home_card_glyph(row, APP_IMAGE_HOME_CALCULATOR, LV_SYMBOL_EDIT);
 
-    lv_obj_t *level_value = NULL;
-    lv_obj_t *level_caption = NULL;
-    row = _home_card(grid, APP_MANAGER_ID_LEVEL, "水平仪", NULL, &level_value,
-                     &level_caption);
-    lv_label_set_text(level_value, "倾角");
-    _home_set_color(level_value, APP_UI_COLOR_MUTED);
-    lv_label_set_text(level_caption, "气泡水平仪");
-    _home_card_glyph(row, APP_IMAGE_HOME_LEVEL, LV_SYMBOL_SHUFFLE);
+    lv_obj_t *calendar_value = NULL;
+    lv_obj_t *calendar_caption = NULL;
+    row = _home_card(grid, APP_MANAGER_ID_CALENDAR, "日历", NULL,
+                     &calendar_value, &calendar_caption);
+    lv_label_set_text(calendar_value, "今日");
+    _home_set_color(calendar_value, APP_UI_COLOR_MUTED);
+    lv_label_set_text(calendar_caption, "查看月历");
+    _home_card_glyph(row, APP_IMAGE_HOME_CALENDAR, LV_SYMBOL_LIST);
 }
 
 static void _home_page_build(home_page_state_t *state)
@@ -849,8 +810,6 @@ static void _home_page_unmount(const app_manager_page_context_t *context)
     state->clock_title = NULL;
     state->clock_value = NULL;
     state->clock_caption = NULL;
-    state->recorder_value = NULL;
-    state->recorder_caption = NULL;
 }
 
 static const app_manager_page_ops_t s_home_ops =

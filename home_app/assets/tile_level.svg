@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!-- MicroTech home complication glyph: exported at 40 px for the level card,
-     so the geometry uses the same 64 px design box and x,y = 12..51 safe area
-     as the app icons. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect x="14.5" y="27" width="35" height="10" rx="5" stroke="#F2F5F6" stroke-width="3.4"/>
-  <path d="M25 28v8M39 28v8" stroke="#93A0A6" stroke-width="2.6" stroke-linecap="round"/>
-  <circle cx="32" cy="32" r="4.4" fill="#4FC4D8"/>
-</svg>
