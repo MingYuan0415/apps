@@ -210,11 +210,11 @@ static void _calendar_update_labels(calendar_page_state_t *state)
         return;
     }
     const int weekday = calendar_math_weekday(state->year, state->month,
-                        state->selected_day);
+        state->selected_day);
     const int week = calendar_math_week_of_year(state->year, state->month,
-                     state->selected_day);
+        state->selected_day);
     const int ordinal = calendar_math_day_of_year(state->year, state->month,
-                        state->selected_day);
+        state->selected_day);
     char text[CALENDAR_DETAIL_BYTES];
     (void)snprintf(text, sizeof(text), "%d月%d日 周%s · 第%d周 · 第%d天",
                    state->month, state->selected_day,
@@ -234,7 +234,7 @@ static void _calendar_rebuild_grid(calendar_page_state_t *state)
 
     int days[CALENDAR_MATH_MAX_CELLS];
     const int total = calendar_math_build_month(state->year, state->month,
-                      days);
+        days);
     if (total <= 0)
     {
         return;

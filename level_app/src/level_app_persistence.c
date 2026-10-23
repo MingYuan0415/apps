@@ -32,7 +32,7 @@ esp_err_t level_app_persistence_load(float *roll_offset,
     level_calibration_blob_t blob;
     size_t size = sizeof(blob);
     const esp_err_t result = nv_storage_get_blob(LEVEL_CALIBRATION_KEY, &blob,
-                             &size);
+        &size);
 
     if (result == ESP_ERR_NVS_NOT_FOUND)
     {

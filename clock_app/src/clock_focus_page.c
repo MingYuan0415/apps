@@ -288,13 +288,13 @@ static void _focus_mount(const app_manager_page_context_t *context)
     for (size_t index = 0U; index < 3U; ++index)
     {
         state->chips[index] = app_ui_chip_create(chip_row, k_preset_text[index],
-                              _focus_chip_event, state);
+            _focus_chip_event, state);
     }
 
     lv_obj_t *controls = app_ui_button_row_create(state->page.content,
-                         APP_UI_BUTTON_HEIGHT);
+        APP_UI_BUTTON_HEIGHT);
     state->btn_primary = app_ui_button_create(controls, "开始",
-                         _focus_primary_event, state);
+        _focus_primary_event, state);
     app_ui_button_set_kind(state->btn_primary, APP_UI_BUTTON_PRIMARY);
     state->btn_reset = app_ui_button_create(controls, "重置",
                                             _focus_reset_event, state);

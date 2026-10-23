@@ -277,14 +277,14 @@ static void _display_mount(const app_manager_page_context_t *context)
                                 lv_color_hex(APP_UI_COLOR_FAINT), 0);
 
     lv_obj_t *screen_section = app_ui_add_section(state->page.content,
-                               "自动熄屏");
+        "自动熄屏");
     lv_obj_set_style_pad_top(screen_section, 4, 0);
     lv_obj_t *screen_row = app_ui_chip_row_create(state->page.content);
     _display_add_chips(state, screen_row, state->screen_chips, k_screen_text,
                        k_screen_ms, SETTINGS_SCREEN_CHIP_COUNT, 0U, false);
 
     lv_obj_t *standby_section = app_ui_add_section(state->page.content,
-                                "熄屏后待机");
+        "熄屏后待机");
     lv_obj_set_style_pad_top(standby_section, 4, 0);
     lv_obj_t *standby_row = app_ui_chip_row_create(state->page.content);
     _display_add_chips(state, standby_row, state->standby_chips,

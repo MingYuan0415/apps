@@ -375,7 +375,7 @@ static void _wifi_forget_event(lv_event_t *event)
         (void)snprintf(message, sizeof(message), "清除保存的网络并断开连接？");
     }
     state->confirm_sheet = app_ui_sheet_open(state->page.root, "忘记网络",
-                           message);
+        message);
     if (state->confirm_sheet == NULL)
     {
         return;
@@ -483,7 +483,7 @@ static void _wifi_mount(const app_manager_page_context_t *context)
 
     app_ui_add_section(state->page.content, "可用网络");
     state->scan_hint = app_ui_add_body_label(state->page.content,
-                       "点击重新扫描查看附近网络");
+        "点击重新扫描查看附近网络");
     (void)app_ui_add_command(state->page.content, LV_SYMBOL_REFRESH,
                              "重新扫描", NULL, _wifi_rescan_event, state);
     state->scan_list = lv_obj_create(state->page.content);

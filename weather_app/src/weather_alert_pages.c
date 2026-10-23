@@ -139,7 +139,7 @@ static lv_obj_t *_weather_alert_add_action(weather_alerts_state_t *state,
                                 lv_color_hex(WEATHER_COLOR_WARNING), 0);
     lv_label_set_text(warning, LV_SYMBOL_WARNING);
     lv_obj_t *content = weather_ui_container(button, LV_SIZE_CONTENT,
-                        LV_FLEX_FLOW_COLUMN);
+        LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(content, 0);
     lv_obj_set_flex_grow(content, 1);
     lv_obj_set_style_pad_row(content, 3, 0);
@@ -161,7 +161,7 @@ static lv_obj_t *_weather_alert_add_action(weather_alerts_state_t *state,
                    start[0] != '\0' ? start : "未提供",
                    end[0] != '\0' ? end : "未提供");
     lv_obj_t *subtitle = weather_ui_text_label(content,
-                         APP_THEME_FONT_SMALL);
+        APP_THEME_FONT_SMALL);
     lv_obj_set_width(subtitle, LV_PCT(100));
     lv_label_set_long_mode(subtitle, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(subtitle, lv_color_hex(APP_UI_COLOR_FAINT),
@@ -239,7 +239,7 @@ static void _weather_alerts_build(weather_alerts_state_t *state)
 {
     app_ui_page_create(&state->page, "气象预警", true);
     state->status_label = weather_ui_text_label(state->page.content,
-                          APP_THEME_FONT_BODY);
+        APP_THEME_FONT_BODY);
     lv_obj_set_width(state->status_label, LV_PCT(100));
     lv_label_set_long_mode(state->status_label, LV_LABEL_LONG_WRAP);
     state->list = weather_ui_container(state->page.content, LV_SIZE_CONTENT,
@@ -421,11 +421,11 @@ static void _weather_alert_detail_build(weather_alert_detail_state_t *state)
 {
     app_ui_page_create(&state->page, "预警详情", true);
     state->status_label = weather_ui_text_label(state->page.content,
-                          APP_THEME_FONT_SMALL);
+        APP_THEME_FONT_SMALL);
     lv_obj_set_width(state->status_label, LV_PCT(100));
     lv_label_set_long_mode(state->status_label, LV_LABEL_LONG_WRAP);
     state->title_label = weather_ui_text_label(state->page.content,
-                         APP_THEME_FONT_HEAD);
+        APP_THEME_FONT_HEAD);
     lv_obj_set_width(state->title_label, LV_PCT(100));
     lv_label_set_long_mode(state->title_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(state->title_label,
@@ -437,7 +437,7 @@ static void _weather_alert_detail_build(weather_alert_detail_state_t *state)
     (void)app_ui_group_add_value(facts, "状态", "--", &state->state_value);
     (void)_weather_alert_detail_section(state->page.content, "有效时段");
     state->period_value = _weather_alert_detail_value(state->page.content,
-                          "--");
+        "--");
     (void)_weather_alert_detail_section(state->page.content, "说明");
     state->description_value = _weather_alert_detail_value(
                                    state->page.content, "暂无说明");
@@ -446,7 +446,7 @@ static void _weather_alert_detail_build(weather_alert_detail_state_t *state)
     state->instruction_value = _weather_alert_detail_value(
                                    state->page.content, "暂无建议");
     state->truncated_label = weather_ui_text_label(state->page.content,
-                             APP_THEME_FONT_BODY);
+        APP_THEME_FONT_BODY);
     lv_obj_set_style_text_color(state->truncated_label,
                                 lv_color_hex(WEATHER_COLOR_WARNING), 0);
     lv_label_set_text(state->truncated_label, "内容已截断");

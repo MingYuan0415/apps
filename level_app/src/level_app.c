@@ -109,9 +109,9 @@ static void _level_render(level_page_state_t *state)
         .z = acc->z,
     };
     const level_math_result_t result = level_math_compute(&vector,
-                                       &s_level_math_config, &state->filter,
-                                       state->roll_offset,
-                                       state->pitch_offset);
+        &s_level_math_config, &state->filter,
+        state->roll_offset,
+        state->pitch_offset);
     char text[48];
     (void)snprintf(text, sizeof(text), "左右 %+.1f°\n前后 %+.1f°",
                    result.roll_deg, result.pitch_deg);
@@ -240,7 +240,7 @@ static void _level_calibration_apply_result(level_page_state_t *state)
     }
     state->job_generation = 0U;
     const esp_err_t result = (esp_err_t)atomic_load_explicit(&s_done_result,
-                             memory_order_relaxed);
+        memory_order_relaxed);
     if (result != ESP_OK)
     {
         if (!state->calibration_op_save)
@@ -322,9 +322,9 @@ static void _level_calibrate(lv_event_t *event)
     float pitch_offset = 0.0F;
     level_math_raw_angles(&vector, &roll_offset, &pitch_offset);
     const esp_err_t result = _level_submit_calibration(state,
-                             LEVEL_CALIBRATION_SAVE,
-                             roll_offset,
-                             pitch_offset);
+        LEVEL_CALIBRATION_SAVE,
+        roll_offset,
+        pitch_offset);
     _level_set_status(state,
                       result == ESP_OK ? "正在保存校准" : "校准提交失败",
                       result == ESP_OK ? APP_UI_STATUS_ACCENT :
@@ -418,7 +418,7 @@ static void _level_mount(const app_manager_page_context_t *context)
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
 
     state->info_label = app_ui_add_body_label(state->page.content,
-                        "温度 -- °C");
+        "温度 -- °C");
     lv_obj_set_width(state->info_label, LV_PCT(100));
     lv_label_set_long_mode(state->info_label, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(state->info_label, LV_TEXT_ALIGN_CENTER, 0);

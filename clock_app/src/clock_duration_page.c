@@ -157,9 +157,9 @@ static void _duration_mount(const app_manager_page_context_t *context)
                                app_ui_font(APP_THEME_FONT_BODY), 0);
 
     lv_obj_t *controls = app_ui_button_row_create(state->page.content,
-                         APP_UI_BUTTON_HEIGHT);
+        APP_UI_BUTTON_HEIGHT);
     app_ui_button_set_kind(app_ui_button_create(controls, "确定",
-                           _duration_confirm_event, state),
+            _duration_confirm_event, state),
                            APP_UI_BUTTON_PRIMARY);
 
     lv_obj_add_event_cb(state->hour_roller, _duration_value_event,

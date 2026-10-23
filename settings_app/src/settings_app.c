@@ -130,7 +130,7 @@ static void _settings_root_render(settings_root_state_t *state)
     if (device_link_service_get_status(&bluetooth) == ESP_OK)
     {
         bt = !bluetooth.enabled ? "已关闭" : (bluetooth.bound ? "已绑定" :
-             (bluetooth.active ? "配对中" : "未绑定"));
+            (bluetooth.active ? "配对中" : "未绑定"));
     }
     lv_label_set_text(state->bluetooth_summary, bt);
 

@@ -162,7 +162,7 @@ static void _weather_root_render_hourly(weather_root_state_t *state)
         (void)snprintf(text, sizeof(text), "%.0f°",
                        hour->temperature_tenths_c / 10.0);
         lv_obj_t *temperature = weather_ui_text_label(item,
-                                APP_THEME_FONT_BODY);
+            APP_THEME_FONT_BODY);
         lv_obj_set_style_text_color(temperature,
                                     lv_color_hex(WEATHER_COLOR_TEXT), 0);
         lv_label_set_text(temperature, text);
@@ -443,18 +443,18 @@ static void _weather_root_build(weather_root_state_t *state)
     lv_obj_set_flex_align(hero, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_t *summary = weather_ui_container(hero, LV_SIZE_CONTENT,
-                        LV_FLEX_FLOW_COLUMN);
+        LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(summary, 0);
     lv_obj_set_flex_grow(summary, 1);
     lv_obj_set_style_pad_row(summary, 1, 0);
     lv_obj_set_flex_align(summary, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     state->temperature_label = weather_ui_text_label(summary,
-                               APP_THEME_FONT_TITLE);
+        APP_THEME_FONT_TITLE);
     lv_obj_set_style_text_color(state->temperature_label,
                                 lv_color_hex(WEATHER_COLOR_TEXT), 0);
     state->condition_label = weather_ui_text_label(summary,
-                             APP_THEME_FONT_HEAD);
+        APP_THEME_FONT_HEAD);
     lv_obj_set_width(state->condition_label, LV_PCT(100));
     lv_label_set_long_mode(state->condition_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(state->condition_label,
@@ -482,7 +482,7 @@ static void _weather_root_build(weather_root_state_t *state)
     lv_label_set_text(state->image_fallback, LV_SYMBOL_IMAGE);
 
     state->status_label = weather_ui_text_label(state->page.content,
-                          APP_THEME_FONT_BODY);
+        APP_THEME_FONT_BODY);
     lv_obj_set_size(state->status_label, LV_PCT(100), LV_SIZE_CONTENT);
     lv_label_set_long_mode(state->status_label,
                            LV_LABEL_LONG_SCROLL_CIRCULAR);
@@ -513,7 +513,7 @@ static void _weather_root_build(weather_root_state_t *state)
     lv_obj_add_event_cb(state->alert_button, _weather_root_open_alerts,
                         LV_EVENT_CLICKED, NULL);
     state->alert_label = weather_ui_text_label(state->alert_button,
-                         APP_THEME_FONT_SMALL);
+        APP_THEME_FONT_SMALL);
     lv_obj_set_width(state->alert_label, 0);
     lv_obj_set_flex_grow(state->alert_label, 1);
     lv_label_set_long_mode(state->alert_label, LV_LABEL_LONG_WRAP);
@@ -555,7 +555,7 @@ static void _weather_root_build(weather_root_state_t *state)
     lv_obj_add_event_cb(detail, _weather_root_open_forecast,
                         LV_EVENT_CLICKED, NULL);
     lv_obj_t *detail_text = weather_ui_text_label(detail,
-                            APP_THEME_FONT_BODY);
+        APP_THEME_FONT_BODY);
     lv_obj_set_style_text_color(detail_text, lv_color_hex(WEATHER_COLOR_TEXT),
                                 0);
     lv_label_set_text(detail_text, "查看详细预报");

@@ -293,7 +293,7 @@ static void _bluetooth_unbind_event(lv_event_t *event)
         return;
     }
     state->confirm_sheet = app_ui_sheet_open(state->page.root, "解除绑定",
-                           "清除与当前手机的配对，之后需要重新配对？");
+        "清除与当前手机的配对，之后需要重新配对？");
     if (state->confirm_sheet == NULL)
     {
         return;
@@ -390,7 +390,7 @@ static void _bluetooth_mount(const app_manager_page_context_t *context)
     lv_label_set_text(state->passkey_label, "");
 
     state->confirm_row = app_ui_button_row_create(state->page.content,
-                         APP_UI_BUTTON_HEIGHT);
+        APP_UI_BUTTON_HEIGHT);
     (void)app_ui_button_create(state->confirm_row, "确认",
                                _bluetooth_confirm_event, state);
     (void)app_ui_button_create(state->confirm_row, "拒绝",

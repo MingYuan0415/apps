@@ -237,16 +237,16 @@ static void _countdown_mount(const app_manager_page_context_t *context)
     for (size_t index = 0U; index < 4U; ++index)
     {
         state->chips[index] = app_ui_chip_create(chip_row, k_preset_text[index],
-                              _countdown_chip_event, state);
+            _countdown_chip_event, state);
     }
     state->chips[4] = app_ui_chip_create(chip_row, "自定义",
                                          _countdown_chip_event, state);
 
     lv_obj_t *controls = app_ui_button_row_create(state->page.content,
-                         APP_UI_BUTTON_HEIGHT);
+        APP_UI_BUTTON_HEIGHT);
     state->btn_primary = app_ui_button_create(controls, "开始",
-                         _countdown_primary_event,
-                         state);
+        _countdown_primary_event,
+        state);
     app_ui_button_set_kind(state->btn_primary, APP_UI_BUTTON_PRIMARY);
     state->btn_reset = app_ui_button_create(controls, "重置",
                                             _countdown_reset_event, state);

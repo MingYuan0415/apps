@@ -286,16 +286,16 @@ static void _recorder_root_mount(const app_manager_page_context_t *context)
     lv_obj_center(state->record_indicator);
 
     state->secondary_row = app_ui_button_row_create(state->page.content,
-                           APP_UI_BUTTON_HEIGHT);
+        APP_UI_BUTTON_HEIGHT);
     state->btn_secondary = app_ui_button_create(state->secondary_row, "暂停",
-                           _recorder_secondary_event,
-                           state);
+        _recorder_secondary_event,
+        state);
     state->btn_stop = app_ui_button_create(state->secondary_row, "停止",
                                            _recorder_stop_event, state);
     recorder_ui_set_visible(state->secondary_row, false);
 
     state->space_label = app_ui_add_body_label(state->page.content,
-                         "可用空间 --");
+        "可用空间 --");
     lv_obj_set_width(state->space_label, LV_PCT(100));
     lv_obj_set_style_text_align(state->space_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(state->space_label,
@@ -305,8 +305,8 @@ static void _recorder_root_mount(const app_manager_page_context_t *context)
 
     lv_obj_t *library = app_ui_group_create(state->page.content);
     lv_obj_t *entry = app_ui_group_add_entry(library, "播放库",
-                      &state->library_count_label,
-                      _recorder_open_files, NULL);
+        &state->library_count_label,
+        _recorder_open_files, NULL);
     (void)entry;
     lv_label_set_text(state->library_count_label, "暂无录音");
 

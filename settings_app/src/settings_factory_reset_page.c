@@ -72,7 +72,7 @@ static void _settings_factory_reset_mount(
                                 "确认恢复出厂设置", "清除本机数据并重新启动",
                                 _settings_factory_reset_confirm, state);
     state->status_label = app_ui_add_body_label(state->page.content,
-                          "等待确认");
+        "等待确认");
 }
 
 static void _settings_factory_reset_unmount(

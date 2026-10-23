@@ -239,7 +239,7 @@ static size_t _pull_back(const char *text, size_t start, size_t end,
     }
     while ((end > minimum) &&
             _forbidden_line_end(_cluster_code(text, _previous_cluster(text,
-                                end))))
+                    end))))
     {
         end = _previous_cluster(text, end);
     }
@@ -323,5 +323,5 @@ void app_ui_set_prose_text(lv_obj_t *label, const char *text,
                                      label, LV_PART_MAIN), max_width);
     }
     lv_label_set_text(label, (used > 0U) ? scratch : ((text != NULL) ? text
-                      : ""));
+            : ""));
 }

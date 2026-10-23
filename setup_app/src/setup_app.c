@@ -647,7 +647,7 @@ static esp_err_t _setup_root_resume(setup_root_state_t *state)
         .status = _setup_wifi_status,
     };
     esp_err_t result = setup_wifi_adapter_open(&state->wifi, &callbacks,
-                       state);
+        state);
     if (result == ESP_OK)
     {
         result = event_bus_subscribe(
@@ -960,14 +960,14 @@ static void _setup_provisioning_mount(setup_provisioning_state_t *state)
     app_ui_make_passive(state->confirm_row, false);
     lv_obj_set_hidden(state->confirm_row, true);
     state->confirm_button = app_ui_button_create(state->confirm_row,
-                            "确认绑定",
-                            _setup_provisioning_confirm_event,
-                            state);
+        "确认绑定",
+        _setup_provisioning_confirm_event,
+        state);
     lv_obj_set_style_text_color(lv_obj_get_child(state->confirm_button, 0),
                                 lv_color_hex(APP_UI_COLOR_RAIN), 0);
     state->deny_button = app_ui_button_create(state->confirm_row, "拒绝",
-                         _setup_provisioning_deny_event,
-                         state);
+        _setup_provisioning_deny_event,
+        state);
     lv_obj_set_style_text_color(lv_obj_get_child(state->deny_button, 0),
                                 lv_color_hex(APP_UI_COLOR_WARNING), 0);
 }

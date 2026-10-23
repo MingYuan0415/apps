@@ -295,7 +295,7 @@ static void _weather_forecast_render_hourly(weather_forecast_state_t *state)
         (void)snprintf(text, sizeof(text), "%.0f°",
                        hour->temperature_tenths_c / 10.0);
         lv_obj_t *temperature = weather_ui_text_label(top,
-                                APP_THEME_FONT_HEAD);
+            APP_THEME_FONT_HEAD);
         lv_obj_set_size(temperature, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
         lv_obj_set_style_text_color(temperature,
                                     lv_color_hex(WEATHER_COLOR_TEXT), 0);
@@ -303,7 +303,7 @@ static void _weather_forecast_render_hourly(weather_forecast_state_t *state)
         (void)snprintf(text, sizeof(text), "降水 %u%%",
                        (unsigned)hour->precipitation_chance_percent);
         lv_obj_t *precipitation = weather_ui_text_label(top,
-                                  APP_THEME_FONT_SMALL);
+            APP_THEME_FONT_SMALL);
         lv_obj_set_size(precipitation, 0, LV_SIZE_CONTENT);
         lv_obj_set_flex_grow(precipitation, 1);
         lv_label_set_long_mode(precipitation, LV_LABEL_LONG_WRAP);
@@ -420,7 +420,7 @@ static void _weather_forecast_render_daily(weather_forecast_state_t *state)
         (void)snprintf(text, sizeof(text), "%s / %s",
                        day->day_condition_text, day->night_condition_text);
         lv_obj_t *condition = weather_ui_text_label(summary,
-                              APP_THEME_FONT_SMALL);
+            APP_THEME_FONT_SMALL);
         lv_obj_set_width(condition, LV_PCT(100));
         lv_label_set_long_mode(condition, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(condition,
@@ -452,7 +452,7 @@ static void _weather_forecast_render_daily(weather_forecast_state_t *state)
                        day->precipitation_tenths_mm / 10.0,
                        (unsigned)day->uv_index);
         lv_obj_t *details = weather_ui_text_label(summary,
-                            APP_THEME_FONT_SMALL);
+            APP_THEME_FONT_SMALL);
         lv_obj_set_width(details, LV_PCT(100));
         lv_label_set_long_mode(details, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(details,

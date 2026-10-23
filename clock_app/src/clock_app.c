@@ -110,7 +110,7 @@ void clock_ui_open_page_with_minutes(const char *page_id, uint32_t minutes)
     };
     memcpy(request.arguments.payload, &payload, sizeof(payload));
     const esp_err_t result = app_manager_navigate_async(&request,
-                             _clock_nav_complete, NULL);
+        _clock_nav_complete, NULL);
     if (result != ESP_OK)
     {
         LOG_W("clock page %s navigation failed: %s", page_id,
@@ -245,7 +245,7 @@ static void _clock_root_render(clock_root_state_t *state)
         clock_ui_format_mmss((uint32_t)(snapshot.stopwatch_elapsed_ms /
                                         1000U * 1000U), mmss, sizeof(mmss));
         const uint32_t seconds_part = (uint32_t)(snapshot.stopwatch_elapsed_ms
-                                      % 60000ULL);
+            % 60000ULL);
         _clock_root_set_summary(state, CLOCK_CARD_STOPWATCH, mmss,
                                 snapshot.stopwatch_state ==
                                 TIMER_SERVICE_PAUSED ? APP_UI_COLOR_MUTED :
@@ -307,7 +307,7 @@ static void _clock_root_add_card(clock_root_state_t *state, lv_obj_t *group,
         lv_obj_delete(chevron);
     }
     state->card_ring[card] = app_ui_ring_create(row, 40, 5,
-                             APP_UI_COLOR_TRACK);
+        APP_UI_COLOR_TRACK);
 }
 
 static void _clock_root_mount(const app_manager_page_context_t *context)

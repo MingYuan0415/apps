@@ -231,7 +231,7 @@ static void _files_delete_event(lv_event_t *event)
     (void)snprintf(message, sizeof(message), "删除“%s”？此操作无法撤销。",
                    recorder_ui_display_name(state->selected));
     state->confirm_sheet = app_ui_sheet_open(state->page.root, "删除录音",
-                           message);
+        message);
     if (state->confirm_sheet == NULL)
     {
         return;
@@ -368,12 +368,12 @@ static void _files_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_align(state->status_label, LV_TEXT_ALIGN_CENTER, 0);
 
     lv_obj_t *controls = app_ui_button_row_create(state->page.content,
-                         APP_UI_BUTTON_HEIGHT);
+        APP_UI_BUTTON_HEIGHT);
     state->btn_play = app_ui_button_create(controls, "播放",
                                            _files_play_event, state);
     app_ui_button_set_kind(state->btn_play, APP_UI_BUTTON_PRIMARY);
     state->btn_delete = app_ui_button_create(controls, "删除",
-                        _files_delete_event, state);
+        _files_delete_event, state);
     app_ui_button_set_kind(state->btn_delete, APP_UI_BUTTON_DANGER);
 
     _files_rebuild(state);
