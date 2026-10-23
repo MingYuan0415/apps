@@ -13,8 +13,8 @@ typedef struct recorder_files_state
     lv_obj_t *status_label;
     lv_obj_t *confirm_sheet;
     lv_timer_t *refresh_timer;
-    char selected[64];
-    char pending_delete[64];
+    char selected[RECORDER_SERVICE_PATH_MAX];
+    char pending_delete[RECORDER_SERVICE_PATH_MAX];
     uint32_t last_generation;
     recorder_service_state_t last_state;
 } recorder_files_state_t;
@@ -36,7 +36,8 @@ static void _files_add_row(recorder_files_state_t *state,
     app_ui_click_only(row);
     lv_obj_set_user_data(row, (void *)(uintptr_t)(file_index + 1U));
     lv_obj_set_width(row, LV_PCT(100));
-    lv_obj_set_height(row, APP_UI_ROW_HEIGHT);
+    lv_obj_set_height(row, LV_SIZE_CONTENT);
+    lv_obj_set_style_min_height(row, APP_UI_ROW_HEIGHT, 0);
     lv_obj_set_style_radius(row, APP_UI_RADIUS_CARD, 0);
     lv_obj_set_style_bg_color(row,
                               lv_color_hex(selected ? APP_UI_COLOR_RAIN_TINT :
@@ -56,7 +57,7 @@ static void _files_add_row(recorder_files_state_t *state,
     lv_obj_t *name = lv_label_create(row);
     lv_obj_set_width(name, 0);
     lv_obj_set_flex_grow(name, 1);
-    lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(name, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(name,
                                 lv_color_hex(selected ? APP_UI_COLOR_RAIN :
                                         APP_UI_COLOR_TEXT), 0);

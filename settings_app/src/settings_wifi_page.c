@@ -162,7 +162,8 @@ static void _wifi_render_scan(settings_wifi_state_t *state)
         lv_obj_t *row = lv_button_create(state->scan_list);
         app_ui_click_only(row);
         lv_obj_set_width(row, LV_PCT(100));
-        lv_obj_set_height(row, APP_UI_ROW_HEIGHT);
+        lv_obj_set_height(row, LV_SIZE_CONTENT);
+        lv_obj_set_style_min_height(row, APP_UI_ROW_HEIGHT, 0);
         lv_obj_set_style_radius(row, APP_UI_RADIUS_CARD, 0);
         lv_obj_set_style_bg_color(row, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
         lv_obj_set_style_bg_color(row, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
@@ -170,17 +171,18 @@ static void _wifi_render_scan(settings_wifi_state_t *state)
         lv_obj_set_style_shadow_width(row, 0, 0);
         lv_obj_set_style_pad_left(row, 16, 0);
         lv_obj_set_style_pad_right(row, 14, 0);
-        lv_obj_set_style_pad_column(row, 14, 0);
-        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_style_pad_top(row, 6, 0);
+        lv_obj_set_style_pad_bottom(row, 6, 0);
+        lv_obj_set_style_pad_row(row, 2, 0);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
         lv_obj_set_user_data(row, (void *)(uintptr_t)index);
         lv_obj_add_event_cb(row, _wifi_row_event, LV_EVENT_CLICKED, state);
 
         lv_obj_t *name = lv_label_create(row);
-        lv_obj_set_width(name, 0);
-        lv_obj_set_flex_grow(name, 1);
-        lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+        lv_obj_set_width(name, LV_PCT(100));
+        lv_label_set_long_mode(name, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(name, lv_color_hex(APP_UI_COLOR_TEXT), 0);
         lv_obj_set_style_text_font(name,
                                    app_ui_font(APP_THEME_FONT_SMALL), 0);
@@ -194,7 +196,7 @@ static void _wifi_render_scan(settings_wifi_state_t *state)
         (void)snprintf(detail, sizeof(detail), "%s%s %d", sec,
                        record->saved ? " 已保存" : "", (int)record->rssi);
         lv_obj_t *info = lv_label_create(row);
-        lv_label_set_long_mode(info, LV_LABEL_LONG_DOT);
+        lv_obj_set_width(info, LV_PCT(100));
         lv_obj_set_style_text_color(info,
                                     lv_color_hex(record->saved ?
                                             APP_UI_COLOR_RAIN : APP_UI_COLOR_MUTED),

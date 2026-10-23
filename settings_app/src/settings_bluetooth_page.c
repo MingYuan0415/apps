@@ -117,8 +117,8 @@ static void _bluetooth_render(settings_bluetooth_state_t *state,
     {
         const uint32_t seconds = status->window_remaining_ms / 1000U;
         (void)snprintf(detail, sizeof(detail),
-                       status->client_connected ? "手机已连接 · 剩余 %u:%02u" :
-                       "等待手机连接 · 剩余 %u:%02u",
+                       status->client_connected ? "已连接 · %u:%02u" :
+                       "等待连接 · %u:%02u",
                        (unsigned)(seconds / 60U), (unsigned)(seconds % 60U));
     }
     else
