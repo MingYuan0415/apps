@@ -22,6 +22,7 @@ idf_component_register(
         event_bus
         imu_service
         sd_storage_service
+        file_service
         connectivity_manager
         device_link_service
         factory_reset_service

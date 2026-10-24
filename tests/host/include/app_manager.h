@@ -22,6 +22,14 @@ esp_err_t app_manager_navigate_async(const app_manager_nav_request_t *request,
                                      void *context);
 /** @brief Return the fake screen owned by the current page callback. */
 lv_obj_t *app_manager_this_page_screen(void);
+/** @brief Queue immediate screen-off in device page fixtures. */
+esp_err_t app_manager_pm_request_screen_off(void);
+/** @brief Return the fake copied navigation arguments for the current page. */
+const app_manager_typed_blob_t *app_manager_this_page_arguments(void);
+/** @brief Queue a fake request with stable copied identifiers. */
+void app_ui_request_open_page(const char *app_id, const char *page_id);
+/** @brief Queue a fake run request with a stable copied identifier. */
+void app_ui_request_run(const char *app_id);
 /** @brief Return one fake theme font. */
 const lv_font_t *app_manager_get_font(app_theme_font_id_t id);
 /** @brief Return an image descriptor for a semantic resource id. */

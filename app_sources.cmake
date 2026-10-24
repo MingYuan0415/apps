@@ -23,6 +23,9 @@ set(APP_SRCS
     "clock_app/src/clock_focus_page.c"
     "recorder_app/src/recorder_app.c"
     "recorder_app/src/recorder_files_page.c"
+    "files_app/src/files_app.c"
+    "files_app/src/files_browse_page.c"
+    "files_app/src/files_detail_page.c"
     "level_app/src/level_app.c"
     "level_app/src/level_app_persistence.c"
     "level_app/src/level_math.c"
@@ -43,6 +46,7 @@ set(APP_SRCS
     "settings_app/src/settings_bluetooth_page.c"
     "settings_app/src/settings_device_page.c"
     "settings_app/src/settings_factory_reset_page.c"
+    "settings_app/src/settings_storage_page.c"
     "setup_app/src/setup_app.c"
     "setup_app/src/setup_wifi_adapter.c"
 )

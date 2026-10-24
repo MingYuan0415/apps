@@ -3,6 +3,8 @@
 
 #include "recorder_app_internal.h"
 
+#include <stdlib.h>
+
 typedef struct recorder_files_state
 {
     app_ui_page_t page;
@@ -13,10 +15,25 @@ typedef struct recorder_files_state
     lv_obj_t *status_label;
     lv_obj_t *confirm_sheet;
     lv_timer_t *refresh_timer;
-    char selected[RECORDER_SERVICE_PATH_MAX];
-    char pending_delete[RECORDER_SERVICE_PATH_MAX];
+    recorder_service_file_t *files;
+    size_t file_count;
+    recorder_service_target_t selected;
+    recorder_service_target_t confirmation_target;
+    recorder_service_target_t pending_delete;
     uint32_t last_generation;
+    uint32_t last_storage_generation;
+    uint32_t last_content_revision;
+    uint32_t last_index_generation;
+    uint32_t last_index_revision;
+    uint32_t delete_operation_id;
+    uint32_t stop_operation_id;
     recorder_service_state_t last_state;
+    bool has_selection;
+    bool has_confirmation_target;
+    bool pending_after_stop;
+    bool delete_pending;
+    bool last_index_valid;
+    bool rows_dirty;
 } recorder_files_state_t;
 
 _Static_assert(sizeof(recorder_files_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -30,8 +47,10 @@ static void _files_add_row(recorder_files_state_t *state,
                            const recorder_service_file_t *file,
                            size_t file_index)
 {
-    const bool selected = state->selected[0] != '\0' &&
-                          strcmp(state->selected, file->name) == 0;
+    const bool selected = state->has_selection &&
+                          state->selected.generation == file->target.generation &&
+                          state->selected.revision == file->target.revision &&
+                          strcmp(state->selected.name, file->target.name) == 0;
     lv_obj_t *row = lv_button_create(state->list);
     app_ui_click_only(row);
     lv_obj_set_user_data(row, (void *)(uintptr_t)(file_index + 1U));
@@ -62,7 +81,7 @@ static void _files_add_row(recorder_files_state_t *state,
                                 lv_color_hex(selected ? APP_UI_COLOR_RAIN :
                                         APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_font(name, app_ui_font(APP_THEME_FONT_BODY), 0);
-    lv_label_set_text(name, recorder_ui_display_name(file->name));
+    lv_label_set_text(name, recorder_ui_display_name(file->target.name));
 
     char text[16];
     recorder_ui_format_mmss(file->duration_ms, text, sizeof(text));
@@ -73,49 +92,59 @@ static void _files_add_row(recorder_files_state_t *state,
     lv_label_set_text(duration, text);
 }
 
+static bool _files_target_equal(const recorder_service_target_t *left,
+                                const recorder_service_target_t *right)
+{
+    return left->generation == right->generation &&
+           left->revision == right->revision &&
+           strcmp(left->name, right->name) == 0;
+}
+
 static void _files_rebuild(recorder_files_state_t *state)
 {
     lv_obj_clean(state->list);
-    recorder_service_file_t files[RECORDER_SERVICE_MAX_FILES];
-    size_t count = 0U;
-    if (recorder_service_list(files, RECORDER_SERVICE_MAX_FILES,
-                              &count) != ESP_OK)
+    state->rows_dirty = false;
+    if (state->files == NULL)
     {
-        count = 0U;
+        (void)app_ui_add_empty_state(state->list, "列表暂不可用",
+                                     "请稍后重试");
+        return;
+    }
+    if (state->file_count == 0U)
+    {
+        (void)app_ui_add_empty_state(state->list, "暂无已完成录音",
+                                     "录音完成后会出现在这里");
+        return;
+    }
+    for (size_t index = 0U; index < state->file_count; ++index)
+    {
+        _files_add_row(state, &state->files[index], index);
+    }
+}
+
+static void _files_reload(recorder_files_state_t *state)
+{
+    state->file_count = 0U;
+    if (state->files != NULL &&
+            recorder_service_list(state->files, RECORDER_SERVICE_MAX_FILES,
+                                  &state->file_count) != ESP_OK)
+    {
+        state->file_count = 0U;
     }
     bool selected_exists = false;
-    for (size_t index = 0U; index < count; ++index)
+    for (size_t index = 0U; index < state->file_count; ++index)
     {
-        if (state->selected[0] != '\0' &&
-                strcmp(state->selected, files[index].name) == 0)
+        if (state->has_selection &&
+                _files_target_equal(&state->selected, &state->files[index].target))
         {
             selected_exists = true;
         }
     }
     if (!selected_exists)
     {
-        state->selected[0] = '\0';
+        state->has_selection = false;
     }
-    if (count == 0U)
-    {
-        (void)app_ui_add_empty_state(state->list, "暂无已完成录音",
-                                     "录音完成后会出现在这里");
-        return;
-    }
-    for (size_t index = 0U; index < count; ++index)
-    {
-        _files_add_row(state, &files[index], index);
-    }
-}
-
-static void _files_rebuild_async(void *user_data)
-{
-    recorder_files_state_t *state = user_data;
-
-    if (state->page.root != NULL)
-    {
-        _files_rebuild(state);
-    }
+    _files_rebuild(state);
 }
 
 static void _files_set_status(recorder_files_state_t *state, const char *text,
@@ -127,6 +156,30 @@ static void _files_set_status(recorder_files_state_t *state, const char *text,
     }
 }
 
+static void _files_submit_delete(recorder_files_state_t *state,
+                                 const recorder_service_target_t *target)
+{
+    state->pending_delete = *target;
+    if (recorder_service_delete(&state->pending_delete) != ESP_OK)
+    {
+        state->pending_after_stop = false;
+        state->delete_pending = false;
+        _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
+        return;
+    }
+    recorder_service_snapshot_t snapshot;
+    if (recorder_service_get_snapshot(&snapshot) != ESP_OK)
+    {
+        state->pending_after_stop = false;
+        _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
+        return;
+    }
+    state->delete_operation_id = snapshot.operation_id;
+    state->pending_after_stop = false;
+    state->delete_pending = true;
+    _files_set_status(state, "删除中", APP_UI_STATUS_WARNING);
+}
+
 static void _files_render(recorder_files_state_t *state)
 {
     recorder_service_snapshot_t snapshot;
@@ -134,29 +187,75 @@ static void _files_render(recorder_files_state_t *state)
     {
         return;
     }
-    if (state->pending_delete[0] != '\0' && !snapshot.operation_pending &&
-            snapshot.state != RECORDER_SERVICE_PLAYING)
+    const bool epoch_changed =
+        state->last_storage_generation != snapshot.storage_generation ||
+        state->last_content_revision != snapshot.content_revision ||
+        state->last_index_generation != snapshot.index_generation ||
+        state->last_index_revision != snapshot.index_revision ||
+        state->last_index_valid != snapshot.index_valid;
+    const bool index_current = snapshot.index_valid &&
+                               snapshot.index_generation == snapshot.storage_generation &&
+                               snapshot.index_revision == snapshot.content_revision;
+    if (state->has_selection &&
+            (!index_current ||
+             state->selected.generation != snapshot.storage_generation ||
+             state->selected.revision != snapshot.content_revision))
     {
-        /* Stop-then-delete queued by the delete button: run it once the
-         * worker has finished stopping playback. */
-        const esp_err_t result = recorder_service_delete(
-                                     state->pending_delete);
-        state->pending_delete[0] = '\0';
-        if (result == ESP_OK)
+        state->has_selection = false;
+        state->rows_dirty = true;
+    }
+    bool reload = epoch_changed ||
+                  (index_current && (snapshot.generation != state->last_generation ||
+                                     snapshot.state != state->last_state));
+    state->last_storage_generation = snapshot.storage_generation;
+    state->last_content_revision = snapshot.content_revision;
+    state->last_index_generation = snapshot.index_generation;
+    state->last_index_revision = snapshot.index_revision;
+    state->last_index_valid = snapshot.index_valid;
+    state->last_generation = snapshot.generation;
+    state->last_state = snapshot.state;
+    if (state->pending_after_stop && !snapshot.operation_pending &&
+            snapshot.operation_id == state->stop_operation_id)
+    {
+        if (snapshot.last_error == ESP_OK &&
+                snapshot.state != RECORDER_SERVICE_PLAYING)
         {
-            state->selected[0] = '\0';
+            _files_submit_delete(state, &state->pending_delete);
+            if (recorder_service_get_snapshot(&snapshot) != ESP_OK)
+            {
+                return;
+            }
+        }
+        else
+        {
+            state->pending_after_stop = false;
+            _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
+        }
+    }
+    if (state->delete_pending && !snapshot.operation_pending &&
+            snapshot.operation_id == state->delete_operation_id)
+    {
+        state->delete_pending = false;
+        if (snapshot.last_error == ESP_OK)
+        {
+            state->has_selection = false;
             _files_set_status(state, "已删除", APP_UI_STATUS_SUCCESS);
         }
         else
         {
             _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
         }
+        state->rows_dirty = true;
+        reload |= index_current;
     }
-    if (snapshot.generation != state->last_generation ||
-            snapshot.state != state->last_state)
+    if (reload)
     {
-        state->last_generation = snapshot.generation;
-        state->last_state = snapshot.state;
+        /* A stale epoch reaches list() only once; publication changes the index
+         * epoch and triggers the next copy. All row destruction is timer-safe. */
+        _files_reload(state);
+    }
+    else if (state->rows_dirty)
+    {
         _files_rebuild(state);
     }
     const bool playing = snapshot.state == RECORDER_SERVICE_PLAYING;
@@ -187,7 +286,8 @@ static void _files_play_event(lv_event_t *event)
     recorder_files_state_t *state = lv_event_get_user_data(event);
     recorder_service_snapshot_t snapshot;
     if (recorder_service_get_snapshot(&snapshot) != ESP_OK ||
-            snapshot.operation_pending)
+            snapshot.operation_pending || state->delete_pending ||
+            state->pending_after_stop)
     {
         return;
     }
@@ -198,9 +298,9 @@ static void _files_play_event(lv_event_t *event)
             _files_set_status(state, "停止播放失败", APP_UI_STATUS_ERROR);
         }
     }
-    else if (state->selected[0] != '\0')
+    else if (state->has_selection)
     {
-        if (recorder_service_play(state->selected) != ESP_OK)
+        if (recorder_service_play(&state->selected) != ESP_OK)
         {
             _files_set_status(state, "播放失败", APP_UI_STATUS_ERROR);
         }
@@ -217,7 +317,9 @@ static void _files_delete_event(lv_event_t *event)
     recorder_files_state_t *state = lv_event_get_user_data(event);
     recorder_service_snapshot_t snapshot;
     if (recorder_service_get_snapshot(&snapshot) != ESP_OK ||
-            snapshot.operation_pending || state->selected[0] == '\0')
+            snapshot.operation_pending || !state->has_selection ||
+            state->delete_pending || state->pending_after_stop ||
+            state->confirm_sheet != NULL)
     {
         return;
     }
@@ -227,14 +329,16 @@ static void _files_delete_event(lv_event_t *event)
         _files_set_status(state, "录音中无法删除", APP_UI_STATUS_WARNING);
         return;
     }
-    /* Confirm in a phone-style bottom sheet instead of deleting immediately. */
+    state->confirmation_target = state->selected;
+    state->has_confirmation_target = true;
     char message[96];
     (void)snprintf(message, sizeof(message), "删除“%s”？此操作无法撤销。",
-                   recorder_ui_display_name(state->selected));
+                   recorder_ui_display_name(state->confirmation_target.name));
     state->confirm_sheet = app_ui_sheet_open(state->page.root, "删除录音",
         message);
     if (state->confirm_sheet == NULL)
     {
+        state->has_confirmation_target = false;
         return;
     }
     (void)app_ui_sheet_add_action(state->confirm_sheet, "删除", true,
@@ -256,6 +360,7 @@ static void _files_delete_cancel(lv_event_t *event)
     }
     app_ui_sheet_dismiss(state->confirm_sheet);
     state->confirm_sheet = NULL;
+    state->has_confirmation_target = false;
 }
 
 static void _files_delete_confirm(lv_event_t *event)
@@ -270,37 +375,35 @@ static void _files_delete_confirm(lv_event_t *event)
         return;
     }
     recorder_service_snapshot_t snapshot;
-    if (recorder_service_get_snapshot(&snapshot) == ESP_OK &&
-            !snapshot.operation_pending && state->selected[0] != '\0')
+    if (state->has_confirmation_target &&
+            recorder_service_get_snapshot(&snapshot) == ESP_OK &&
+            !snapshot.operation_pending)
     {
         if (snapshot.state == RECORDER_SERVICE_PLAYING)
         {
-            /* stop_playback only queues; deleting now would be rejected. Queue
-             * the delete and let the 250 ms poller run it after the stop. */
-            (void)snprintf(state->pending_delete,
-                           sizeof(state->pending_delete), "%s",
-                           state->selected);
-            if (recorder_service_stop_playback() != ESP_OK)
+            state->pending_delete = state->confirmation_target;
+            if (recorder_service_stop_playback() == ESP_OK &&
+                    recorder_service_get_snapshot(&snapshot) == ESP_OK)
             {
-                state->pending_delete[0] = '\0';
-                _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
-            }
-        }
-        else
-        {
-            const esp_err_t result = recorder_service_delete(state->selected);
-            if (result == ESP_OK)
-            {
-                state->selected[0] = '\0';
-                _files_set_status(state, "已删除", APP_UI_STATUS_SUCCESS);
+                state->stop_operation_id = snapshot.operation_id;
+                state->pending_after_stop = true;
+                _files_set_status(state, "删除中", APP_UI_STATUS_WARNING);
             }
             else
             {
                 _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
             }
-            (void)lv_async_call(_files_rebuild_async, state);
+        }
+        else
+        {
+            _files_submit_delete(state, &state->confirmation_target);
         }
     }
+    else
+    {
+        _files_set_status(state, "删除失败", APP_UI_STATUS_ERROR);
+    }
+    state->has_confirmation_target = false;
     app_ui_sheet_dismiss(state->confirm_sheet);
     state->confirm_sheet = NULL;
 }
@@ -312,22 +415,32 @@ static void _files_row_event(lv_event_t *event)
         return;
     }
     recorder_files_state_t *state = lv_event_get_user_data(event);
-    const size_t index = (size_t)(uintptr_t)
-                         lv_obj_get_user_data(lv_event_get_target(event)) - 1U;
-    recorder_service_file_t files[RECORDER_SERVICE_MAX_FILES];
-    size_t count = 0U;
-    if (state == NULL ||
-            recorder_service_list(files, RECORDER_SERVICE_MAX_FILES,
-                                  &count) != ESP_OK || index >= count)
+    const size_t encoded = (size_t)(uintptr_t)
+                           lv_obj_get_user_data(lv_event_get_current_target(event));
+    if (state == NULL || encoded == 0U || encoded > state->file_count ||
+            state->files == NULL || state->delete_pending ||
+            state->pending_after_stop)
     {
         return;
     }
-    (void)snprintf(state->selected, sizeof(state->selected), "%s",
-                   files[index].name);
+    const recorder_service_target_t *target = &state->files[encoded - 1U].target;
+    recorder_service_snapshot_t snapshot;
+    if (recorder_service_get_snapshot(&snapshot) != ESP_OK ||
+            !snapshot.index_valid ||
+            target->generation != snapshot.storage_generation ||
+            target->revision != snapshot.content_revision ||
+            target->generation != snapshot.index_generation ||
+            target->revision != snapshot.index_revision)
+    {
+        state->has_selection = false;
+        state->rows_dirty = true;
+        return;
+    }
+    state->selected = *target;
+    state->has_selection = true;
     _files_set_status(state, "", APP_UI_STATUS_NEUTRAL);
-    /* The row being selected is inside the list being rebuilt: defer so the
-     * CLICKED handler never frees its own event target. */
-    (void)lv_async_call(_files_rebuild_async, state);
+    /* The poll timer rebuilds after this row's CLICKED callback returns. */
+    state->rows_dirty = true;
 }
 
 static void _files_mount(const app_manager_page_context_t *context)
@@ -335,6 +448,12 @@ static void _files_mount(const app_manager_page_context_t *context)
     recorder_files_state_t *state = context->state;
     memset(state, 0, sizeof(*state));
     state->last_generation = UINT32_MAX;
+    state->last_storage_generation = UINT32_MAX;
+    state->last_content_revision = UINT32_MAX;
+    state->last_index_generation = UINT32_MAX;
+    state->last_index_revision = UINT32_MAX;
+    state->last_index_valid = false;
+    state->files = calloc(RECORDER_SERVICE_MAX_FILES, sizeof(*state->files));
     app_ui_page_create(&state->page, "播放库", true);
     lv_obj_set_style_pad_bottom(state->page.content, APP_UI_PAGE_MARGIN, 0);
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
@@ -377,7 +496,6 @@ static void _files_mount(const app_manager_page_context_t *context)
         _files_delete_event, state);
     app_ui_button_set_kind(state->btn_delete, APP_UI_BUTTON_DANGER);
 
-    _files_rebuild(state);
     state->refresh_timer = lv_timer_create(_files_refresh, 250U, state);
     _files_render(state);
 }
@@ -396,6 +514,7 @@ static void _files_resume(const app_manager_page_context_t *context)
 {
     recorder_files_state_t *state = context->state;
     state->last_generation = UINT32_MAX;
+    state->rows_dirty = true;
     if (state->refresh_timer != NULL)
     {
         lv_timer_resume(state->refresh_timer);
@@ -412,6 +531,13 @@ static void _files_unmount(const app_manager_page_context_t *context)
         state->refresh_timer = NULL;
     }
     app_ui_page_destroy(&state->page);
+    free(state->files);
+    state->files = NULL;
+    state->file_count = 0U;
+    state->has_selection = false;
+    state->has_confirmation_target = false;
+    state->pending_after_stop = false;
+    state->delete_pending = false;
     state->list = NULL;
     state->bar = NULL;
     state->btn_play = NULL;

@@ -87,6 +87,7 @@ typedef struct lv_draw_buf
 #define LV_PART_MAIN                   0
 #define LV_PART_INDICATOR              1
 #define LV_PART_KNOB                   2
+#define LV_SCROLLBAR_MODE_OFF        2
 #define LV_SCROLLBAR_MODE_AUTO       0
 #define LV_SIZE_CONTENT              (-1)
 #define LV_RADIUS_CIRCLE             0x7FFF
@@ -109,6 +110,26 @@ typedef struct lv_draw_buf
 #define LV_SYMBOL_SETTINGS          "settings"
 #define LV_SYMBOL_LIST              "list"
 #define LV_SYMBOL_IMAGE             "image"
+#define LV_SYMBOL_DIRECTORY         "directory"
+#define LV_SYMBOL_FILE              "file"
+#define LV_SYMBOL_REFRESH           "refresh"
+#define LV_SYMBOL_CLOSE             "close"
+#define LV_SYMBOL_WARNING           "warning"
+#define LV_SYMBOL_OK                "ok"
+#define LV_SYMBOL_SD_CARD           "sdcard"
+#define LV_SYMBOL_HOME              "home"
+#define LV_SYMBOL_POWER             "power"
+#define LV_SYMBOL_PLAY              "play"
+#define LV_SYMBOL_PAUSE             "pause"
+#define LV_SYMBOL_STOP              "stop"
+#define LV_SYMBOL_PLUS              "plus"
+#define LV_SYMBOL_MINUS             "minus"
+#define LV_SYMBOL_EDIT              "edit"
+#define LV_SYMBOL_SAVE              "save"
+#define LV_SYMBOL_DOWNLOAD          "download"
+#define LV_SYMBOL_UPLOAD            "upload"
+#define LV_SYMBOL_NEW_LINE          "\n"
+#define LV_SYMBOL_DUMMY             " "
 
 /** @brief Create a fake generic object. */
 lv_obj_t *lv_obj_create(lv_obj_t *parent);
@@ -118,6 +139,8 @@ lv_obj_t *lv_button_create(lv_obj_t *parent);
 lv_obj_t *lv_label_create(lv_obj_t *parent);
 /** @brief Create a fake image. */
 lv_obj_t *lv_image_create(lv_obj_t *parent);
+/** @brief Create a fake progress bar. */
+lv_obj_t *lv_bar_create(lv_obj_t *parent);
 /** @brief Create a fake arc. */
 lv_obj_t *lv_arc_create(lv_obj_t *parent);
 /** @brief Create a fake switch. */
@@ -204,6 +227,12 @@ const lv_font_t *lv_obj_get_style_text_font(const lv_obj_t *object,
 /** @brief Return the fake object's text letter spacing. */
 int32_t lv_obj_get_style_text_letter_space(const lv_obj_t *object,
         int selector);
+/** @brief Attach caller data to a fake object. */
+void lv_obj_set_user_data(lv_obj_t *object, void *user_data);
+/** @brief Return the caller data attached to a fake object. */
+void *lv_obj_get_user_data(lv_obj_t *object);
+/** @brief Delete every fake child of an object. */
+void lv_obj_clean(lv_obj_t *object);
 /** @brief Set fake label text. */
 void lv_label_set_text(lv_obj_t *label, const char *text);
 /** @brief Return fake label text. */
@@ -240,6 +269,9 @@ void lv_obj_set_style_text_font(lv_obj_t *object, const lv_font_t *font,
         (void)fourth; \
     }
 
+#define LV_ANIM_OFF 0
+APPS_HOST_LV_NOOP_3(lv_bar_set_range, lv_obj_t *, int32_t, int32_t)
+APPS_HOST_LV_NOOP_3(lv_bar_set_value, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_2(lv_obj_set_flex_flow, lv_obj_t *, int)
 APPS_HOST_LV_NOOP_2(lv_obj_set_flex_grow, lv_obj_t *, int)
 APPS_HOST_LV_NOOP_2(lv_obj_set_height, lv_obj_t *, int32_t)
@@ -263,6 +295,7 @@ APPS_HOST_LV_NOOP_3(lv_obj_set_style_pad_row, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_pad_top, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_radius, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_shadow_width, lv_obj_t *, int32_t, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_border_width, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_align, lv_obj_t *, int, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_color, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_image_recolor, lv_obj_t *, lv_color_t, int)
@@ -319,6 +352,31 @@ static inline void lv_obj_center(lv_obj_t *object)
 {
     (void)object;
 }
+
+/** @brief Opaque fake LVGL timer. */
+typedef struct lv_timer_t
+{
+    void (*callback)(struct lv_timer_t *timer);
+    void *user_data;
+    uint32_t period_ms;
+    bool paused;
+} lv_timer_t;
+
+/** @brief Create a fake timer; the caller steps it explicitly. */
+lv_timer_t *lv_timer_create(void (*callback)(lv_timer_t *timer),
+                            uint32_t period_ms, void *user_data);
+/** @brief Delete a fake timer. */
+void lv_timer_delete(lv_timer_t *timer);
+/** @brief Pause a fake timer. */
+void lv_timer_pause(lv_timer_t *timer);
+/** @brief Resume a fake timer. */
+void lv_timer_resume(lv_timer_t *timer);
+/** @brief Run one fake timer period. */
+void lv_timer_step(lv_timer_t *timer);
+/** @brief Return a fake timer's user data. */
+void *lv_timer_get_user_data(lv_timer_t *timer);
+/** @brief Delete every fake timer a test created and forgot. */
+void lv_timer_reset_all(void);
 
 #undef APPS_HOST_LV_NOOP_2
 #undef APPS_HOST_LV_NOOP_3

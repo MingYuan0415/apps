@@ -2,6 +2,7 @@
 #include "mt_log.h"
 
 #include "settings_app_internal.h"
+#include "file_service.h"
 
 typedef struct settings_device_state
 {
@@ -39,9 +40,18 @@ static void _device_refresh(settings_device_state_t *state)
         app_ui_set_status_text(state->source_value, "PMU 离线",
                                APP_UI_STATUS_WARNING);
     }
-    const bool mounted = sd_storage_service_is_mounted();
-    app_ui_set_status_text(state->storage_value, mounted ? "已挂载" : "未挂载",
-                           mounted ? APP_UI_STATUS_SUCCESS :
+    /* The file service owns browsing and maintenance, so its snapshot is the
+     * authoritative answer; the raw SD service would report a mounted card
+     * even while a destructive operation has it reserved. */
+    file_service_snapshot_t files;
+    const bool available = file_service_get_snapshot(&files) == ESP_OK;
+    const bool mounted = available &&
+                         (files.volume == FILE_SERVICE_VOLUME_READY ||
+                          files.volume == FILE_SERVICE_VOLUME_BUSY);
+    app_ui_set_status_text(state->storage_value,
+                           mounted ? "已挂载" : (available ? "未挂载" : "未知"),
+                           mounted ? (files.volume == FILE_SERVICE_VOLUME_BUSY ?
+                                      APP_UI_STATUS_WARNING : APP_UI_STATUS_SUCCESS) :
                            APP_UI_STATUS_WARNING);
 }
 

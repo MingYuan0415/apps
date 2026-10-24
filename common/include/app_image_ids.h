@@ -60,6 +60,7 @@
 #define APP_IMAGE_DIAGNOSTICS_ICON            0x5767U
 #define APP_IMAGE_CALENDAR_ICON               0x5768U
 #define APP_IMAGE_CALCULATOR_ICON             0x5769U
+#define APP_IMAGE_FILES_ICON                  0x576AU
 
 /* Home complication glyphs: 0x5770-0x577F reserved for home_app-owned
  * assets (0x5770/0x5771 retired with the recorder and level cards,
@@ -83,5 +84,7 @@
 #define APP_IMAGE_UI_POWER                    0x578BU
 #define APP_IMAGE_UI_STANDBY                  0x578CU
 #define APP_IMAGE_UI_CHEVRON_RIGHT            0x578DU
+#define APP_IMAGE_UI_FOLDER                   0x578EU
+#define APP_IMAGE_UI_FILE                     0x578FU
 
 #endif /* __APP_IMAGE_IDS_H__ */

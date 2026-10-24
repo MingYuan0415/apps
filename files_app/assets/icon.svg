@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MicroTech app icon: dark-theme geometric glyph, transparent base. -->
+<!-- Shared icon rule: the 64-unit design box is exported at 72 px and drawn
+     1:1 in the launcher well (72) and task switcher (56); every art element
+     stays inside the centred x,y = 12..52 design box. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <path d="M13 20.5A3.5 3.5 0 0 1 16.5 17H26l4 4.5h17.5A3.5 3.5 0 0 1 51 25v18.5A3.5 3.5 0 0 1 47.5 47h-31A3.5 3.5 0 0 1 13 43.5Z"
+        stroke="#F2F5F6" stroke-width="3.4" stroke-linejoin="round"/>
+  <path d="M13 27h38" stroke="#FF756C" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M23 34h18" stroke="#93A0A6" stroke-width="3" stroke-linecap="round"/>
+  <path d="M23 40h11" stroke="#93A0A6" stroke-width="3" stroke-linecap="round"/>
+</svg>

@@ -2,6 +2,7 @@
 #include "mt_log.h"
 
 #include "settings_app_internal.h"
+#include "file_service.h"
 #include "settings_factory_reset_page.h"
 
 #include "esp_app_desc.h"
@@ -34,7 +35,6 @@ typedef struct settings_info_state
     lv_obj_t *source_value;
     lv_obj_t *detail_value;
     lv_timer_t *refresh_timer;
-    bool storage;
 } settings_info_state_t;
 
 _Static_assert(sizeof(settings_root_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -134,8 +134,15 @@ static void _settings_root_render(settings_root_state_t *state)
     }
     lv_label_set_text(state->bluetooth_summary, bt);
 
-    (void)snprintf(text, sizeof(text), "SD %s",
-                   sd_storage_service_is_mounted() ? "已挂载" : "未挂载");
+    file_service_snapshot_t files;
+    const char *storage = "未知";
+    if (file_service_get_snapshot(&files) == ESP_OK)
+    {
+        storage = files.volume == FILE_SERVICE_VOLUME_READY ? "已挂载" :
+                  (files.volume == FILE_SERVICE_VOLUME_BUSY ? "使用中" :
+                   "未挂载");
+    }
+    (void)snprintf(text, sizeof(text), "SD %s", storage);
     lv_label_set_text(state->device_summary, text);
 
     const esp_app_desc_t *description = esp_app_get_description();
@@ -200,18 +207,6 @@ static void _settings_root_unmount(const app_manager_page_context_t *context)
 
 static void _settings_info_refresh(settings_info_state_t *state)
 {
-    if (state->storage)
-    {
-        const bool mounted = sd_storage_service_is_mounted();
-        app_ui_set_status_text(state->source_value,
-                               mounted ? "已挂载" : "未挂载",
-                               mounted ? APP_UI_STATUS_SUCCESS :
-                               APP_UI_STATUS_WARNING);
-        lv_label_set_text(state->detail_value,
-                          mounted ? sd_storage_service_get_mount_path() :
-                          "重新插入后重试");
-        return;
-    }
     const time_service_quality_t quality = time_service_get_quality();
     struct tm local_time;
     char text[64];
@@ -241,58 +236,44 @@ static void _settings_info_timer(lv_timer_t *timer)
 static void _settings_info_mount(const app_manager_page_context_t *context)
 {
     settings_info_state_t *state = context->state;
-    const bool storage = context->route_user_data != NULL;
     memset(state, 0, sizeof(*state));
-    state->storage = storage;
-    app_ui_page_create(&state->page, storage ? "存储管理" : "时间设置", true);
+    app_ui_page_create(&state->page, "时间设置", true);
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
     lv_obj_set_scrollable(state->page.content, false);
 
-    if (storage)
-    {
-        app_ui_add_value_row(state->page.content, "SD 卡", "读取中",
-                             &state->source_value);
-        app_ui_add_value_row(state->page.content, "挂载路径", "读取中",
-                             &state->detail_value);
-        app_ui_add_body_label(state->page.content,
-                              "存储卡由系统自动挂载");
-    }
-    else
-    {
-        app_ui_add_value_row(state->page.content, "时间来源", "读取中",
-                             &state->source_value);
+    app_ui_add_value_row(state->page.content, "时间来源", "读取中",
+                         &state->source_value);
 
-        /* The timestamp is 239 px at BODY size and the row's value column is
-         * 196 px, so it gets a full-width card instead of wrapping mid-time. */
-        app_ui_add_section(state->page.content, "当前时间");
-        lv_obj_t *time_card = lv_obj_create(state->page.content);
-        lv_obj_remove_style_all(time_card);
-        lv_obj_set_width(time_card, LV_PCT(100));
-        lv_obj_set_height(time_card, APP_UI_ROW_HEIGHT);
-        lv_obj_set_style_bg_color(time_card,
-                                  lv_color_hex(APP_UI_COLOR_SURFACE), 0);
-        lv_obj_set_style_bg_opa(time_card, LV_OPA_COVER, 0);
-        lv_obj_set_style_radius(time_card, APP_UI_RADIUS_CARD, 0);
-        lv_obj_set_style_pad_left(time_card, APP_UI_CARD_PAD, 0);
-        lv_obj_set_style_pad_right(time_card, 14, 0);
-        lv_obj_set_flex_flow(time_card, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(time_card, LV_FLEX_ALIGN_START,
-                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        app_ui_make_passive(time_card, false);
+    /* The timestamp is 239 px at BODY size and the row's value column is
+     * 196 px, so it gets a full-width card instead of wrapping mid-time. */
+    app_ui_add_section(state->page.content, "当前时间");
+    lv_obj_t *time_card = lv_obj_create(state->page.content);
+    lv_obj_remove_style_all(time_card);
+    lv_obj_set_width(time_card, LV_PCT(100));
+    lv_obj_set_height(time_card, APP_UI_ROW_HEIGHT);
+    lv_obj_set_style_bg_color(time_card,
+                              lv_color_hex(APP_UI_COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_opa(time_card, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(time_card, APP_UI_RADIUS_CARD, 0);
+    lv_obj_set_style_pad_left(time_card, APP_UI_CARD_PAD, 0);
+    lv_obj_set_style_pad_right(time_card, 14, 0);
+    lv_obj_set_flex_flow(time_card, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(time_card, LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    app_ui_make_passive(time_card, false);
 
-        state->detail_value = lv_label_create(time_card);
-        lv_obj_set_width(state->detail_value, LV_PCT(100));
-        lv_label_set_long_mode(state->detail_value, LV_LABEL_LONG_DOT);
-        lv_obj_set_style_text_font(state->detail_value,
-                                   app_ui_font(APP_THEME_FONT_BODY), 0);
-        lv_obj_set_style_text_color(state->detail_value,
-                                    lv_color_hex(APP_UI_COLOR_TEXT), 0);
-        lv_label_set_text(state->detail_value, "读取中");
-        app_ui_make_passive(state->detail_value, false);
+    state->detail_value = lv_label_create(time_card);
+    lv_obj_set_width(state->detail_value, LV_PCT(100));
+    lv_label_set_long_mode(state->detail_value, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_font(state->detail_value,
+                               app_ui_font(APP_THEME_FONT_BODY), 0);
+    lv_obj_set_style_text_color(state->detail_value,
+                                lv_color_hex(APP_UI_COLOR_TEXT), 0);
+    lv_label_set_text(state->detail_value, "读取中");
+    app_ui_make_passive(state->detail_value, false);
 
-        app_ui_add_body_label(state->page.content,
-                              "网络校时需要设备连接 Wi-Fi");
-    }
+    app_ui_add_body_label(state->page.content,
+                          "网络校时需要设备连接 Wi-Fi");
     state->refresh_timer = lv_timer_create(_settings_info_timer, 1000U, state);
     _settings_info_refresh(state);
 }
@@ -445,12 +426,6 @@ const app_manager_page_definition_t settings_time_page_definition =
     .memory_size = sizeof(settings_info_state_t),
 };
 
-const app_manager_page_definition_t settings_storage_page_definition =
-{
-    .ops = &s_settings_info_ops,
-    .memory_size = sizeof(settings_info_state_t),
-};
-
 static const app_manager_page_route_t s_settings_routes[] =
 {
     {
@@ -496,7 +471,7 @@ static const app_manager_page_route_t s_settings_routes[] =
     {
         .page_id = SETTINGS_PAGE_STORAGE,
         .definition = &settings_storage_page_definition,
-        .user_data = (void *)1,
+        .user_data = NULL,
     },
 };
 

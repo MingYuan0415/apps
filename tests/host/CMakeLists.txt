@@ -105,6 +105,42 @@ configure_apps_host_target(settings_factory_reset_page_test)
 add_apps_host_test(settings_factory_reset_page_test
                    settings_factory_reset_page_test)
 
+add_executable(files_pages_test
+    files_pages_test.c
+    ../../common/src/app_ui.c
+    ../../common/src/app_ui_text.c
+    ../../files_app/src/files_browse_page.c
+    ../../files_app/src/files_detail_page.c
+    ../../settings_app/src/settings_device_page.c
+    ../../settings_app/src/settings_storage_page.c
+    ../../recorder_app/src/recorder_files_page.c
+)
+
+target_include_directories(files_pages_test PRIVATE
+    include
+    ../../common/include
+    ../../files_app/src
+    ../../settings_app/src
+    ../../recorder_app/src
+    ../../../middleware/components/recorder_service/include
+    ../../../app_manager/app_core/include
+    ../../../app_manager/app_theme/include
+    ../../../middleware/components/file_service/include
+    ../../../middleware/components/factory_reset_service/include
+    ../../../middleware/components/sd_storage_service/include
+    ../../../middleware/components/connectivity_manager/include
+    ../../../middleware/components/event_bus/include
+    ../../../middleware/components/ble_runtime/include
+    ../../../middleware/components/device_link_service/include
+    ../../../middleware/components/power_service/include
+    ../../../middleware/components/time_service/include
+)
+
+target_compile_definitions(files_pages_test PRIVATE _GNU_SOURCE)
+configure_apps_host_target(files_pages_test)
+target_link_libraries(files_pages_test PRIVATE m)
+add_apps_host_test(files_pages_test files_pages_test)
+
 add_executable(apps_persistence_test
     apps_persistence_test.c
     ../../common/src/apps_persistence.c
