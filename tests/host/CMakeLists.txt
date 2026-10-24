@@ -113,7 +113,10 @@ add_executable(files_pages_test
     ../../files_app/src/files_detail_page.c
     ../../settings_app/src/settings_device_page.c
     ../../settings_app/src/settings_storage_page.c
+    ../../recorder_app/src/recorder_shared.c
+    ../../recorder_app/src/recorder_app.c
     ../../recorder_app/src/recorder_files_page.c
+    ../../recorder_app/src/recorder_detail_page.c
 )
 
 target_include_directories(files_pages_test PRIVATE

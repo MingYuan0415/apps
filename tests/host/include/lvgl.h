@@ -55,13 +55,27 @@ typedef struct lv_draw_buf
     const void *data;
 } lv_draw_buf_t;
 
+#define LV_ALIGN_CENTER             0x7FFF
 #define LV_ALIGN_TOP_LEFT           0
 #define LV_ALIGN_BOTTOM_RIGHT       6
 #define LV_ALIGN_BOTTOM_LEFT        4
 #define LV_DIR_NONE                 0
 #define LV_DIR_VER                  1
-#define LV_EVENT_CLICKED            1
-#define LV_EVENT_VALUE_CHANGED      2
+/* Mirrors the LVGL 9.6 enum: production code that registers LV_EVENT_ALL and
+ * discriminates inside one callback is exercised with the real codes. */
+#define LV_EVENT_ALL                0
+#define LV_EVENT_PRESSED            1
+#define LV_EVENT_PRESSING           2
+#define LV_EVENT_PRESS_LOST         3
+#define LV_EVENT_SHORT_CLICKED      4
+#define LV_EVENT_SINGLE_CLICKED     5
+#define LV_EVENT_DOUBLE_CLICKED     6
+#define LV_EVENT_TRIPLE_CLICKED     7
+#define LV_EVENT_LONG_PRESSED       8
+#define LV_EVENT_LONG_PRESSED_REPEAT 9
+#define LV_EVENT_CLICKED            10
+#define LV_EVENT_RELEASED           11
+#define LV_EVENT_VALUE_CHANGED      12
 #define LV_FLEX_ALIGN_CENTER        1
 #define LV_FLEX_ALIGN_SPACE_BETWEEN 2
 #define LV_FLEX_ALIGN_START         0
@@ -92,6 +106,7 @@ typedef struct lv_draw_buf
 #define LV_SIZE_CONTENT              (-1)
 #define LV_RADIUS_CIRCLE             0x7FFF
 #define LV_BORDER_SIDE_TOP           0x02
+#define LV_STATE_DEFAULT             0
 #define LV_STATE_DISABLED            2
 #define LV_STATE_PRESSED             1
 #define LV_STATE_CHECKED             4
@@ -296,6 +311,7 @@ APPS_HOST_LV_NOOP_3(lv_obj_set_style_pad_top, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_radius, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_shadow_width, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_border_width, lv_obj_t *, int32_t, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_border_color, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_align, lv_obj_t *, int, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_color, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_image_recolor, lv_obj_t *, lv_color_t, int)

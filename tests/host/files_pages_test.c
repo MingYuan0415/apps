@@ -71,11 +71,6 @@ static test_timer_t s_timers[TEST_TIMER_CAPACITY];
 
 /* ── App helpers (compiled from files_app.c without the descriptor) ────── */
 
-#define APP_MANAGER_APP_EXPORT_META(n, icon_value, nm, aid, root_id, app_flags, \
-                                    routes, order, subtitle) \
-    static const app_manager_app_desc_t _app_manager_app_unused_##n = \
-    { 0 }
-
 #include "../../files_app/src/files_app.c"
 
 /* ── Fake file service ─────────────────────────────────────────────────── */
@@ -406,6 +401,17 @@ static lv_obj_t *_test_find_button_for_label(const char *text)
     return NULL;
 }
 
+static void _test_dispatch(lv_obj_t *object, lv_event_code_t code)
+{
+    lv_event_t event =
+    {
+        .code = code,
+        .user_data = object->callback_user_data,
+        .target = object,
+    };
+    object->callback(&event);
+}
+
 static void _test_click(lv_obj_t *button)
 {
     assert(button != NULL);
@@ -415,13 +421,26 @@ static void _test_click(lv_obj_t *button)
     {
         return;
     }
-    lv_event_t event =
+    /* LV_EVENT_ALL handlers must receive the concrete code, exactly as LVGL
+     * delivers it; a single-code handler receives its own registration. */
+    _test_dispatch(button, button->callback_code == LV_EVENT_ALL ?
+                   LV_EVENT_CLICKED : button->callback_code);
+}
+
+/* LVGL sends LONG_PRESSED while the finger is down and still sends CLICKED on
+ * release (short-click is suppressed). Reproduce that sequence. */
+static void _test_long_press(lv_obj_t *object)
+{
+    assert(object != NULL);
+    assert(object->live);
+    assert(object->callback != NULL);
+    if (lv_obj_has_state(object, LV_STATE_DISABLED))
     {
-        .code = button->callback_code,
-        .user_data = button->callback_user_data,
-        .target = button,
-    };
-    button->callback(&event);
+        return;
+    }
+    _test_dispatch(object, LV_EVENT_PRESSED);
+    _test_dispatch(object, LV_EVENT_LONG_PRESSED);
+    _test_dispatch(object, LV_EVENT_CLICKED);
 }
 
 static void _test_click_label(const char *text)
@@ -656,7 +675,8 @@ lv_result_t lv_obj_send_event(lv_obj_t *object, lv_event_code_t code,
 {
     (void)param;
     assert(object != NULL);
-    if (object->callback != NULL && object->callback_code == code)
+    if (object->callback != NULL &&
+            (object->callback_code == LV_EVENT_ALL || object->callback_code == code))
     {
         lv_event_t event =
         {
@@ -856,10 +876,51 @@ esp_err_t app_manager_pm_request_screen_off(void)
 
 static recorder_service_snapshot_t s_recorder_snapshot;
 static recorder_service_file_t s_recorder_row;
+/* Extra rows the fake publishes after the primary one, so a batch can span
+ * more than a single recording. */
+static recorder_service_file_t s_recorder_extra[3];
+static size_t s_recorder_extra_count;
+static unsigned s_recorder_deleted_names;
+static char s_recorder_last_deleted[RECORDER_SERVICE_PATH_BYTES];
 static unsigned s_recorder_deletes;
 static unsigned s_recorder_stops;
 static unsigned s_recorder_plays;
 static recorder_service_target_t s_recorder_deleted_target;
+static unsigned s_recorder_starts;
+static unsigned s_recorder_pauses;
+static unsigned s_recorder_resumes;
+static esp_err_t s_recorder_start_error;
+static unsigned s_recorder_refreshes;
+
+esp_err_t recorder_service_refresh(void)
+{
+    ++s_recorder_refreshes;
+    return ESP_OK;
+}
+
+esp_err_t recorder_service_start(void)
+{
+    ++s_recorder_starts;
+    return s_recorder_start_error;
+}
+
+esp_err_t recorder_service_pause(void)
+{
+    ++s_recorder_pauses;
+    return ESP_OK;
+}
+
+esp_err_t recorder_service_resume(void)
+{
+    ++s_recorder_resumes;
+    return ESP_OK;
+}
+
+esp_err_t recorder_service_stop(void)
+{
+    ++s_recorder_stops;
+    return ESP_OK;
+}
 
 esp_err_t recorder_service_get_snapshot(recorder_service_snapshot_t *snapshot)
 {
@@ -871,8 +932,18 @@ esp_err_t recorder_service_list(recorder_service_file_t *files,
                                 size_t capacity, size_t *count)
 {
     assert(capacity > 0U);
-    *count = s_recorder_row.target.name[0] != '\0' ? 1U : 0U;
-    if (*count != 0U) files[0] = s_recorder_row;
+    size_t total = 0U;
+    if (s_recorder_row.target.name[0] != '\0')
+    {
+        files[total++] = s_recorder_row;
+    }
+    for (size_t index = 0U; index < s_recorder_extra_count &&
+            total < capacity && total < RECORDER_SERVICE_MAX_FILES; ++index)
+    {
+        files[total++] = s_recorder_extra[index];
+    }
+    *count = total;
+    s_recorder_snapshot.file_count = total;
     return ESP_OK;
 }
 
@@ -895,30 +966,14 @@ esp_err_t recorder_service_stop_playback(void)
 esp_err_t recorder_service_delete(const recorder_service_target_t *target)
 {
     ++s_recorder_deletes;
+    ++s_recorder_deleted_names;
+    (void)snprintf(s_recorder_last_deleted, sizeof(s_recorder_last_deleted),
+                   "%s", target->name);
     s_recorder_deleted_target = *target;
     s_recorder_snapshot.operation_pending = true;
     ++s_recorder_snapshot.operation_id;
     ++s_recorder_snapshot.generation;
     return ESP_OK;
-}
-
-void recorder_ui_set_visible(lv_obj_t *control, bool visible)
-{
-    lv_obj_set_hidden(control, !visible);
-}
-
-void recorder_ui_format_mmss(uint32_t milliseconds, char *output,
-                             size_t output_size)
-{
-    (void)snprintf(output, output_size, "%u:%02u",
-                   (unsigned)(milliseconds / 60000U),
-                   (unsigned)((milliseconds / 1000U) % 60U));
-}
-
-const char *recorder_ui_display_name(const char *name)
-{
-    const char *base = strrchr(name, '/');
-    return base != NULL ? base + 1 : name;
 }
 
 /* Out-of-tree page definitions live in the app sources; the two static ones
@@ -1365,6 +1420,15 @@ static void _test_unavailable_and_busy_states(void)
     settings_device_page_definition.ops->unmount(&context);
 }
 
+/* The row renders a local timestamp, so the expectation must come from the
+ * same formatter rather than from a hard-coded time zone. */
+static const char *_recorder_time_text(void)
+{
+    static char text[32];
+    recorder_ui_format_time(&s_recorder_row, text, sizeof(text));
+    return text;
+}
+
 static void _recorder_fixture(void)
 {
     _test_reset();
@@ -1373,6 +1437,8 @@ static void _recorder_fixture(void)
         .generation = 1U, .storage_ready = true,
         .storage_generation = 3U, .content_revision = 7U,
         .index_generation = 3U, .index_revision = 7U, .index_valid = true,
+        .file_count = 1U, .max_duration_ms = 1800000U,
+        .space_valid = true, .free_bytes = 4096ULL * 1024ULL * 1024ULL,
     };
     s_recorder_row = (recorder_service_file_t)
     {
@@ -1380,141 +1446,675 @@ static void _recorder_fixture(void)
                    .generation = 3U, .revision = 7U
                   },
         .duration_ms = 2000U, .bytes = 128044U,
+        .has_mtime = true, .modified_epoch_s = 1792446000U,
     };
     s_recorder_deletes = 0U;
     s_recorder_stops = 0U;
     s_recorder_plays = 0U;
+    s_recorder_starts = 0U;
+    s_recorder_pauses = 0U;
+    s_recorder_resumes = 0U;
+    s_recorder_start_error = ESP_OK;
+    s_recorder_refreshes = 0U;
+    s_recorder_extra_count = 0U;
+    s_recorder_deleted_names = 0U;
+    s_recorder_last_deleted[0] = '\0';
 }
 
-static void _test_recorder_delete_completion(void)
+/* The list is a navigator: a tap hands the row to the detail Page and nothing
+ * else. Only a stale identity is refused. */
+/* Live fake objects; any change between two frames means the stack rebuilt. */
+static size_t _test_live_objects(void)
+{
+    size_t live = 0U;
+    for (size_t index = 0U; index < TEST_OBJECT_CAPACITY; ++index)
+    {
+        live += s_objects[index].live ? 1U : 0U;
+    }
+    return live;
+}
+
+/* The root page must answer a rejected start instead of staying on 就绪, and
+ * its stack must not gain or lose a slot between states. */
+static void _test_recorder_root_reports_failure(void)
+{
+    _recorder_fixture();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_root_page_definition.ops->mount(&context);
+    const size_t baseline = _test_live_objects();
+    assert(_test_has_live_label_containing("可用 4096 MB"));
+    assert(_test_has_live_label_containing("上限 30:00"));
+    assert(_test_has_live_label_containing("就绪"));
+    s_recorder_start_error = ESP_ERR_NO_MEM;
+    _test_click_label("开始");
+    assert(s_recorder_starts == 1U);
+    assert(_test_has_live_label_containing(recorder_ui_error_text(ESP_ERR_NO_MEM)));
+    assert(!_test_has_live_label_containing("就绪"));
+
+    /* A missing card explains itself and keeps 0 MB off the screen. */
+    s_recorder_start_error = ESP_OK;
+    s_recorder_snapshot.storage_ready = false;
+    s_recorder_snapshot.space_valid = false;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(_test_has_live_label_containing("插入存储卡后可以录音"));
+    assert(_test_has_live_label_containing("存储卡未挂载"));
+    assert(!_test_has_live_label_containing("空间未知"));
+    assert(!_test_has_live_label_containing("可用 0 MB"));
+    /* No state creates or destroys a control: the stack keeps its slots. */
+    assert(_test_live_objects() == baseline);
+
+    /* A card that changes while the Page is open leaves the published index
+     * stale; the count must not keep describing the previous medium. */
+    const unsigned refreshes = s_recorder_refreshes;
+    ++s_recorder_snapshot.content_revision;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(s_recorder_refreshes > refreshes);
+    recorder_root_page_definition.ops->unmount(&context);
+}
+
+/* Pausing must not move the controls: the extra slot is always reserved. */
+static void _test_recorder_root_pause_and_receipt(void)
+{
+    _recorder_fixture();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_root_page_definition.ops->mount(&context);
+    const size_t baseline = _test_live_objects();
+    s_recorder_snapshot.state = RECORDER_SERVICE_RECORDING;
+    s_recorder_snapshot.duration_ms = 7000U;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(_test_has_live_label_containing("录音中"));
+    assert(_test_has_live_label_containing("剩余 29:53"));
+    assert(_test_live_objects() == baseline);
+
+    _test_click_label("暂停");
+    assert(s_recorder_pauses == 1U);
+    s_recorder_snapshot.state = RECORDER_SERVICE_PAUSED;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(_test_has_live_label_containing("已暂停"));
+    assert(_test_find_live_label("继续") != NULL);
+    assert(_test_live_objects() == baseline);
+
+    _test_click_label("继续");
+    assert(s_recorder_resumes == 1U);
+    /* Stopping reports what was kept: the receipt names the saved length. */
+    s_recorder_snapshot.state = RECORDER_SERVICE_IDLE;
+    s_recorder_snapshot.duration_ms = 7000U;
+    s_recorder_snapshot.last_error = ESP_OK;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(_test_has_live_label_containing("已保存 0:07"));
+    recorder_root_page_definition.ops->unmount(&context);
+}
+
+/* The circle is one control: stop while recording, never pause. */
+static void _test_recorder_root_circle_stops(void)
+{
+    _recorder_fixture();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_root_page_definition.ops->mount(&context);
+    assert(_test_find_live_label("开始") != NULL);
+    s_recorder_snapshot.state = RECORDER_SERVICE_RECORDING;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(_test_find_live_label("停止") != NULL);
+    _test_click_label("停止");
+    assert(s_recorder_stops == 1U);
+    assert(s_recorder_pauses == 0U);
+    recorder_root_page_definition.ops->unmount(&context);
+}
+
+static void _test_recorder_row_opens_detail(void)
+{
+    _recorder_fixture();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_files_page_definition.ops->mount(&context);
+    _test_step_timers();
+    assert(s_recorder_snapshot.file_count == 1U);
+    lv_obj_t *row = _test_find_button_for_label(_recorder_time_text());
+    assert(row != NULL);
+    _test_click(row);
+    assert(s_nav.calls == 1U);
+    assert(strcmp(s_nav.last.page_id, "detail") == 0);
+    recorder_service_file_t selected = {0};
+    assert(recorder_app_copy_selection(&selected) == ESP_OK);
+    assert(strcmp(selected.target.name, s_recorder_row.target.name) == 0);
+    assert(selected.target.generation == 3U && selected.target.revision == 7U);
+    recorder_app_clear_selection();
+    assert(recorder_app_copy_selection(&selected) == ESP_ERR_NOT_FOUND);
+    recorder_files_page_definition.ops->unmount(&context);
+}
+
+static void _test_recorder_row_rejects_stale_epoch(void)
+{
+    _recorder_fixture();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_files_page_definition.ops->mount(&context);
+    _test_step_timers();
+    /* A newer epoch published before the rows were rebuilt leaves the visible
+     * row pointing at an identity the service no longer accepts. */
+    ++s_recorder_snapshot.content_revision;
+    ++s_recorder_snapshot.index_revision;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    lv_obj_t *label = _test_find_button_for_label(_recorder_time_text());
+    assert(label != NULL);
+    _test_click(label);
+    assert(s_nav.calls == 0U);
+    recorder_service_file_t selected = {0};
+    assert(recorder_app_copy_selection(&selected) == ESP_ERR_NOT_FOUND);
+    assert(_test_has_live_label_containing("列表已变化"));
+    recorder_files_page_definition.ops->unmount(&context);
+}
+
+static void _test_recorder_list_notices(void)
+{
+    _recorder_fixture();
+    s_recorder_snapshot.storage_ready = false;
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_files_page_definition.ops->mount(&context);
+    _test_step_timers();
+    assert(_test_has_live_label_containing("存储卡未挂载"));
+    recorder_files_page_definition.ops->unmount(&context);
+
+    _recorder_fixture();
+    s_recorder_snapshot.index_valid = false;
+    test_page_state_t state2 = {0};
+    const app_manager_page_context_t context2 = _context(&state2);
+    recorder_files_page_definition.ops->mount(&context2);
+    _test_step_timers();
+    assert(_test_has_live_label_containing("正在读取"));
+    recorder_files_page_definition.ops->unmount(&context2);
+}
+
+static void _test_recorder_detail_plays_and_stops(void)
+{
+    _recorder_fixture();
+    recorder_service_file_t throwaway = {0};
+    assert(recorder_app_copy_selection(&throwaway) == ESP_ERR_NOT_FOUND);
+    recorder_app_select(&s_recorder_row);
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_detail_page_definition.ops->mount(&context);
+    _test_step_timers();
+    assert(_test_has_live_label_containing(_recorder_time_text()));
+    assert(_test_has_live_label_containing("0:02"));
+    assert(_test_has_live_label_containing("125.0 KB"));
+    /* Selection is consumed on mount, so a later mount cannot reopen it. */
+    recorder_service_file_t selected = {0};
+    assert(recorder_app_copy_selection(&selected) == ESP_ERR_NOT_FOUND);
+
+    _test_click_label("播放");
+    assert(s_recorder_plays == 1U);
+    s_recorder_snapshot.state = RECORDER_SERVICE_PLAYING;
+    s_recorder_snapshot.playback_duration_ms = 2000U;
+    s_recorder_snapshot.playback_position_ms = 500U;
+    (void)snprintf(s_recorder_snapshot.name,
+                   sizeof(s_recorder_snapshot.name), "%s",
+                   s_recorder_row.target.name);
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(_test_has_live_label_containing("播放中"));
+    assert(_test_has_live_label_containing("0:00 / 0:02") ||
+           _test_has_live_label_containing("0:01 / 0:02"));
+    _test_click_label("停止");
+    assert(s_recorder_stops == 1U);
+    recorder_detail_page_definition.ops->unmount(&context);
+}
+
+static void _test_recorder_detail_delete_returns(void)
 {
     for (unsigned success = 0U; success < 2U; ++success)
     {
         _recorder_fixture();
+        recorder_app_select(&s_recorder_row);
         test_page_state_t state = {0};
         const app_manager_page_context_t context = _context(&state);
-        recorder_files_page_definition.ops->mount(&context);
-        _test_click_label("sample.wav");
+        recorder_detail_page_definition.ops->mount(&context);
         _test_step_timers();
         _test_click_label("删除");
+        assert(_test_has_live_label_containing("删除录音"));
         _test_click_label("删除");
         assert(s_recorder_deletes == 1U);
         assert(s_recorder_deleted_target.generation == 3U);
         assert(s_recorder_deleted_target.revision == 7U);
-        _test_step_timers();
-        assert(!_test_has_live_label_containing("已删除"));
         const uint32_t operation = s_recorder_snapshot.operation_id;
         s_recorder_snapshot.operation_pending = false;
-        s_recorder_snapshot.operation_id = operation + 1U;
-        s_recorder_snapshot.last_error = ESP_OK;
-        ++s_recorder_snapshot.generation;
-        _test_step_timers();
-        assert(!_test_has_live_label_containing("已删除"));
         s_recorder_snapshot.operation_id = operation;
         s_recorder_snapshot.last_error = success ? ESP_OK : ESP_FAIL;
-        if (success) s_recorder_row.target.name[0] = '\0';
         ++s_recorder_snapshot.generation;
         _test_step_timers();
-        assert(_test_has_live_label_containing(success ? "已删除" : "删除失败"));
-        if (!success) assert(!_test_has_live_label_containing("已删除"));
-        recorder_files_page_definition.ops->unmount(&context);
+        if (success)
+        {
+            assert(s_nav.calls == 1U);
+            assert(s_nav.last.operation == APP_MANAGER_NAV_OP_BACK);
+        }
+        else
+        {
+            assert(_test_has_live_label_containing(
+                       recorder_ui_error_text(ESP_FAIL)));
+            assert(s_nav.calls == 0U);
+        }
+        recorder_detail_page_definition.ops->unmount(&context);
     }
 }
 
-static void _test_recorder_stop_then_delete(void)
+static void _test_recorder_detail_stop_then_delete(void)
 {
     _recorder_fixture();
     s_recorder_snapshot.state = RECORDER_SERVICE_PLAYING;
+    (void)snprintf(s_recorder_snapshot.name,
+                   sizeof(s_recorder_snapshot.name), "%s",
+                   s_recorder_row.target.name);
+    recorder_app_select(&s_recorder_row);
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
-    recorder_files_page_definition.ops->mount(&context);
-    _test_click_label("sample.wav");
+    recorder_detail_page_definition.ops->mount(&context);
     _test_step_timers();
     _test_click_label("删除");
     _test_click_label("删除");
     assert(s_recorder_stops == 1U && s_recorder_deletes == 0U);
     s_recorder_snapshot.state = RECORDER_SERVICE_IDLE;
     s_recorder_snapshot.operation_pending = false;
+    s_recorder_snapshot.last_error = ESP_OK;
     ++s_recorder_snapshot.generation;
     _test_step_timers();
     assert(s_recorder_deletes == 1U);
-    assert(!_test_has_live_label_containing("已删除"));
     s_recorder_snapshot.operation_pending = false;
     s_recorder_snapshot.last_error = ESP_FAIL;
     ++s_recorder_snapshot.generation;
     _test_step_timers();
-    assert(_test_has_live_label_containing("删除失败"));
-    assert(!_test_has_live_label_containing("已删除"));
-    recorder_files_page_definition.ops->unmount(&context);
+    assert(_test_has_live_label_containing(
+               recorder_ui_error_text(ESP_FAIL)));
+    assert(s_nav.calls == 0U);
+    recorder_detail_page_definition.ops->unmount(&context);
 }
 
-static void _test_recorder_selection_invalidated(void)
+static void _test_recorder_detail_blocks_stale_target(void)
 {
     _recorder_fixture();
+    recorder_app_select(&s_recorder_row);
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
-    recorder_files_page_definition.ops->mount(&context);
-    _test_click_label("sample.wav");
+    recorder_detail_page_definition.ops->mount(&context);
     _test_step_timers();
     ++s_recorder_snapshot.content_revision;
     ++s_recorder_snapshot.index_revision;
     ++s_recorder_row.target.revision;
     ++s_recorder_snapshot.generation;
     _test_step_timers();
+    assert(_test_has_live_label_containing("内容已变化"));
+    /* Stale controls are hidden rather than left as silent no-ops. */
+    assert(_test_find_live_label("播放") == NULL);
+    assert(_test_find_live_label("删除") == NULL);
+    assert(s_recorder_plays == 0U);
+    assert(s_recorder_deletes == 0U);
+    recorder_detail_page_definition.ops->unmount(&context);
+}
+
+static void _test_recorder_detail_requires_selection(void)
+{
+    _recorder_fixture();
+    recorder_app_clear_selection();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_detail_page_definition.ops->mount(&context);
+    _test_step_timers();
+    assert(_test_has_live_label_containing("不可用"));
     _test_click_label("播放");
     assert(s_recorder_plays == 0U);
-    _test_click_label("删除");
-    assert(!_test_has_live_label_containing("删除录音"));
+    assert(s_recorder_deletes == 0U);
+    recorder_detail_page_definition.ops->unmount(&context);
+}
+
+
+/* Fill the list with two additional rows and step the page so the rows exist. */
+static void _recorder_seed_three_rows(void)
+{
+    s_recorder_extra_count = 2U;
+    s_recorder_extra[0] = s_recorder_row;
+    (void)snprintf(s_recorder_extra[0].target.name,
+                   sizeof(s_recorder_extra[0].target.name),
+                   "/sdcard/Recordings/second.wav");
+    s_recorder_extra[0].duration_ms = 3000U;
+    s_recorder_extra[1] = s_recorder_row;
+    (void)snprintf(s_recorder_extra[1].target.name,
+                   sizeof(s_recorder_extra[1].target.name),
+                   "/sdcard/Recordings/third.wav");
+    s_recorder_extra[1].duration_ms = 4000U;
+    s_recorder_snapshot.file_count = 3U;
+}
+
+/* A long press enters selection instead of opening the Page, and the release
+ * that follows must not do it either. */
+static void _test_recorder_long_press_enters_selection(void)
+{
+    _recorder_fixture();
+    _recorder_seed_three_rows();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_files_page_definition.ops->mount(&context);
+    _test_step_timers();
+    const size_t rows = _test_live_objects();
+    lv_obj_t *row = _test_find_button_for_label(_recorder_time_text());
+    assert(row != NULL);
+    _test_long_press(row);
+    /* The long press opened selection, not the detail Page. */
+    assert(s_nav.calls == 0U);
+    recorder_service_file_t selected = {0};
+    assert(recorder_app_copy_selection(&selected) == ESP_ERR_NOT_FOUND);
+    assert(_test_find_live_label("全选") != NULL);
+    assert(_test_find_live_label("取消") != NULL);
+    assert(_test_find_live_label("删除 1") != NULL);
+    _test_step_timers();
+    assert(_test_has_live_label_containing("已选 1 个"));
+    assert(_test_live_objects() == rows);
+    recorder_files_page_definition.ops->unmount(&context);
+}
+
+/* While selecting, a tap toggles rows; leaving the last one exits the mode. */
+static void _test_recorder_selection_toggles_and_exits(void)
+{
+    _recorder_fixture();
+    _recorder_seed_three_rows();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_files_page_definition.ops->mount(&context);
+    _test_step_timers();
+    lv_obj_t *first = _test_find_button_for_label(_recorder_time_text());
+    assert(first != NULL);
+    _test_long_press(first);
+    assert(_test_find_live_label("删除 1") != NULL);
+
+    /* Selecting a second row updates the count without navigating. */
+    lv_obj_t *second = _test_find_button_for_label("0:03");
+    assert(second != NULL);
+    _test_click(second);
+    assert(s_nav.calls == 0U);
+    assert(_test_find_live_label("删除 2") != NULL);
+    _test_step_timers();
+    assert(_test_has_live_label_containing("已选 2 个"));
+
+    /* Tapping the far-left row again deselects only that row. */
+    _test_click(second);
+    assert(_test_find_live_label("删除 1") != NULL);
+
+    /* Deselecting the last selected row leaves the mode entirely. */
+    _test_click(first);
+    assert(_test_find_live_label("全选") == NULL);
+    _test_step_timers();
+    assert(_test_has_live_label_containing("长按录音可多选删除"));
+    recorder_files_page_definition.ops->unmount(&context);
+}
+
+/* 全选 covers every row, and pressing it again clears the selection. */
+static void _test_recorder_select_all(void)
+{
+    _recorder_fixture();
+    _recorder_seed_three_rows();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_files_page_definition.ops->mount(&context);
+    _test_step_timers();
+    _test_long_press(_test_find_button_for_label(_recorder_time_text()));
+    _test_click_label("全选");
+    assert(_test_find_live_label("删除 3") != NULL);
+    assert(_test_find_live_label("全不选") != NULL);
+    _test_click_label("全不选");
+    assert(_test_find_live_label("全选") == NULL);
+    recorder_files_page_definition.ops->unmount(&context);
+}
+
+/* Cancelling selection discards it without touching the library. */
+static void _test_recorder_selection_cancel(void)
+{
+    _recorder_fixture();
+    _recorder_seed_three_rows();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_files_page_definition.ops->mount(&context);
+    _test_step_timers();
+    _test_long_press(_test_find_button_for_label(_recorder_time_text()));
+    _test_click_label("取消");
+    assert(_test_find_live_label("全选") == NULL);
     assert(s_recorder_deletes == 0U);
     recorder_files_page_definition.ops->unmount(&context);
 }
 
-static void _test_recorder_confirmation_keeps_epoch(void)
+/* Every selected recording is removed through one confirmation, one at a time,
+ * and each submission rebuilds the epoch from the live snapshot. */
+static void _test_recorder_batch_delete(void)
 {
     _recorder_fixture();
+    _recorder_seed_three_rows();
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
-    _test_click_label("sample.wav");
     _test_step_timers();
+    _test_long_press(_test_find_button_for_label(_recorder_time_text()));
+    _test_click_label("全选");
+    _test_click_label("删除 3");
+    assert(_test_has_live_label_containing("删除 3 个录音"));
     _test_click_label("删除");
+
+    /* One removal is in flight; the batch waits for its completion. */
+    assert(s_recorder_deletes == 1U);
+    assert(strcmp(s_recorder_last_deleted, "/sdcard/Recordings/sample.wav") == 0);
+    _test_step_timers();
+    assert(s_recorder_deletes == 1U);
+
+    /* Each publication advances the epoch; the next target follows it. */
+    for (unsigned round = 1U; round < 3U; ++round)
+    {
+        /* Completion keeps the operation id; only a new submit advances it. */
+        s_recorder_snapshot.operation_pending = false;
+        s_recorder_snapshot.last_error = ESP_OK;
+        ++s_recorder_snapshot.content_revision;
+        ++s_recorder_snapshot.index_revision;
+        ++s_recorder_snapshot.generation;
+        _test_step_timers();
+        assert(s_recorder_deletes == round + 1U);
+        assert(s_recorder_deleted_target.revision ==
+               s_recorder_snapshot.content_revision);
+    }
+    assert(strcmp(s_recorder_last_deleted, "/sdcard/Recordings/third.wav") == 0);
+
+    /* The final completion retires the batch and reports what it removed. */
     ++s_recorder_snapshot.content_revision;
     ++s_recorder_snapshot.index_revision;
-    ++s_recorder_row.target.revision;
-    ++s_recorder_snapshot.generation;
-    _test_step_timers();
-    _test_click_label("删除");
-    assert(s_recorder_deletes == 1U);
-    assert(s_recorder_deleted_target.revision == 7U);
     s_recorder_snapshot.operation_pending = false;
-    s_recorder_snapshot.last_error = ESP_ERR_INVALID_STATE;
+    s_recorder_snapshot.last_error = ESP_OK;
     ++s_recorder_snapshot.generation;
+    s_recorder_row.target.name[0] = '\0';
+    s_recorder_extra_count = 0U;
     _test_step_timers();
-    assert(_test_has_live_label_containing("删除失败"));
-    assert(!_test_has_live_label_containing("已删除"));
+    assert(s_recorder_deletes == 3U);
+    assert(_test_has_live_label_containing("已删除 3 个录音"));
+    assert(_test_find_live_label("全选") == NULL);
+    assert(_test_has_live_label_containing("暂无已完成录音"));
     recorder_files_page_definition.ops->unmount(&context);
 }
 
-static void _test_recorder_failed_stop_does_not_delete(void)
+/* A failure mid-batch stops it and names the reason instead of continuing. */
+static void _test_recorder_batch_delete_stops_on_error(void)
 {
     _recorder_fixture();
-    s_recorder_snapshot.state = RECORDER_SERVICE_PLAYING;
+    _recorder_seed_three_rows();
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
-    _test_click_label("sample.wav");
     _test_step_timers();
+    _test_long_press(_test_find_button_for_label(_recorder_time_text()));
+    _test_click_label("全选");
+    _test_click_label("删除 3");
     _test_click_label("删除");
-    _test_click_label("删除");
-    assert(s_recorder_stops == 1U && s_recorder_deletes == 0U);
+    assert(s_recorder_deletes == 1U);
+
     s_recorder_snapshot.operation_pending = false;
     s_recorder_snapshot.last_error = ESP_FAIL;
     ++s_recorder_snapshot.generation;
     _test_step_timers();
-    assert(s_recorder_deletes == 0U);
-    assert(_test_has_live_label_containing("删除失败"));
-    assert(!_test_has_live_label_containing("已删除"));
+    assert(s_recorder_deletes == 1U);
+    assert(_test_has_live_label_containing(
+               recorder_ui_error_text(ESP_FAIL)));
+    assert(_test_find_live_label("删除 3") == NULL);
     recorder_files_page_definition.ops->unmount(&context);
+}
+
+/* Recording owns the medium: selection cannot start, so no delete is queued. */
+static void _test_recorder_batch_blocked_while_recording(void)
+{
+    _recorder_fixture();
+    _recorder_seed_three_rows();
+    s_recorder_snapshot.state = RECORDER_SERVICE_RECORDING;
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_files_page_definition.ops->mount(&context);
+    _test_step_timers();
+    _test_long_press(_test_find_button_for_label(_recorder_time_text()));
+    assert(_test_find_live_label("全选") == NULL);
+    _test_step_timers();
+    assert(_test_has_live_label_containing("录音中无法编辑"));
+    assert(s_recorder_deletes == 0U);
+    recorder_files_page_definition.ops->unmount(&context);
+}
+
+/* Playback is stopped once, then the batch proceeds against the idle service. */
+static void _test_recorder_batch_stops_playback_first(void)
+{
+    _recorder_fixture();
+    s_recorder_extra_count = 1U;
+    s_recorder_extra[0] = s_recorder_row;
+    (void)snprintf(s_recorder_extra[0].target.name,
+                   sizeof(s_recorder_extra[0].target.name),
+                   "/sdcard/Recordings/second.wav");
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_files_page_definition.ops->mount(&context);
+    _test_step_timers();
+    _test_long_press(_test_find_button_for_label(_recorder_time_text()));
+    _test_click_label("全选");
+    _test_click_label("删除 2");
+    s_recorder_snapshot.state = RECORDER_SERVICE_PLAYING;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    _test_click_label("删除");
+    assert(s_recorder_stops == 1U);
+    assert(s_recorder_deletes == 0U);
+
+    s_recorder_snapshot.state = RECORDER_SERVICE_IDLE;
+    s_recorder_snapshot.operation_pending = false;
+    s_recorder_snapshot.last_error = ESP_OK;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(s_recorder_deletes == 1U);
+    recorder_files_page_definition.ops->unmount(&context);
+}
+
+/* A batch in flight does not rebuild rows, so the list never blanks between
+ * two removals and the scroll position survives. */
+static void _test_recorder_batch_keeps_rows_alive(void)
+{
+    _recorder_fixture();
+    _recorder_seed_three_rows();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_files_page_definition.ops->mount(&context);
+    _test_step_timers();
+    lv_obj_t *row = _test_find_button_for_label(_recorder_time_text());
+    assert(row != NULL);
+    _test_long_press(row);
+    _test_click_label("全选");
+    _test_click_label("删除 3");
+    _test_click_label("删除");
+    const size_t live = _test_live_objects();
+    /* A stale index (the service's state between two publications) must not
+     * empty the list. */
+    ++s_recorder_snapshot.content_revision;
+    _test_step_timers();
+    assert(_test_live_objects() == live);
+    assert(row->live);
+    recorder_files_page_definition.ops->unmount(&context);
+}
+
+
+/* Retiring a batch must refresh the list even though no new epoch arrived while
+ * the rows were frozen: the survivors are what the user came back for. */
+static void _test_recorder_batch_reloads_survivors(void)
+{
+    _recorder_fixture();
+    _recorder_seed_three_rows();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_files_page_definition.ops->mount(&context);
+    _test_step_timers();
+    _test_long_press(_test_find_button_for_label(_recorder_time_text()));
+    /* Select only the first row: two recordings must survive the batch. */
+    _test_click_label("删除 1");
+    _test_click_label("删除");
+    assert(s_recorder_deletes == 1U);
+    /* The medium now holds two files, but the frozen rows still show three. */
+    s_recorder_extra_count = 1U;
+    s_recorder_snapshot.operation_pending = false;
+    s_recorder_snapshot.last_error = ESP_OK;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(_test_has_live_label_containing("已删除 1 个录音"));
+    assert(_test_has_live_label_containing("0:02"));
+    assert(_test_has_live_label_containing("0:03"));
+    recorder_files_page_definition.ops->unmount(&context);
+}
+
+
+/* Hitting the configured limit is an automatic stop; the receipt must say so
+ * instead of looking like the user pressed 停止. */
+static void _test_recorder_root_limit_receipt(void)
+{
+    _recorder_fixture();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_root_page_definition.ops->mount(&context);
+    s_recorder_snapshot.state = RECORDER_SERVICE_RECORDING;
+    s_recorder_snapshot.duration_ms = 1800000U;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(_test_has_live_label_containing("剩余 0:00"));
+    s_recorder_snapshot.state = RECORDER_SERVICE_IDLE;
+    s_recorder_snapshot.last_error = ESP_OK;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(_test_has_live_label_containing("达到上限"));
+    recorder_root_page_definition.ops->unmount(&context);
+}
+
+/* A service ERROR is retryable from the same Page; only a missing card or an
+ * in-flight command disables the circle. */
+static void _test_recorder_root_error_is_retryable(void)
+{
+    _recorder_fixture();
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_root_page_definition.ops->mount(&context);
+    s_recorder_snapshot.state = RECORDER_SERVICE_ERROR;
+    s_recorder_snapshot.last_error = ESP_FAIL;
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(_test_has_live_label_containing(recorder_ui_error_text(ESP_FAIL)));
+    lv_obj_t *circle = _test_find_button_for_label("开始");
+    assert(circle != NULL);
+    assert(!lv_obj_has_state(circle, LV_STATE_DISABLED));
+    _test_click(circle);
+    assert(s_recorder_starts == 1U);
+    recorder_root_page_definition.ops->unmount(&context);
 }
 
 int main(void)
@@ -1531,11 +2131,29 @@ int main(void)
     _test_storage_page_states();
     _test_failed_navigation_clears_rows();
     _test_unavailable_and_busy_states();
-    _test_recorder_delete_completion();
-    _test_recorder_stop_then_delete();
-    _test_recorder_selection_invalidated();
-    _test_recorder_confirmation_keeps_epoch();
-    _test_recorder_failed_stop_does_not_delete();
+    _test_recorder_root_reports_failure();
+    _test_recorder_root_pause_and_receipt();
+    _test_recorder_root_circle_stops();
+    _test_recorder_root_limit_receipt();
+    _test_recorder_root_error_is_retryable();
+    _test_recorder_row_opens_detail();
+    _test_recorder_row_rejects_stale_epoch();
+    _test_recorder_list_notices();
+    _test_recorder_detail_plays_and_stops();
+    _test_recorder_detail_delete_returns();
+    _test_recorder_detail_stop_then_delete();
+    _test_recorder_detail_blocks_stale_target();
+    _test_recorder_detail_requires_selection();
+    _test_recorder_long_press_enters_selection();
+    _test_recorder_selection_toggles_and_exits();
+    _test_recorder_select_all();
+    _test_recorder_selection_cancel();
+    _test_recorder_batch_delete();
+    _test_recorder_batch_delete_stops_on_error();
+    _test_recorder_batch_blocked_while_recording();
+    _test_recorder_batch_stops_playback_first();
+    _test_recorder_batch_keeps_rows_alive();
+    _test_recorder_batch_reloads_survivors();
     puts("files/settings storage page tests passed");
     return 0;
 }
