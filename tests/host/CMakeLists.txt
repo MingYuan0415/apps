@@ -7,6 +7,7 @@ set(APPS_SANITIZER "none" CACHE STRING
     "Host-test sanitizer: none, address, or thread")
 set_property(CACHE APPS_SANITIZER PROPERTY STRINGS none address thread)
 find_program(APPS_SETARCH setarch)
+find_package(Threads REQUIRED)
 
 function(configure_apps_host_target target)
     target_compile_features(${target} PRIVATE c_std_11)
@@ -148,12 +149,14 @@ add_executable(apps_persistence_test
     apps_persistence_test.c
     ../../common/src/apps_persistence.c
     ../../level_app/src/level_app_persistence.c
+    ../../flybirds_app/src/flybirds_app_persistence.c
 )
 
 target_include_directories(apps_persistence_test PRIVATE
     include
     ../../common/include
     ../../level_app/src
+    ../../flybirds_app/src
     ../../../middleware/components/nv_storage/include
 )
 
@@ -253,6 +256,74 @@ target_link_libraries(calculator_math_test PRIVATE m)
 configure_apps_host_target(calculator_math_test)
 
 add_apps_host_test(calculator_math_test calculator_math_test)
+
+add_executable(flybirds_game_test
+    flybirds_game_test.c
+    ../../flybirds_app/src/flybirds_game.c
+)
+
+target_include_directories(flybirds_game_test PRIVATE
+    ../../flybirds_app/src
+)
+
+target_link_libraries(flybirds_game_test PRIVATE m)
+configure_apps_host_target(flybirds_game_test)
+
+add_apps_host_test(flybirds_game_test flybirds_game_test)
+
+add_executable(flybirds_synth_test
+    flybirds_synth_test.c
+    ../../flybirds_app/src/flybirds_synth.c
+)
+
+target_include_directories(flybirds_synth_test PRIVATE
+    ../../flybirds_app/src
+)
+
+configure_apps_host_target(flybirds_synth_test)
+
+add_apps_host_test(flybirds_synth_test flybirds_synth_test)
+
+add_executable(flybirds_audio_test
+    flybirds_audio_test.c
+    ../../flybirds_app/src/flybirds_audio_session.c
+)
+
+target_include_directories(flybirds_audio_test PRIVATE
+    include
+    ../../flybirds_app/src
+    ../../../middleware/components/audio_service/include
+)
+
+configure_apps_host_target(flybirds_audio_test)
+
+add_apps_host_test(flybirds_audio_test flybirds_audio_test)
+
+add_executable(flybirds_audio_task_test
+    flybirds_audio_task_test.c
+    fakes/flybirds_freertos_fake.c
+    ../../flybirds_app/src/flybirds_audio.c
+    ../../flybirds_app/src/flybirds_audio_session.c
+    ../../flybirds_app/src/flybirds_synth.c
+)
+
+target_include_directories(flybirds_audio_task_test PRIVATE
+    include
+    fakes
+    ../../flybirds_app/src
+    ../../../middleware/components/audio_service/include
+)
+
+target_link_libraries(flybirds_audio_task_test PRIVATE Threads::Threads)
+target_link_options(flybirds_audio_task_test PRIVATE
+    -Wl,--wrap=xSemaphoreGive
+    -Wl,--wrap=xSemaphoreCreateBinary
+    -Wl,--wrap=xTaskCreatePinnedToCore
+    -Wl,--wrap=vTaskDelete
+)
+configure_apps_host_target(flybirds_audio_task_test)
+
+add_apps_host_test(flybirds_audio_task_test flybirds_audio_task_test)
 
 add_executable(app_ui_text_test
     app_ui_text_test.c

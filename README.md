@@ -35,6 +35,8 @@ generation 快照；库行不再需要「先选中再点按钮」。
 - `settings_app/`：单卡片分组列表（六行：显示与电源、Wi-Fi、蓝牙、连接向导、设备状态、关于与维护）；提供亮度、固定熄屏/待机延迟选项、电源详情、连接管理、时间状态、运行时固件描述、独立存储页（挂载状态、总量/剩余量、当前操作、重新挂载、刷新容量、安全卸载、二次确认的格式化与格式化恢复，占用时提示并拒绝破坏性操作）及恢复出厂设置确认页。忘记网络与解绑在页内底部面板中二次确认；恢复请求只有在 reset journal 持久化成功后才进入不可重复点击的重启等待状态；保存失败时页面保留并允许重试。
 - `setup_app/`：`HIDDEN` 应用，从设置根页的「连接向导」行进入；开启限时 BLE 绑定窗口，显示六位 Numeric Comparison 并在本机确认，同时管理已保存网络的断开、重连、自动连接和忘记操作；网络选择与密码输入在手机侧完成，设备只显示六位 Numeric Comparison 并本机确认。
 - `weather_app/`：展示当前天气、预警、24 小时和 7 日预报，包含预警列表与详情页；只消费 `weather_service` 快照，不执行网络、JSON 或缓存 I/O。
+- `flybirds_app/`：单页点击上升躲避游戏，含准备、进行、暂停面板与结算四态；`flybirds_game` 为纯逻辑规则，`flybirds_synth` 在 16 kHz 立体声上合成 8 小节芯片音乐与四种音效，`flybirds_audio` 以单写者任务混音后写入 `audio_service`；音频任务不调用 LVGL，先取得独占 PLAYBACK 租约，外部占用时保持静默并在前台每 2 s 重试，不与其他写者争用 DMA；最高分与音乐/音效开关存于 `flybirds_pref` 版本化 Blob，恢复出厂清除。
+  writer 的完成信号先于 synth/PCM 复用；关闭或租约释放失败保留句柄，后续 open/close 重试。页面 PAUSE 只有音频关闭成功后才暂停 tick，失败导航仍可继续游戏；重开时失效的渲染缓存立即刷新 HUD。无音乐且无活跃音效时按 sequencer 边界批量推进相位并输出零 PCM，静音不改变节拍、租约或供给周期；无效偏好 Blob 尺寸使用默认值，实际存储错误继续上报。
 - `tests/host/`：共用导航、天气图标映射表、恢复出厂确认页、Setup Wi-Fi adapter、apps 持久化，以及各 App 纯逻辑模块（`*_math`）的宿主测试及最小依赖 fake；测试目标清单以该目录 `CMakeLists.txt` 的 `add_apps_host_test` 为准。
 
 每个 App 的只读资源必须放在自己的 `assets/` 目录，并在该 App 的
@@ -121,7 +123,7 @@ cmake --build /tmp/mt-apps-host
 ctest --test-dir /tmp/mt-apps-host --output-on-failure
 ```
 
-`APPS_SANITIZER` 还支持 `address`（ASan/UBSan）和 `thread`（TSan）。当前宿主测试验证 RUN/BACK/OPEN_PAGE 请求、统一命令池准入失败、ID 值复制、completion 恰好一次、天气图标映射表覆盖全部主图与小图资源且无死资源、恢复出厂确认页的失败重试与成功防重复、level 校准 save/load 与恢复出厂清除，以及保存网络操作过滤、快照回调和取消清理；不替代 ESP32-S3 上的界面、Numeric Comparison 确认、BLE、无线和内存验证。
+`APPS_SANITIZER` 还支持 `address`（ASan/UBSan）和 `thread`（TSan）。当前宿主测试验证 RUN/BACK/OPEN_PAGE 请求、统一命令池准入失败、ID 值复制、completion 恰好一次、天气图标映射表覆盖全部主图与小图资源且无死资源、恢复出厂确认页的失败重试与成功防重复、level 校准 save/load 与恢复出厂清除、飞鸟物理/计分/碰撞与合成器静音/混音边界、音频流所有权与停止失败重试、飞鸟偏好与校准两键的恢复出厂清除，以及保存网络操作过滤、快照回调和取消清理；不替代 ESP32-S3 上的界面、Numeric Comparison 确认、BLE、无线和内存验证。
 
 音频、存储和时钟 worker adapter 的故障恢复测试，以及产品页面的跨层生命周期测试位于主工程 `tests/integration/`，通过 `CROSS_LAYER_SANITIZER` 分别运行普通、ASan/UBSan 和 TSan 配置。
 

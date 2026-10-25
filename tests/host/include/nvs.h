@@ -4,5 +4,6 @@
 #include "esp_err.h"
 
 #define ESP_ERR_NVS_NOT_FOUND 0x1102
+#define ESP_ERR_NVS_INVALID_LENGTH 0x110c
 
 #endif /* __APPS_HOST_NVS_H__ */

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MicroTech app icon: dark-theme geometric glyph, transparent base. -->
+<!-- Shared icon rule: the 64-unit design box is exported at 72 px and drawn
+     1:1 in the launcher well (72) and task switcher (56); every art element
+     stays inside the centred x,y = 13..50 design box
+     (one pixel of clearance on all sides). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Pipe stubs frame the gap the bird threads. -->
+  <rect x="14" y="13" width="7" height="13" rx="2" fill="#93A0A6"/>
+  <rect x="14" y="38" width="7" height="12" rx="2" fill="#93A0A6"/>
+  <!-- Bird body carries the light weight; the beak is the single accent. -->
+  <rect x="21" y="24" width="25" height="17" rx="8.5" fill="#F2F5F6"/>
+  <rect x="27" y="29" width="9" height="5.5" rx="2.75" fill="#93A0A6"/>
+  <path d="M46 29.5l4 3-4 3z" fill="#4FC4D8"/>
+  <circle cx="41" cy="30" r="1.8" fill="#0B0F12"/>
+</svg>
