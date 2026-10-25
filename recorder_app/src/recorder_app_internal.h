@@ -75,11 +75,16 @@ const char *recorder_ui_error_text(esp_err_t error);
 void recorder_app_select(const recorder_service_file_t *file);
 /**
  * @brief Copy the pending selection for a newly mounted detail Page.
+ *
+ * The selection is App-scope state and survives this call: screen off
+ * unmounts the Page and the wake mounts it again, which must still resolve
+ * the same recording.
+ *
  * @param file receives the metadata.
  * @return ESP_OK, or ESP_ERR_NOT_FOUND when nothing was selected.
  */
 esp_err_t recorder_app_copy_selection(recorder_service_file_t *file);
-/** @brief Drop the pending selection after its detail Page consumed it. */
+/** @brief Drop the pending selection when the App stops or the file is gone. */
 void recorder_app_clear_selection(void);
 
 #endif /* __RECORDER_APP_INTERNAL_H__ */

@@ -1459,6 +1459,9 @@ static void _recorder_fixture(void)
     s_recorder_extra_count = 0U;
     s_recorder_deleted_names = 0U;
     s_recorder_last_deleted[0] = '\0';
+    /* The selection is App-scope state and outlives a Page, so each test must
+     * start from an explicitly empty one. */
+    recorder_app_clear_selection();
 }
 
 /* The list is a navigator: a tap hands the row to the detail Page and nothing
@@ -1649,9 +1652,11 @@ static void _test_recorder_detail_plays_and_stops(void)
     assert(_test_has_live_label_containing(_recorder_time_text()));
     assert(_test_has_live_label_containing("0:02"));
     assert(_test_has_live_label_containing("125.0 KB"));
-    /* Selection is consumed on mount, so a later mount cannot reopen it. */
+    /* The selection outlives the Page instance: screen off unmounts and the
+     * wake remounts the same detail Page, which must find the file again. */
     recorder_service_file_t selected = {0};
-    assert(recorder_app_copy_selection(&selected) == ESP_ERR_NOT_FOUND);
+    assert(recorder_app_copy_selection(&selected) == ESP_OK);
+    assert(strcmp(selected.target.name, s_recorder_row.target.name) == 0);
 
     _test_click_label("播放");
     assert(s_recorder_plays == 1U);
@@ -1669,6 +1674,55 @@ static void _test_recorder_detail_plays_and_stops(void)
     _test_click_label("停止");
     assert(s_recorder_stops == 1U);
     recorder_detail_page_definition.ops->unmount(&context);
+    assert(recorder_detail_page_definition.ops->stop(&context) == ESP_OK);
+    assert(recorder_app_copy_selection(&selected) == ESP_ERR_NOT_FOUND);
+}
+
+/* Screen off delivers PAUSE + UNMOUNT and the wake remounts the same arena
+ * slot. The selected recording is App-scope state, so the detail Page must be
+ * able to rebuild itself instead of reporting it cannot open the file while
+ * the service is still playing it. */
+static void _test_recorder_detail_survives_screen_cycle(void)
+{
+    _recorder_fixture();
+    recorder_app_select(&s_recorder_row);
+    test_page_state_t state = {0};
+    const app_manager_page_context_t context = _context(&state);
+    recorder_detail_page_definition.ops->mount(&context);
+    _test_step_timers();
+    _test_click_label("播放");
+    assert(s_recorder_plays == 1U);
+    s_recorder_snapshot.state = RECORDER_SERVICE_PLAYING;
+    s_recorder_snapshot.playback_duration_ms = 2000U;
+    s_recorder_snapshot.playback_position_ms = 500U;
+    (void)snprintf(s_recorder_snapshot.name,
+                   sizeof(s_recorder_snapshot.name), "%s",
+                   s_recorder_row.target.name);
+    ++s_recorder_snapshot.generation;
+    _test_step_timers();
+    assert(_test_has_live_label_containing("播放中"));
+
+    /* Screen off: foreground stops and the UI is destroyed. */
+    assert(recorder_detail_page_definition.ops->pause(&context) == ESP_OK);
+    recorder_detail_page_definition.ops->unmount(&context);
+    assert(_test_live_objects() == 0U);
+
+    /* Wake: same arena, fresh mount. Playback never stopped in the service. */
+    recorder_detail_page_definition.ops->mount(&context);
+    _test_step_timers();
+    assert(!_test_has_live_label_containing("无法打开该录音"));
+    assert(_test_has_live_label_containing(_recorder_time_text()));
+    assert(_test_has_live_label_containing("播放中"));
+    assert(_test_find_live_label("停止") != NULL);
+    assert(_test_find_live_label("删除") != NULL);
+    _test_click_label("停止");
+    assert(s_recorder_stops == 1U);
+
+    /* The retained selection belongs to the App, not to the Page instance. */
+    recorder_detail_page_definition.ops->unmount(&context);
+    assert(recorder_detail_page_definition.ops->stop(&context) == ESP_OK);
+    recorder_service_file_t selected = {0};
+    assert(recorder_app_copy_selection(&selected) == ESP_ERR_NOT_FOUND);
 }
 
 static void _test_recorder_detail_delete_returns(void)
@@ -2140,6 +2194,7 @@ int main(void)
     _test_recorder_row_rejects_stale_epoch();
     _test_recorder_list_notices();
     _test_recorder_detail_plays_and_stops();
+    _test_recorder_detail_survives_screen_cycle();
     _test_recorder_detail_delete_returns();
     _test_recorder_detail_stop_then_delete();
     _test_recorder_detail_blocks_stale_target();

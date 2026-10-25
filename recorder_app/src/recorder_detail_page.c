@@ -346,7 +346,6 @@ static void _detail_mount(const app_manager_page_context_t *context)
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_VER);
 
     state->has_file = recorder_app_copy_selection(&state->file) == ESP_OK;
-    recorder_app_clear_selection();
 
     lv_obj_t *facts = app_ui_group_create(state->page.content);
     (void)app_ui_group_add_value(facts, "录制时间", "--", &state->time_value);
@@ -449,12 +448,22 @@ static void _detail_unmount(const app_manager_page_context_t *context)
     state->confirm_sheet = NULL;
 }
 
+static esp_err_t _detail_stop(const app_manager_page_context_t *context)
+{
+    (void)context;
+    /* The selection is App-scope state so a remount can rebuild this Page
+     * after a screen cycle; it belongs to the App instance, not the Page. */
+    recorder_app_clear_selection();
+    return ESP_OK;
+}
+
 static const app_manager_page_ops_t s_recorder_detail_ops =
 {
     .mount = _detail_mount,
     .resume = _detail_resume,
     .pause = _detail_pause,
     .unmount = _detail_unmount,
+    .stop = _detail_stop,
 };
 
 const app_manager_page_definition_t recorder_detail_page_definition =
