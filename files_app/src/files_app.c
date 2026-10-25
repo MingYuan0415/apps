@@ -5,6 +5,10 @@
 
 #ifdef ESP_PLATFORM
     #include "esp_heap_caps.h"
+    #include "esp_attr.h"
+    #define FILES_APP_EXT_BSS EXT_RAM_BSS_ATTR
+#else
+    #define FILES_APP_EXT_BSS
 #endif
 
 void *files_payload_alloc(size_t size)
@@ -90,7 +94,14 @@ void files_format_time(bool has_time, uint32_t epoch_s, char *out,
     (void)strftime(out, out_size, "%Y-%m-%d %H:%M", &local_time);
 }
 
-static file_service_target_t s_selected_target;
+/**
+ * @brief Selected recording/file target, kept out of internal DRAM on purpose.
+ *
+ * 1032 B of path and metadata read only by the files pages on the LVGL
+ * worker; moving it to PSRAM leaves that much more internal RAM for the
+ * DMA staging pools and internal-only task stacks.
+ */
+static FILES_APP_EXT_BSS file_service_target_t s_selected_target;
 static bool s_has_selection;
 static bool s_selection_deleted;
 
