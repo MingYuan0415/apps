@@ -1,7 +1,8 @@
-# 天气状况图标源为 QWeather Icons（MIT，icons/N-fill.svg 变体，vendor 时已将
-# currentColor 替换为主题色，见 assets/qweather-icons-LICENSE.txt 与
-# layers/apps/README.md 资源小节）。同一 SVG 登记 40/112 两条尺寸记录；
-# weather_app.svg 为自绘 App 图标，与 QWeather 无关。
+# Weather condition icons come from QWeather Icons (MIT, icons/N-fill.svg
+# variants with currentColor already replaced by theme colors when vendored; see
+# assets/qweather-icons-LICENSE.txt and the "Directory Structure and Apps"
+# section of layers/apps/README.md). The same SVG registers two size records,
+# 40/112; weather_app.svg is a self-drawn App icon unrelated to QWeather.
 list(APPEND MICROTECH_APP_RESOURCE_RECORDS
     "${CMAKE_CURRENT_LIST_DIR}/assets/weather_app.svg|weather_app.png|APP_IMAGE_WEATHER_APP|72|72|SVG"
     "${CMAKE_CURRENT_LIST_DIR}/assets/weather_clear_day.svg|weather_clear_day_112.png|APP_IMAGE_WEATHER_CLEAR_DAY_MAIN|112|112|SVG"
