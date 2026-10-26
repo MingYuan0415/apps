@@ -107,15 +107,20 @@ drivers directly.
 - `diagnostics_app/`: hardware self-test page, opened from the five-tap entry
   on the settings page; the `HIDDEN` flag keeps it out of the normal app
   catalog.
-- `settings_app/`: single-card grouped list (six rows: "显示与电源" (display &
-  power), Wi-Fi, "蓝牙" (Bluetooth), "连接向导" (connection wizard), "设备状态"
-  (device status), "关于与维护" (about & maintenance)); provides brightness,
-  fixed screen-off/standby delay options, power details, connection
+- `settings_app/`: single-card grouped list (seven rows: "显示与电源" (display &
+  power), "声音" (sound), Wi-Fi, "蓝牙" (Bluetooth), "连接向导" (connection
+  wizard), "设备状态" (device status), "关于与维护" (about & maintenance)); the
+  hub scrolls once the rows exceed one screen. Provides brightness, a speaker
+  volume page, fixed screen-off/standby delay options, power details, connection
   management, time status, runtime firmware description, a separate storage
   page (mount status, total/free amount, current operation, remount, refresh
   capacity, safe unmount, twice-confirmed format and format recovery, with a
   hint and a refusal of destructive operations while occupied) and a factory
-  reset confirmation page. Forget network and unbind are confirmed twice in
+  reset confirmation page. The sound page mirrors the control center row: a drag
+  applies the level through `audio_service_set_volume()` and stays off flash,
+  the release commits it once through `audio_service_set_volume_persisted()`,
+  and a board without an audio path greys the slider and shows "--" instead of
+  faking a level. Forget network and unbind are confirmed twice in
   the in-page bottom sheet; a reset request enters the non-repeatable
   reboot-wait state only after the reset journal is persisted successfully;
   when saving fails the page stays and allows a retry.

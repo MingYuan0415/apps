@@ -2,6 +2,7 @@
 #include "mt_log.h"
 
 #include "settings_app_internal.h"
+#include "audio_service.h"
 #include "file_service.h"
 #include "settings_factory_reset_page.h"
 
@@ -16,6 +17,7 @@ typedef struct settings_root_state
 {
     app_ui_page_t page;
     lv_obj_t *display_summary;
+    lv_obj_t *sound_summary;
     lv_obj_t *wifi_summary;
     lv_obj_t *bluetooth_summary;
     lv_obj_t *device_summary;
@@ -106,6 +108,17 @@ static void _settings_root_render(settings_root_state_t *state)
                        app_manager_pm_get_timeout_ms()));
     lv_label_set_text(state->display_summary, text);
 
+    uint8_t volume = 0U;
+    if (audio_service_get_volume(&volume) == ESP_OK && volume <= 100U)
+    {
+        (void)snprintf(text, sizeof(text), "%u%%", (unsigned)volume);
+    }
+    else
+    {
+        (void)snprintf(text, sizeof(text), "不可用");
+    }
+    lv_label_set_text(state->sound_summary, text);
+
     const char *wifi = "未连接";
     connectivity_manager_status_snapshot_t wifi_status;
     if (connectivity_manager_get_status(&wifi_status) == ESP_OK)
@@ -161,13 +174,17 @@ static void _settings_root_mount(const app_manager_page_context_t *context)
     lv_obj_set_scrollbar_mode(root, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_pad_bottom(root, 8, 0);
 
-    /* One card, six single-line rows: the whole hub lands on the first screen
-     * (display, connection, device). Order follows the user journey. */
+    /* One card: the hub scrolls once it exceeds one screen, so the row order
+     * follows the user journey (display, sound, connection, device). */
     lv_obj_t *group = app_ui_group_create(root);
     (void)app_ui_group_add_entry(group, "显示与电源",
                                  &state->display_summary,
                                  _settings_open_page_event,
                                  (void *)SETTINGS_PAGE_DISPLAY);
+    (void)app_ui_group_add_entry(group, "声音",
+                                 &state->sound_summary,
+                                 _settings_open_page_event,
+                                 (void *)SETTINGS_PAGE_SOUND);
     (void)app_ui_group_add_entry(group, "Wi-Fi",
                                  &state->wifi_summary,
                                  _settings_open_page_event,
@@ -199,6 +216,7 @@ static void _settings_root_unmount(const app_manager_page_context_t *context)
     settings_root_state_t *state = context->state;
     app_ui_page_destroy(&state->page);
     state->display_summary = NULL;
+    state->sound_summary = NULL;
     state->wifi_summary = NULL;
     state->bluetooth_summary = NULL;
     state->device_summary = NULL;
@@ -471,6 +489,11 @@ static const app_manager_page_route_t s_settings_routes[] =
     {
         .page_id = SETTINGS_PAGE_STORAGE,
         .definition = &settings_storage_page_definition,
+        .user_data = NULL,
+    },
+    {
+        .page_id = SETTINGS_PAGE_SOUND,
+        .definition = &settings_sound_page_definition,
         .user_data = NULL,
     },
 };

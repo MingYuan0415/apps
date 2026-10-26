@@ -25,6 +25,7 @@
 #define SETTINGS_PAGE_FACTORY_RESET "factory-reset"
 #define SETTINGS_PAGE_TIME          "time"
 #define SETTINGS_PAGE_STORAGE       "storage"
+#define SETTINGS_PAGE_SOUND         "sound"
 
 extern const app_manager_page_definition_t settings_root_page_definition;
 extern const app_manager_page_definition_t settings_display_page_definition;
@@ -34,6 +35,7 @@ extern const app_manager_page_definition_t settings_device_page_definition;
 extern const app_manager_page_definition_t settings_about_page_definition;
 extern const app_manager_page_definition_t settings_time_page_definition;
 extern const app_manager_page_definition_t settings_storage_page_definition;
+extern const app_manager_page_definition_t settings_sound_page_definition;
 
 /**
  * @brief Describe a screen timeout in words.

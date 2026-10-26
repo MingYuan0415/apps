@@ -55,6 +55,7 @@ set(APP_SRCS
     "settings_app/src/settings_device_page.c"
     "settings_app/src/settings_factory_reset_page.c"
     "settings_app/src/settings_storage_page.c"
+    "settings_app/src/settings_sound_page.c"
     "setup_app/src/setup_app.c"
     "setup_app/src/setup_wifi_adapter.c"
 )

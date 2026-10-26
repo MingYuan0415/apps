@@ -79,6 +79,7 @@
 #define APP_IMAGE_UI_CHECK                    0x5782U
 #define APP_IMAGE_UI_TRASH                    0x5783U
 #define APP_IMAGE_UI_LOOP                     0x5784U
+#define APP_IMAGE_UI_VOLUME                   0x5785U
 #define APP_IMAGE_UI_BLUETOOTH                0x5787U
 #define APP_IMAGE_UI_WIFI                     0x5788U
 #define APP_IMAGE_UI_BRIGHTNESS               0x578AU
