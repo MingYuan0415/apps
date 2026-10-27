@@ -16,6 +16,10 @@ typedef struct settings_wifi_state
     lv_obj_t *status_value;
     lv_obj_t *ssid_value;
     lv_obj_t *ip_value;
+    lv_obj_t *attempt_value;
+    lv_obj_t *attempt_row;
+    lv_obj_t *attempt_network;
+    lv_obj_t *attempt_network_row;
     lv_obj_t *forget_action;
     lv_obj_t *forget_status;
     lv_obj_t *scan_hint;
@@ -67,6 +71,37 @@ static const char *_wifi_state_text(
     }
 }
 
+/* Report which saved network the running sweep is on and how far it will go, so
+ * a fallback is visible instead of looking like one slow attempt against the
+ * selected profile. The network and the counter get their own rows: an SSID alone
+ * can reach 32 bytes, which would overflow one row together with the counter. */
+static void _wifi_render_attempt(
+    settings_wifi_state_t *state,
+    const connectivity_manager_status_snapshot_t *status)
+{
+    /* The row marks that a sweep is running at all, which also covers the first
+     * candidate: the network row alone cannot say whether one attempt is in
+     * flight or several are being walked. */
+    const bool sweeping = status->attempt_total > 0U &&
+                          status->attempt_index < state->profiles.count;
+
+    lv_obj_set_hidden(state->attempt_row, !sweeping);
+    lv_obj_set_hidden(state->attempt_network_row, !sweeping);
+    if (!sweeping)
+    {
+        return;
+    }
+    const connectivity_manager_profile_info_t *info =
+        &state->profiles.profiles[status->attempt_index];
+    char counter[16];
+
+    (void)snprintf(counter, sizeof(counter), "%u/%u",
+                   (unsigned)(status->attempt_index + 1U),
+                   (unsigned)status->attempt_total);
+    lv_label_set_text(state->attempt_network, info->ssid);
+    lv_label_set_text(state->attempt_value, counter);
+}
+
 static void _wifi_render_status(
     settings_wifi_state_t *state,
     const connectivity_manager_status_snapshot_t *status)
@@ -91,6 +126,7 @@ static void _wifi_render_status(
     {
         lv_label_set_text(state->ip_value, "--");
     }
+    _wifi_render_attempt(state, status);
     if (!state->online_pending &&
             lv_obj_has_state(state->online_switch, LV_STATE_CHECKED) !=
             (!status->manual_hold))
@@ -358,6 +394,17 @@ static void _wifi_settle_pending(settings_wifi_state_t *state,
 
 static void _wifi_refresh(settings_wifi_state_t *state)
 {
+    /* The saved-network list is read before the status is rendered: the status
+     * render names the network the current sweep is on, which it looks up in
+     * this list. */
+    connectivity_manager_profile_snapshot_t profiles;
+    if (connectivity_manager_get_profiles(&profiles) == ESP_OK &&
+            profiles.generation != state->rendered_profile_generation)
+    {
+        state->rendered_profile_generation = profiles.generation;
+        state->profiles = profiles;
+        _wifi_render_saved(state);
+    }
     connectivity_manager_status_snapshot_t status;
     if (connectivity_manager_get_status(&status) == ESP_OK)
     {
@@ -398,14 +445,6 @@ static void _wifi_refresh(settings_wifi_state_t *state)
             state->scan = scan;
             _wifi_render_scan(state);
         }
-    }
-    connectivity_manager_profile_snapshot_t profiles;
-    if (connectivity_manager_get_profiles(&profiles) == ESP_OK &&
-            profiles.generation != state->rendered_profile_generation)
-    {
-        state->rendered_profile_generation = profiles.generation;
-        state->profiles = profiles;
-        _wifi_render_saved(state);
     }
 }
 
@@ -613,6 +652,12 @@ static void _wifi_mount(const app_manager_page_context_t *context)
     lv_obj_t *info_group = app_ui_group_create(state->page.content);
     (void)app_ui_group_add_value(info_group, "状态", "读取中",
                                  &state->status_value);
+    state->attempt_network_row = app_ui_group_add_value(info_group,
+        "正在尝试", "--", &state->attempt_network);
+    lv_obj_set_hidden(state->attempt_network_row, true);
+    state->attempt_row = app_ui_group_add_value(info_group, "尝试进度", "--",
+        &state->attempt_value);
+    lv_obj_set_hidden(state->attempt_row, true);
     (void)app_ui_group_add_value(info_group, "网络", "--",
                                  &state->ssid_value);
     (void)app_ui_group_add_value(info_group, "IP 地址", "--",
@@ -689,6 +734,10 @@ static void _wifi_unmount(const app_manager_page_context_t *context)
     state->status_value = NULL;
     state->ssid_value = NULL;
     state->ip_value = NULL;
+    state->attempt_value = NULL;
+    state->attempt_row = NULL;
+    state->attempt_network = NULL;
+    state->attempt_network_row = NULL;
     state->forget_action = NULL;
     state->forget_status = NULL;
     state->scan_hint = NULL;
