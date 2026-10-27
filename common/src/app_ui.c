@@ -1437,14 +1437,6 @@ void app_ui_pill_set(lv_obj_t *pill, const char *text, app_ui_status_t status)
     app_ui_label_set_text_if(label, text != NULL ? text : "");
 }
 
-static void _app_ui_sheet_delete_async(void *object)
-{
-    if (object != NULL && lv_obj_is_valid((lv_obj_t *)object))
-    {
-        lv_obj_delete((lv_obj_t *)object);
-    }
-}
-
 lv_obj_t *app_ui_sheet_open(lv_obj_t *parent, const char *title,
                             const char *message)
 {
@@ -1569,7 +1561,14 @@ void app_ui_sheet_dismiss(lv_obj_t *sheet)
         return;
     }
     lv_obj_set_hidden(sheet, true);
-    (void)lv_async_call(_app_ui_sheet_delete_async, sheet);
+    /* Use LVGL's own deferred delete rather than a private lv_async_call over
+     * the raw pointer. Page teardown deletes the owning root, which frees the
+     * sheet together with it; a private async callback would then reach a
+     * released object and `lv_obj_is_valid()` itself walks the dead node's
+     * parent links, so the check cannot rescue it. lv_obj_delete_async is
+     * cancelled by obj_delete_core() when any ancestor is deleted, so a
+     * pending dismissal evaporates with the tree it pointed into. */
+    lv_obj_delete_async(sheet);
 }
 
 lv_obj_t *app_ui_ring_create(lv_obj_t *parent, int32_t size, int32_t width,

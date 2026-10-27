@@ -457,6 +457,10 @@ lv_obj_t *app_ui_sheet_add_action(lv_obj_t *sheet, const char *text,
  * Hides the sheet immediately and frees it on the next UI cycle so the caller
  * never destroys an object inside its own CLICKED callback.
  *
+ * Safe to call from a page unmount: deleting the owning page root first frees
+ * the sheet with its tree and drops the pending dismissal, so a page that
+ * dismisses and then destroys in the same teardown cannot reach freed memory.
+ *
  * @param sheet is an app_ui_sheet_open handle, or NULL.
  */
 void app_ui_sheet_dismiss(lv_obj_t *sheet);

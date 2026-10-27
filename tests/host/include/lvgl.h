@@ -176,6 +176,11 @@ lv_obj_t *lv_obj_get_child(lv_obj_t *object, int32_t index);
 uint32_t lv_obj_get_child_count(const lv_obj_t *object);
 /** @brief Delete a fake object. */
 void lv_obj_delete(lv_obj_t *object);
+/** @brief No-op deferred delete post for layout-only host tests. */
+static inline void lv_obj_delete_async(lv_obj_t *object)
+{
+    (void)object;
+}
 /** @brief Register a fake object event callback. */
 void lv_obj_add_event_cb(lv_obj_t *object, lv_event_cb_t callback,
                          lv_event_code_t code, void *user_data);
