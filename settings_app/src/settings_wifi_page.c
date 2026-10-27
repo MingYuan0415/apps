@@ -20,10 +20,15 @@ typedef struct settings_wifi_state
     lv_obj_t *forget_status;
     lv_obj_t *scan_hint;
     lv_obj_t *scan_list;
+    lv_obj_t *saved_list;
     lv_obj_t *confirm_sheet;
     lv_timer_t *refresh_timer;
     connectivity_manager_scan_snapshot_t scan;
+    connectivity_manager_profile_snapshot_t profiles;
     uint64_t rendered_scan_generation;
+    uint64_t rendered_profile_generation;
+    size_t confirm_removal;
+    bool confirm_removal_valid;
     bool online_pending;
     bool online_desired;
     uint32_t online_deadline;
@@ -134,8 +139,11 @@ static void _wifi_row_event(lv_event_t *event)
                                APP_UI_STATUS_NEUTRAL);
         return;
     }
+    /* Scan rows address one network; the selected profile must be the clicked
+     * one, not whichever entry happened to be active. */
     connectivity_manager_operation_id_t op = 0U;
-    if (connectivity_manager_request_reconnect_saved(&op) == ESP_OK)
+    if (connectivity_manager_request_connect_network(
+                record->ssid, strlen(record->ssid), &op) == ESP_OK)
     {
         app_ui_set_status_text(state->scan_hint, "正在连接已保存网络",
                                APP_UI_STATUS_ACCENT);
@@ -144,6 +152,114 @@ static void _wifi_row_event(lv_event_t *event)
     {
         app_ui_set_status_text(state->scan_hint, "连接请求提交失败",
                                APP_UI_STATUS_ERROR);
+    }
+}
+
+static void _wifi_forget_confirm(lv_event_t *event);
+static void _wifi_forget_cancel(lv_event_t *event);
+
+/* Row user data packs the profile index so one handler serves every entry. */
+static void _wifi_saved_row_event(lv_event_t *event)
+{
+    settings_wifi_state_t *state = lv_event_get_user_data(event);
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED || state == NULL)
+    {
+        return;
+    }
+    const size_t index = (size_t)(uintptr_t)lv_obj_get_user_data(
+                             lv_event_get_target(event));
+    if (index >= state->profiles.count)
+    {
+        return;
+    }
+    const connectivity_manager_profile_info_t *info =
+        &state->profiles.profiles[index];
+    char message[96];
+
+    if (info->active)
+    {
+        (void)snprintf(message, sizeof(message),
+                       "断开并删除保存的网络“%s”？", info->ssid);
+    }
+    else
+    {
+        (void)snprintf(message, sizeof(message),
+                       "删除保存的网络“%s”？", info->ssid);
+    }
+    state->confirm_sheet = app_ui_sheet_open(state->page.root, "删除网络",
+        message);
+    if (state->confirm_sheet == NULL)
+    {
+        return;
+    }
+    state->confirm_removal = index;
+    state->confirm_removal_valid = true;
+    (void)app_ui_sheet_add_action(state->confirm_sheet, "删除", true,
+                                  _wifi_forget_confirm, state);
+    (void)app_ui_sheet_add_action(state->confirm_sheet, "取消", false,
+                                  _wifi_forget_cancel, state);
+}
+
+static void _wifi_render_saved(settings_wifi_state_t *state)
+{
+    lv_obj_clean(state->saved_list);
+    if (state->profiles.count == 0U)
+    {
+        lv_obj_t *empty = app_ui_add_body_label(state->saved_list,
+                                                "尚未保存任何网络");
+        lv_obj_set_width(empty, LV_PCT(100));
+        lv_obj_set_style_text_color(empty, lv_color_hex(APP_UI_COLOR_MUTED), 0);
+        return;
+    }
+    for (size_t index = 0U; index < state->profiles.count; ++index)
+    {
+        const connectivity_manager_profile_info_t *info =
+            &state->profiles.profiles[index];
+        lv_obj_t *row = lv_button_create(state->saved_list);
+        app_ui_click_only(row);
+        lv_obj_set_width(row, LV_PCT(100));
+        lv_obj_set_height(row, LV_SIZE_CONTENT);
+        lv_obj_set_style_min_height(row, APP_UI_ROW_HEIGHT, 0);
+        lv_obj_set_style_radius(row, APP_UI_RADIUS_CARD, 0);
+        lv_obj_set_style_bg_color(row, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
+        lv_obj_set_style_bg_color(row, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
+                                  LV_STATE_PRESSED);
+        lv_obj_set_style_shadow_width(row, 0, 0);
+        lv_obj_set_style_pad_left(row, 16, 0);
+        lv_obj_set_style_pad_right(row, 14, 0);
+        lv_obj_set_style_pad_top(row, 8, 0);
+        lv_obj_set_style_pad_bottom(row, 8, 0);
+        lv_obj_set_style_pad_row(row, 2, 0);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_user_data(row, (void *)(uintptr_t)index);
+        lv_obj_add_event_cb(row, _wifi_saved_row_event, LV_EVENT_CLICKED, state);
+
+        lv_obj_t *name = lv_label_create(row);
+        lv_obj_set_width(name, LV_PCT(100));
+        lv_label_set_long_mode(name, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_color(name, lv_color_hex(APP_UI_COLOR_TEXT), 0);
+        lv_obj_set_style_text_font(name,
+                                   app_ui_font(APP_THEME_FONT_SMALL), 0);
+        lv_label_set_text(name, info->ssid);
+
+        char detail[40];
+        const char *sec = info->security == CONNECTIVITY_MANAGER_SECURITY_OPEN ?
+                          "开放" :
+                          (info->security ==
+                           CONNECTIVITY_MANAGER_SECURITY_PERSONAL ?
+                           "加密" : "不支持");
+        (void)snprintf(detail, sizeof(detail), "%s%s", sec,
+                       info->active ? " 当前" : "");
+        lv_obj_t *note = lv_label_create(row);
+        lv_obj_set_width(note, LV_PCT(100));
+        lv_obj_set_style_text_color(note,
+                                    lv_color_hex(info->active ?
+                                            APP_UI_COLOR_RAIN : APP_UI_COLOR_MUTED),
+                                    0);
+        lv_obj_set_style_text_font(note, app_ui_font(APP_THEME_FONT_BODY), 0);
+        lv_label_set_text(note, detail);
     }
 }
 
@@ -283,6 +399,14 @@ static void _wifi_refresh(settings_wifi_state_t *state)
             _wifi_render_scan(state);
         }
     }
+    connectivity_manager_profile_snapshot_t profiles;
+    if (connectivity_manager_get_profiles(&profiles) == ESP_OK &&
+            profiles.generation != state->rendered_profile_generation)
+    {
+        state->rendered_profile_generation = profiles.generation;
+        state->profiles = profiles;
+        _wifi_render_saved(state);
+    }
 }
 
 static void _wifi_timer(lv_timer_t *timer)
@@ -382,6 +506,7 @@ static void _wifi_forget_event(lv_event_t *event)
     {
         return;
     }
+    state->confirm_removal_valid = false;
     (void)app_ui_sheet_add_action(state->confirm_sheet, "忘记", true,
                                   _wifi_forget_confirm, state);
     (void)app_ui_sheet_add_action(state->confirm_sheet, "取消", false,
@@ -401,6 +526,7 @@ static void _wifi_forget_cancel(lv_event_t *event)
     }
     app_ui_sheet_dismiss(state->confirm_sheet);
     state->confirm_sheet = NULL;
+    state->confirm_removal_valid = false;
 }
 
 static void _wifi_forget_confirm(lv_event_t *event)
@@ -415,10 +541,25 @@ static void _wifi_forget_confirm(lv_event_t *event)
         return;
     }
     connectivity_manager_operation_id_t op = 0U;
-    const esp_err_t result = connectivity_manager_request_forget(&op);
+    esp_err_t result;
+
+    if (state->confirm_removal_valid &&
+            state->confirm_removal < state->profiles.count)
+    {
+        const connectivity_manager_profile_info_t *info =
+            &state->profiles.profiles[state->confirm_removal];
+
+        result = connectivity_manager_request_forget_network(
+                     info->ssid, strlen(info->ssid), &op);
+    }
+    else
+    {
+        result = connectivity_manager_request_forget(&op);
+    }
+    state->confirm_removal_valid = false;
     lv_obj_set_hidden(state->forget_status, false);
     app_ui_set_status_text(state->forget_status,
-                           result == ESP_OK ? "已忘记网络" : "操作失败",
+                           result == ESP_OK ? "已提交删除" : "操作失败",
                            result == ESP_OK ? APP_UI_STATUS_SUCCESS :
                            APP_UI_STATUS_ERROR);
     app_ui_sheet_dismiss(state->confirm_sheet);
@@ -457,6 +598,7 @@ static void _wifi_mount(const app_manager_page_context_t *context)
     settings_wifi_state_t *state = context->state;
     memset(state, 0, sizeof(*state));
     state->rendered_scan_generation = UINT64_MAX;
+    state->rendered_profile_generation = UINT64_MAX;
     app_ui_page_create(&state->page, "Wi-Fi", true);
 
     lv_obj_t *conn_group = app_ui_group_create(state->page.content);
@@ -476,10 +618,20 @@ static void _wifi_mount(const app_manager_page_context_t *context)
     (void)app_ui_group_add_value(info_group, "IP 地址", "--",
                                  &state->ip_value);
 
+    app_ui_add_section(state->page.content, "已保存网络");
+    state->saved_list = lv_obj_create(state->page.content);
+    lv_obj_remove_style_all(state->saved_list);
+    lv_obj_set_width(state->saved_list, LV_PCT(100));
+    lv_obj_set_height(state->saved_list, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(state->saved_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(state->saved_list, 8, 0);
+    app_ui_make_passive(state->saved_list, false);
+
     lv_obj_t *danger_group = app_ui_group_create(state->page.content);
     state->forget_action = app_ui_group_add_danger(
                                danger_group, LV_SYMBOL_TRASH, "忘记网络",
-                               "清除本机保存的凭据", _wifi_forget_event, state);
+                               "清除已保存的凭据", _wifi_forget_event,
+                               state);
     state->forget_status = app_ui_add_body_label(state->page.content, " ");
     lv_obj_set_hidden(state->forget_status, true);
 
@@ -541,7 +693,9 @@ static void _wifi_unmount(const app_manager_page_context_t *context)
     state->forget_status = NULL;
     state->scan_hint = NULL;
     state->scan_list = NULL;
+    state->saved_list = NULL;
     state->confirm_sheet = NULL;
+    state->confirm_removal_valid = false;
 }
 
 static const app_manager_page_ops_t s_settings_wifi_ops =
