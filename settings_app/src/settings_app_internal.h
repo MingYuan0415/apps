@@ -17,15 +17,15 @@
 #include <stdio.h>
 #include <string.h>
 
-#define SETTINGS_PAGE_DISPLAY       "display"
-#define SETTINGS_PAGE_WIFI          "wifi"
-#define SETTINGS_PAGE_BLUETOOTH     "bluetooth"
+#define SETTINGS_PAGE_DISPLAY       APP_MANAGER_ID_SETTINGS_DISPLAY
+#define SETTINGS_PAGE_WIFI          APP_MANAGER_ID_SETTINGS_WIFI
+#define SETTINGS_PAGE_BLUETOOTH     APP_MANAGER_ID_SETTINGS_BLUETOOTH
 #define SETTINGS_PAGE_DEVICE        "device"
 #define SETTINGS_PAGE_ABOUT         "about"
 #define SETTINGS_PAGE_FACTORY_RESET "factory-reset"
 #define SETTINGS_PAGE_TIME          "time"
 #define SETTINGS_PAGE_STORAGE       "storage"
-#define SETTINGS_PAGE_SOUND         "sound"
+#define SETTINGS_PAGE_SOUND         APP_MANAGER_ID_SETTINGS_SOUND
 
 extern const app_manager_page_definition_t settings_root_page_definition;
 extern const app_manager_page_definition_t settings_display_page_definition;
