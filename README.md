@@ -118,9 +118,10 @@ drivers directly.
   hint and a refusal of destructive operations while occupied) and a factory
   reset confirmation page. The sound page mirrors the control center row: a drag
   applies the level through `audio_service_set_volume()` and stays off flash,
-  the release commits it once through `audio_service_set_volume_persisted()`,
-  and a board without an audio path greys the slider and shows "--" instead of
-  faking a level. Forget network and unbind are confirmed twice in
+  the release applies and queues one commit through
+  `audio_service_set_volume_persisted()`, and a board without an audio path
+  greys the slider and shows "--" instead of faking a level. Forget network and
+  unbind are confirmed twice in
   the in-page bottom sheet; a reset request enters the non-repeatable
   reboot-wait state only after the reset journal is persisted successfully;
   when saving fails the page stays and allows a retry.

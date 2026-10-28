@@ -67,7 +67,8 @@ static void _sound_event(lv_event_t *event)
     }
     else if (lv_event_get_code(event) == LV_EVENT_RELEASED)
     {
-        /* The settled level is applied and persisted once. */
+        /* The settled level is applied now; audio_service queues the one-byte
+         * NVS commit on a flash-safe worker. */
         const esp_err_t result =
             audio_service_set_volume_persisted(percent);
         app_ui_set_status_text(state->status_label,
