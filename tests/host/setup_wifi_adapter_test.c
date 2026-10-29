@@ -19,9 +19,7 @@ static connectivity_manager_operation_id_t s_next_operation;
 static connectivity_manager_operation_id_t s_canceled_operation;
 static bool s_auto_connect_value;
 
-static const uint8_t s_connectivity_manager_message;
-const event_bus_msg_id_t CONNECTIVITY_MANAGER_MSG =
-    &s_connectivity_manager_message;
+EVENT_BUS_DEFINE_ID(CONNECTIVITY_MANAGER_MSG);
 
 esp_err_t event_bus_subscribe(
     event_bus_msg_id_t message_id, uint32_t subtype,
