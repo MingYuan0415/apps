@@ -7,6 +7,7 @@
 
 #include "app_ui.h"
 #include "factory_reset_service.h"
+#include "chore_service.h"
 
 #include <stdbool.h>
 
@@ -22,6 +23,21 @@ _Static_assert(sizeof(settings_factory_reset_state_t) <=
                APP_MANAGER_PAGE_STATE_BYTES,
                "Settings factory-reset state exceeds the lifecycle arena slot");
 
+static void _settings_factory_reset_job(
+    const chore_service_cancel_token_t *cancel, void *arg)
+{
+    (void)cancel;
+    (void)arg;
+    /* The factory-reset journal performs an NVS commit. Never run that on the
+     * LVGL worker: its stack lives in PSRAM and a flash write asserts there. */
+    const esp_err_t result = factory_reset_service_request();
+    if (result != ESP_OK)
+    {
+        LOG_E("factory-reset request failed in worker: %s",
+              esp_err_to_name(result));
+    }
+}
+
 static void _settings_factory_reset_confirm(lv_event_t *event)
 {
     settings_factory_reset_state_t *state = lv_event_get_user_data(event);
@@ -35,7 +51,12 @@ static void _settings_factory_reset_confirm(lv_event_t *event)
     app_ui_set_status_text(state->status_label, "正在保存恢复请求",
                            APP_UI_STATUS_ACCENT);
 
-    esp_err_t result = factory_reset_service_request();
+    const chore_service_job_t job =
+    {
+        .run = _settings_factory_reset_job,
+    };
+    chore_service_handle_t handle;
+    const esp_err_t result = chore_service_submit(&job, &handle);
     if (result == ESP_OK)
     {
         app_ui_set_status_text(state->status_label,

@@ -98,6 +98,7 @@ target_include_directories(settings_factory_reset_page_test PRIVATE
     ../../../app_manager/app_core/include
     ../../../app_manager/app_theme/include
     ../../../middleware/components/factory_reset_service/include
+    ../../../middleware/components/chore_service/include
 )
 
 target_compile_definitions(settings_factory_reset_page_test PRIVATE _GNU_SOURCE)

@@ -1,6 +1,7 @@
 #include "settings_factory_reset_page.h"
 
 #include "factory_reset_service.h"
+#include "chore_service.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -387,6 +388,26 @@ esp_err_t factory_reset_service_request(void)
 {
     ++s_request_count;
     return s_request_result;
+}
+
+esp_err_t chore_service_submit(const chore_service_job_t *job,
+                               chore_service_handle_t *handle)
+{
+    if (job == NULL || job->run == NULL || handle == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+    const chore_service_cancel_token_t cancel = { .requested = NULL };
+    job->run(&cancel, job->arg);
+    if (s_request_result != ESP_OK)
+    {
+        return s_request_result;
+    }
+    *handle = (chore_service_handle_t)
+    {
+        .slot = 1U, .generation = 1U
+    };
+    return ESP_OK;
 }
 
 int main(void)
