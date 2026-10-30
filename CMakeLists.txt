@@ -31,6 +31,7 @@ idf_component_register(
         recorder_service
         onboarding_service
         weather_service
+        music_service
         power_service
         esp_app_format
         esp_hw_support

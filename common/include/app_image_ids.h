@@ -62,6 +62,7 @@
 #define APP_IMAGE_CALCULATOR_ICON             0x5769U
 #define APP_IMAGE_FILES_ICON                  0x576AU
 #define APP_IMAGE_FLYBIRDS_ICON               0x576BU
+#define APP_IMAGE_MUSIC_ICON                   0x576CU
 
 /* Home complication glyphs: 0x5770-0x577F reserved for home_app-owned
  * assets (0x5770/0x5771 retired with the recorder and level cards,

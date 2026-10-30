@@ -37,6 +37,7 @@ generation 快照；库行不再需要「先选中再点按钮」。
 - `settings_app/`：单卡片分组列表（七行：显示与电源、声音、Wi-Fi、蓝牙、连接向导、设备状态、关于与维护；行数超过一屏后该枢纽页竖向滚动）；提供亮度、音量页、固定熄屏/待机延迟选项、电源详情、连接管理、时间状态、运行时固件描述、独立存储页（挂载状态、总量/剩余量、当前操作、重新挂载、刷新容量、安全卸载、二次确认的格式化与格式化恢复，占用时提示并拒绝破坏性操作）及恢复出厂设置确认页。声音页与控制中心那一行同构：拖动经 `audio_service_set_volume()` 即时应用且不写 flash，松手经 `audio_service_set_volume_persisted()` 应用并排队提交一次；无音频通路时滑条置灰并显示「--」，不伪装成可调。忘记网络与解绑在页内底部面板中二次确认；恢复请求只有在 reset journal 持久化成功后才进入不可重复点击的重启等待状态；保存失败时页面保留并允许重试。
 - `setup_app/`：`HIDDEN` 应用，从设置根页的「连接向导」行进入；开启限时 BLE 绑定窗口，显示六位 Numeric Comparison 并在本机确认，同时管理已保存网络的断开、重连、自动连接和忘记操作；网络选择与密码输入在手机侧完成，设备只显示六位 Numeric Comparison 并本机确认。
 - `weather_app/`：展示当前天气、预警、24 小时和 7 日预报，包含预警列表与详情页；只消费 `weather_service` 快照，不执行网络、JSON 或缓存 I/O。
+- `music_app/`：QQ 音乐在线播放器，含首页、歌单、播放、歌词、登录五页。只消费 `music_service` 快照：首页展示个人与推荐歌单，歌单页展示有界歌曲列表，播放页展示封面/歌名/歌手/进度与播放控制，歌词页展示解析后的 LRC，登录页展示微信扫码流程。App 不执行网络、JSON、图片解码或音频 I/O；登录与播放状态由 middleware 服务持有，页面暂停和息屏不影响会话。
 - `flybirds_app/`：单页点击上升躲避游戏，含准备、进行、暂停面板与结算四态；`flybirds_game` 为纯逻辑规则，`flybirds_synth` 在 16 kHz 立体声上合成 8 小节芯片音乐与四种音效，`flybirds_audio` 以单写者任务混音后写入 `audio_service`；音频任务不调用 LVGL，先取得独占 PLAYBACK 租约，外部占用时保持静默并在前台每 2 s 重试，不与其他写者争用 DMA；最高分与音乐/音效开关存于 `flybirds_pref` 版本化 Blob，恢复出厂清除。
   writer 的完成信号先于 synth/PCM 复用；关闭或租约释放失败保留句柄，后续 open/close 重试。页面 PAUSE 只有音频关闭成功后才暂停 tick，失败导航仍可继续游戏；重开时失效的渲染缓存立即刷新 HUD。无音乐且无活跃音效时按 sequencer 边界批量推进相位并输出零 PCM，静音不改变节拍、租约或供给周期；无效偏好 Blob 尺寸使用默认值，实际存储错误继续上报。
 - `tests/host/`：共用导航、天气图标映射表、恢复出厂确认页、Setup Wi-Fi adapter、apps 持久化，以及各 App 纯逻辑模块（`*_math`）的宿主测试及最小依赖 fake；测试目标清单以该目录 `CMakeLists.txt` 的 `add_apps_host_test` 为准。
@@ -116,7 +117,7 @@ set(EXTRA_COMPONENT_DIRS
 )
 ```
 
-在固件入口组件中声明 `PRIV_REQUIRES apps`，确保内置应用归档参与最终链接。工程还需提供 `app_core`、`app_theme`、`event_bus`、`chore_service`、`connectivity_manager`、`device_link_service`、`factory_reset_service`、`time_service`、`timer_service`、`power_service`、`imu_service`、`audio_service`、`sd_storage_service`、`recorder_service`、`weather_service`、`onboarding_service`、`nv_storage`、`freertos`、`heap`、`fatfs`、`esp_app_format`、`esp_hw_support`、`mt_log` 和 LVGL；具体依赖以根 `CMakeLists.txt` 为准。组件要求 ESP-IDF 5.1 或更高版本，并启用外部 RAM task stack 支持。
+在固件入口组件中声明 `PRIV_REQUIRES apps`，确保内置应用归档参与最终链接。工程还需提供 `app_core`、`app_theme`、`event_bus`、`chore_service`、`connectivity_manager`、`device_link_service`、`factory_reset_service`、`time_service`、`timer_service`、`power_service`、`imu_service`、`audio_service`、`sd_storage_service`、`recorder_service`、`weather_service`、`music_service`、`onboarding_service`、`nv_storage`、`freertos`、`heap`、`fatfs`、`esp_app_format`、`esp_hw_support`、`mt_log` 和 LVGL；具体依赖以根 `CMakeLists.txt` 为准。组件要求 ESP-IDF 5.1 或更高版本，并启用外部 RAM task stack 支持。
 
 ## 宿主测试
 

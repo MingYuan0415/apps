@@ -135,6 +135,13 @@ drivers directly.
 - `weather_app/`: shows the current weather, alerts, 24-hour and 7-day
   forecasts, including an alert list and a detail page; it consumes only
   `weather_service` snapshots and performs no network, JSON or cache I/O.
+- `music_app/`: QQ Music online player with five pages (root, playlist, player,
+  lyrics and login). It consumes `music_service` snapshots only: root shows the
+  personal and recommended playlists, playlist shows the bounded song list,
+  player shows cover/title/artist/progress and playback controls, lyrics shows
+  the parsed LRC, and login shows the WeChat QR flow. The App never performs
+  network, JSON, image-decode or audio I/O; playback and login state survive
+  page pauses and screen-off while the middleware service owns the session.
 - `flybirds_app/`: single-page tap-to-rise avoidance game with four states:
   ready, running, paused panel and result; `flybirds_game` is the pure logic
   rules, `flybirds_synth` synthesizes 8 bars of chiptune music and four sound
@@ -304,6 +311,7 @@ provide `app_core`, `app_theme`, `event_bus`, `chore_service`,
 `connectivity_manager`, `device_link_service`, `factory_reset_service`,
 `time_service`, `timer_service`, `power_service`, `imu_service`,
 `audio_service`, `sd_storage_service`, `recorder_service`, `weather_service`,
+`music_service`,
 `onboarding_service`, `nv_storage`, `freertos`, `heap`, `fatfs`,
 `esp_app_format`, `esp_hw_support`, `mt_log` and LVGL; the authoritative
 dependency list is the root `CMakeLists.txt`. The components require ESP-IDF
