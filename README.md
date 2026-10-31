@@ -128,7 +128,7 @@ drivers directly.
 - `setup_app/`: a `HIDDEN` app, entered from the "连接向导" (connection
   wizard) row on the settings root page; it opens a time-limited BLE binding
   window, shows a six-digit Numeric Comparison and confirms it locally, and
-  also manages disconnect, reconnect, auto-connect and forget for saved
+  also manages Wi-Fi enable/disable cycles, reconnect and forget for saved
   networks; network selection and password entry happen on the phone side, and
   the device only shows the six-digit Numeric Comparison and confirms it
   locally.

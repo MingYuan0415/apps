@@ -12,7 +12,6 @@ typedef struct settings_wifi_state
 {
     app_ui_page_t page;
     lv_obj_t *online_switch;
-    lv_obj_t *auto_switch;
     lv_obj_t *status_value;
     lv_obj_t *ssid_value;
     lv_obj_t *ip_value;
@@ -35,10 +34,9 @@ typedef struct settings_wifi_state
     bool confirm_removal_valid;
     bool online_pending;
     bool online_desired;
+    connectivity_manager_operation_id_t online_operation;
+    uint32_t online_started;
     uint32_t online_deadline;
-    bool auto_pending;
-    bool auto_desired;
-    uint32_t auto_deadline;
 } settings_wifi_state_t;
 
 _Static_assert(sizeof(settings_wifi_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -63,9 +61,9 @@ static const char *_wifi_state_text(
     case CONNECTIVITY_MANAGER_STATE_WAITING_IP:
         return "连接中";
     case CONNECTIVITY_MANAGER_STATE_SCANNING:
-        return "扫描中";
+        return "扫描已保存网络";
     case CONNECTIVITY_MANAGER_STATE_RETRY_WAIT:
-        return "重试等待";
+        return "重试中";
     default:
         return "未连接";
     }
@@ -83,6 +81,8 @@ static void _wifi_render_attempt(
      * candidate: the network row alone cannot say whether one attempt is in
      * flight or several are being walked. */
     const bool sweeping = status->attempt_total > 0U &&
+                          status->attempt_ordinal > 0U &&
+                          status->attempt_ordinal <= status->attempt_total &&
                           status->attempt_index < state->profiles.count;
 
     lv_obj_set_hidden(state->attempt_row, !sweeping);
@@ -96,7 +96,7 @@ static void _wifi_render_attempt(
     char counter[16];
 
     (void)snprintf(counter, sizeof(counter), "%u/%u",
-                   (unsigned)(status->attempt_index + 1U),
+                   (unsigned)status->attempt_ordinal,
                    (unsigned)status->attempt_total);
     lv_label_set_text(state->attempt_network, info->ssid);
     lv_label_set_text(state->attempt_value, counter);
@@ -127,30 +127,18 @@ static void _wifi_render_status(
         lv_label_set_text(state->ip_value, "--");
     }
     _wifi_render_attempt(state, status);
+    const bool switch_on = status->wifi_enabled && !status->manual_hold;
     if (!state->online_pending &&
             lv_obj_has_state(state->online_switch, LV_STATE_CHECKED) !=
-            (!status->manual_hold))
+            switch_on)
     {
-        if (status->manual_hold)
-        {
-            lv_obj_remove_state(state->online_switch, LV_STATE_CHECKED);
-        }
-        else
+        if (switch_on)
         {
             lv_obj_add_state(state->online_switch, LV_STATE_CHECKED);
         }
-    }
-    if (!state->auto_pending &&
-            lv_obj_has_state(state->auto_switch, LV_STATE_CHECKED) !=
-            status->auto_connect)
-    {
-        if (status->auto_connect)
-        {
-            lv_obj_add_state(state->auto_switch, LV_STATE_CHECKED);
-        }
         else
         {
-            lv_obj_remove_state(state->auto_switch, LV_STATE_CHECKED);
+            lv_obj_remove_state(state->online_switch, LV_STATE_CHECKED);
         }
     }
 }
@@ -364,29 +352,46 @@ static void _wifi_settle_pending(settings_wifi_state_t *state,
 {
     if (state->online_pending)
     {
-        if ((!status->manual_hold) == state->online_desired)
+        const bool exact_operation = state->online_operation != 0U &&
+                                     status->operation_id ==
+                                     state->online_operation;
+        if (exact_operation && status->operation_complete)
         {
             state->online_pending = false;
+            if (state->online_desired &&
+                    status->state != CONNECTIVITY_MANAGER_STATE_IP_READY)
+            {
+                lv_obj_set_hidden(state->forget_status, false);
+                app_ui_set_status_text(state->forget_status,
+                                       "连接失败，Wi-Fi 已关闭",
+                                       APP_UI_STATUS_ERROR);
+            }
+        }
+        else if (exact_operation &&
+                 (status->state == CONNECTIVITY_MANAGER_STATE_SCANNING ||
+                  status->state == CONNECTIVITY_MANAGER_STATE_CONNECTING ||
+                  status->state == CONNECTIVITY_MANAGER_STATE_WAITING_IP ||
+                  status->state == CONNECTIVITY_MANAGER_STATE_RETRY_WAIT))
+        {
+            /* Long scan/connect cycles are legitimate; wait for their exact
+             * terminal instead of treating the 3 s UI deadline as failure. */
+        }
+        else if (state->online_desired && status->manual_hold &&
+                 !status->wifi_enabled &&
+                 (uint32_t)(lv_tick_get() - state->online_started) >= 300U)
+        {
+            state->online_pending = false;
+            lv_obj_set_hidden(state->forget_status, false);
+            app_ui_set_status_text(state->forget_status,
+                                   "连接失败，Wi-Fi 已关闭",
+                                   APP_UI_STATUS_ERROR);
         }
         else if ((int32_t)(lv_tick_get() - state->online_deadline) >= 0)
         {
             state->online_pending = false;
             lv_obj_set_hidden(state->forget_status, false);
-            app_ui_set_status_text(state->forget_status, "Wi-Fi 开关设置未生效",
-                                   APP_UI_STATUS_ERROR);
-        }
-    }
-    if (state->auto_pending)
-    {
-        if (status->auto_connect == state->auto_desired)
-        {
-            state->auto_pending = false;
-        }
-        else if ((int32_t)(lv_tick_get() - state->auto_deadline) >= 0)
-        {
-            state->auto_pending = false;
-            lv_obj_set_hidden(state->forget_status, false);
-            app_ui_set_status_text(state->forget_status, "自动连接设置未生效",
+            app_ui_set_status_text(state->forget_status,
+                                   "Wi-Fi 开关设置未生效",
                                    APP_UI_STATUS_ERROR);
         }
     }
@@ -461,26 +466,20 @@ static void _wifi_online_event(lv_event_t *event)
     esp_err_t result;
     if (on)
     {
-        connectivity_manager_status_snapshot_t status;
-        if (connectivity_manager_get_status(&status) == ESP_OK &&
-                status.saved_profile)
-        {
-            result = connectivity_manager_request_reconnect_saved(&op);
-        }
-        else
-        {
-            result = connectivity_manager_request_scan(&op);
-        }
+        result = connectivity_manager_request_wifi_enable(&op);
     }
     else
     {
-        result = connectivity_manager_request_disconnect(&op);
+        result = connectivity_manager_request_wifi_disable(&op);
     }
     if (result == ESP_OK)
     {
         state->online_pending = true;
         state->online_desired = on;
-        state->online_deadline = lv_tick_get() + SETTINGS_WIFI_PENDING_MS;
+        state->online_operation = op;
+        state->online_started = lv_tick_get();
+        state->online_deadline = state->online_started +
+                                 SETTINGS_WIFI_PENDING_MS;
         lv_obj_set_hidden(state->forget_status, true);
     }
     else
@@ -492,27 +491,6 @@ static void _wifi_online_event(lv_event_t *event)
     _wifi_refresh(state);
 }
 
-static void _wifi_auto_event(lv_event_t *event)
-{
-    settings_wifi_state_t *state = lv_event_get_user_data(event);
-    connectivity_manager_operation_id_t op = 0U;
-    const bool on = lv_obj_has_state(state->auto_switch, LV_STATE_CHECKED);
-    const esp_err_t result = connectivity_manager_set_auto_connect(on, &op);
-    if (result == ESP_OK)
-    {
-        state->auto_pending = true;
-        state->auto_desired = on;
-        state->auto_deadline = lv_tick_get() + SETTINGS_WIFI_PENDING_MS;
-        lv_obj_set_hidden(state->forget_status, true);
-    }
-    else
-    {
-        lv_obj_set_hidden(state->forget_status, false);
-        app_ui_set_status_text(state->forget_status, "请求提交失败",
-                               APP_UI_STATUS_ERROR);
-    }
-    _wifi_refresh(state);
-}
 
 static void _wifi_forget_confirm(lv_event_t *event);
 static void _wifi_forget_cancel(lv_event_t *event);
@@ -645,9 +623,6 @@ static void _wifi_mount(const app_manager_page_context_t *context)
                                   "关闭后保持离线",
                                   _wifi_online_event, state,
                                   &state->online_switch);
-    (void)app_ui_group_add_switch(conn_group, "自动连接",
-                                  "开机后自动连接",
-                                  _wifi_auto_event, state, &state->auto_switch);
 
     lv_obj_t *info_group = app_ui_group_create(state->page.content);
     (void)app_ui_group_add_value(info_group, "状态", "读取中",
@@ -730,7 +705,6 @@ static void _wifi_unmount(const app_manager_page_context_t *context)
     app_ui_pull_refresh_detach(&s_wifi_page_pull);
     app_ui_page_destroy(&state->page);
     state->online_switch = NULL;
-    state->auto_switch = NULL;
     state->status_value = NULL;
     state->ssid_value = NULL;
     state->ip_value = NULL;

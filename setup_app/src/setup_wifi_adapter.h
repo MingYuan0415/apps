@@ -18,7 +18,6 @@ typedef enum
     SETUP_WIFI_OPERATION_RECONNECT, /**< Saved-profile reconnect is active. */
     SETUP_WIFI_OPERATION_DISCONNECT, /**< Disconnect is active. */
     SETUP_WIFI_OPERATION_FORGET, /**< Forget-profile operation is active. */
-    SETUP_WIFI_OPERATION_POLICY, /**< Auto-connect policy update is active. */
 } setup_wifi_operation_kind_t;
 
 /** @brief Scope of one delivered connectivity snapshot. */
@@ -98,15 +97,6 @@ esp_err_t setup_wifi_adapter_reconnect_saved(setup_wifi_adapter_t *adapter);
  * @return ESP_OK when admitted, otherwise an ESP-IDF error.
  */
 esp_err_t setup_wifi_adapter_forget(setup_wifi_adapter_t *adapter);
-
-/**
- * @brief Persistently update the saved profile's auto-connect policy.
- * @param adapter owns the open manager subscription.
- * @param enabled enables or disables automatic connection.
- * @return ESP_OK when admitted, otherwise an ESP-IDF error.
- */
-esp_err_t setup_wifi_adapter_set_auto_connect(setup_wifi_adapter_t *adapter,
-        bool enabled);
 
 /**
  * @brief Cancel the exact operation owned by the adapter.

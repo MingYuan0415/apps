@@ -174,27 +174,6 @@ static void _setup_forget_event(lv_event_t *event)
     _setup_root_render(state);
 }
 
-static void _setup_auto_connect_event(lv_event_t *event)
-{
-    setup_root_state_t *state = lv_event_get_user_data(event);
-    lv_obj_t *toggle = lv_event_get_target_obj(event);
-    const bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
-    const esp_err_t result = setup_wifi_adapter_set_auto_connect(
-                                 &state->wifi, enabled);
-    if (result != ESP_OK)
-    {
-        if (state->connectivity.auto_connect)
-        {
-            lv_obj_add_state(toggle, LV_STATE_CHECKED);
-        }
-        else
-        {
-            lv_obj_remove_state(toggle, LV_STATE_CHECKED);
-        }
-        _setup_set_status(state, "自动连接未更新",
-                          _setup_command_error(result));
-    }
-}
 
 static void _setup_open_provisioning_event(lv_event_t *event)
 {
@@ -303,39 +282,6 @@ static void _setup_finish_event(lv_event_t *event)
     }
 }
 
-static void _setup_render_auto_connect(setup_root_state_t *state)
-{
-    lv_obj_t *row = lv_obj_create(state->controls);
-    lv_obj_remove_style_all(row);
-    lv_obj_set_width(row, LV_PCT(100));
-    lv_obj_set_height(row, 48);
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    app_ui_make_passive(row, false);
-    lv_obj_t *label = lv_label_create(row);
-    lv_obj_set_style_text_color(label, lv_color_hex(APP_UI_COLOR_TEXT), 0);
-    lv_obj_set_style_text_font(label, app_ui_font(APP_THEME_FONT_BODY), 0);
-    lv_label_set_text(label, "自动连接");
-    lv_obj_t *toggle = lv_switch_create(row);
-    app_ui_click_only(toggle);
-    lv_obj_set_style_bg_color(toggle, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
-                              0);
-    lv_obj_set_style_bg_color(toggle, lv_color_hex(APP_UI_COLOR_RAIN),
-                              LV_PART_INDICATOR | LV_STATE_CHECKED);
-    lv_obj_set_style_bg_color(toggle, lv_color_hex(APP_UI_COLOR_TEXT),
-                              LV_PART_KNOB);
-    if (state->connectivity.auto_connect)
-    {
-        lv_obj_add_state(toggle, LV_STATE_CHECKED);
-    }
-    if (state->device_link_valid && state->device_link.active)
-    {
-        lv_obj_add_state(toggle, LV_STATE_DISABLED);
-    }
-    lv_obj_add_event_cb(toggle, _setup_auto_connect_event,
-                        LV_EVENT_VALUE_CHANGED, state);
-}
 
 static void _setup_render_management(setup_root_state_t *state)
 {
@@ -344,8 +290,8 @@ static void _setup_render_management(setup_root_state_t *state)
     if (status->state == CONNECTIVITY_MANAGER_STATE_IP_READY)
     {
         (void)_setup_add_command(state, APP_IMAGE_UI_CLOSE, LV_SYMBOL_CLOSE,
-                                 "断开连接",
-                                 "本次启动保持离线",
+                                 "关闭 Wi-Fi",
+                                 "关闭后重启仍保持关闭",
                                  _setup_disconnect_event);
     }
     else if (status->saved_profile)
@@ -357,7 +303,6 @@ static void _setup_render_management(setup_root_state_t *state)
     }
     if (status->saved_profile)
     {
-        _setup_render_auto_connect(state);
         (void)_setup_add_command(state, APP_IMAGE_UI_TRASH, LV_SYMBOL_TRASH,
                                  "忘记网络",
                                  "删除保存配置并断开连接",
@@ -419,13 +364,6 @@ static void _setup_root_render(setup_root_state_t *state)
             case SETUP_WIFI_OPERATION_FORGET:
                 _setup_set_status(state, "已忘记网络", "");
                 break;
-            case SETUP_WIFI_OPERATION_POLICY:
-                _setup_set_status(
-                    state,
-                    status->auto_connect ? "自动连接已启用" :
-                    "自动连接已关闭",
-                    status->ssid);
-                break;
             case SETUP_WIFI_OPERATION_NONE:
             default:
                 break;
@@ -436,6 +374,16 @@ static void _setup_root_render(setup_root_state_t *state)
     }
     else
     {
+        if (status->state != CONNECTIVITY_MANAGER_STATE_OFFLINE &&
+                (status->manual_hold || !status->wifi_enabled))
+        {
+            _setup_set_status(state, status->saved_profile ? "已保存网络" :
+                              "当前未连接",
+                              status->saved_profile ? status->ssid :
+                              "请使用手机配置新网络");
+            _setup_render_management(state);
+            goto setup_status_rendered;
+        }
         switch (status->state)
         {
         case CONNECTIVITY_MANAGER_STATE_OFFLINE:
@@ -456,13 +404,13 @@ static void _setup_root_render(setup_root_state_t *state)
                               _setup_failure_detail(status->failure));
             break;
         case CONNECTIVITY_MANAGER_STATE_RETRY_WAIT:
-            _setup_set_status(state, "等待重新连接", status->ssid);
+            _setup_set_status(state, "正在重试连接", status->ssid);
             break;
         case CONNECTIVITY_MANAGER_STATE_SUSPENDED:
             _setup_set_status(state, "Wi-Fi 已暂停", "系统正在待机");
             break;
         case CONNECTIVITY_MANAGER_STATE_SCANNING:
-            _setup_set_status(state, "手机正在扫描", "等待配网请求完成");
+            _setup_set_status(state, "正在扫描已保存网络", "请稍候");
             break;
         case CONNECTIVITY_MANAGER_STATE_IDLE:
         default:
@@ -474,6 +422,8 @@ static void _setup_root_render(setup_root_state_t *state)
         }
         _setup_render_management(state);
     }
+setup_status_rendered:
+    ;
 
     const bool transport_fault = state->device_link_valid &&
                                  state->device_link.active &&

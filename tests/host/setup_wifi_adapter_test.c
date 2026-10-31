@@ -17,7 +17,6 @@ static void *s_subscriber_context;
 static connectivity_manager_status_snapshot_t s_status;
 static connectivity_manager_operation_id_t s_next_operation;
 static connectivity_manager_operation_id_t s_canceled_operation;
-static bool s_auto_connect_value;
 
 EVENT_BUS_DEFINE_ID(CONNECTIVITY_MANAGER_MSG);
 
@@ -57,13 +56,13 @@ static esp_err_t _admit(connectivity_manager_operation_id_t *operation_id)
     return ESP_OK;
 }
 
-esp_err_t connectivity_manager_request_disconnect(
+esp_err_t connectivity_manager_request_wifi_disable(
     connectivity_manager_operation_id_t *operation_id)
 {
     return _admit(operation_id);
 }
 
-esp_err_t connectivity_manager_request_reconnect_saved(
+esp_err_t connectivity_manager_request_wifi_enable(
     connectivity_manager_operation_id_t *operation_id)
 {
     return _admit(operation_id);
@@ -72,13 +71,6 @@ esp_err_t connectivity_manager_request_reconnect_saved(
 esp_err_t connectivity_manager_request_forget(
     connectivity_manager_operation_id_t *operation_id)
 {
-    return _admit(operation_id);
-}
-
-esp_err_t connectivity_manager_set_auto_connect(
-    bool enabled, connectivity_manager_operation_id_t *operation_id)
-{
-    s_auto_connect_value = enabled;
     return _admit(operation_id);
 }
 
@@ -113,7 +105,6 @@ static void _reset(void)
     s_status.last_error = ESP_OK;
     s_next_operation = 10U;
     s_canceled_operation = 0U;
-    s_auto_connect_value = false;
     s_subscriber = NULL;
     s_subscriber_context = NULL;
 }
@@ -177,12 +168,6 @@ static void _test_saved_network_operations(void)
     _emit(&terminal);
     assert(observer.kind == SETUP_WIFI_OPERATION_FORGET);
 
-    assert(setup_wifi_adapter_set_auto_connect(&adapter, true) == ESP_OK);
-    assert(s_auto_connect_value);
-    terminal.generation = 5U;
-    terminal.operation_id = 13U;
-    _emit(&terminal);
-    assert(observer.kind == SETUP_WIFI_OPERATION_POLICY);
     assert(setup_wifi_adapter_close(&adapter) == ESP_OK);
 }
 

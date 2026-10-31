@@ -26,7 +26,7 @@ static bool _setup_wifi_adapter_status_bools_valid(const void *payload)
            bytes[offsetof(connectivity_manager_status_snapshot_t,
                           profile_persisted)] <= 1U &&
            bytes[offsetof(connectivity_manager_status_snapshot_t,
-                          auto_connect)] <= 1U &&
+                          wifi_enabled)] <= 1U &&
            bytes[offsetof(connectivity_manager_status_snapshot_t,
                           manual_hold)] <= 1U &&
            bytes[offsetof(connectivity_manager_status_snapshot_t,
@@ -169,14 +169,14 @@ esp_err_t setup_wifi_adapter_disconnect(setup_wifi_adapter_t *adapter)
 {
     return _setup_wifi_adapter_begin(
                adapter, SETUP_WIFI_OPERATION_DISCONNECT,
-               connectivity_manager_request_disconnect);
+               connectivity_manager_request_wifi_disable);
 }
 
 esp_err_t setup_wifi_adapter_reconnect_saved(setup_wifi_adapter_t *adapter)
 {
     return _setup_wifi_adapter_begin(
                adapter, SETUP_WIFI_OPERATION_RECONNECT,
-               connectivity_manager_request_reconnect_saved);
+               connectivity_manager_request_wifi_enable);
 }
 
 esp_err_t setup_wifi_adapter_forget(setup_wifi_adapter_t *adapter)
@@ -186,28 +186,6 @@ esp_err_t setup_wifi_adapter_forget(setup_wifi_adapter_t *adapter)
                connectivity_manager_request_forget);
 }
 
-esp_err_t setup_wifi_adapter_set_auto_connect(setup_wifi_adapter_t *adapter,
-        bool enabled)
-{
-    if (!setup_wifi_adapter_is_open(adapter) ||
-            setup_wifi_adapter_has_operation(adapter))
-    {
-        return ESP_ERR_INVALID_STATE;
-    }
-    connectivity_manager_operation_id_t operation_id = 0U;
-    esp_err_t result = connectivity_manager_set_auto_connect(
-                           enabled, &operation_id);
-    if (result == ESP_OK && operation_id == 0U)
-    {
-        result = ESP_ERR_INVALID_RESPONSE;
-    }
-    if (result == ESP_OK)
-    {
-        adapter->operation_id = operation_id;
-        adapter->operation_kind = SETUP_WIFI_OPERATION_POLICY;
-    }
-    return result;
-}
 
 esp_err_t setup_wifi_adapter_cancel(setup_wifi_adapter_t *adapter)
 {
