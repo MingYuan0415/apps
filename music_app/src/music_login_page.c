@@ -10,6 +10,7 @@ typedef struct music_login_state
     app_ui_page_t page;
     lv_obj_t *status_label;
     lv_obj_t *qr_object;
+    lv_obj_t *qq_button;
     lv_obj_t *wechat_button;
     music_image_t *qr_image;
     lv_image_dsc_t qr_descriptor;
@@ -51,7 +52,8 @@ static void _login_show_qr(music_login_state_t *state)
         state->qr_object = lv_image_create(state->page.content);
         lv_obj_set_size(state->qr_object, 240, 240);
     }
-    music_ui_show_image(state->qr_object, image, &state->qr_descriptor);
+    music_ui_show_image(state->qr_object, image, &state->qr_descriptor,
+                        240U, 240U);
     lv_obj_set_hidden(state->qr_object, false);
 }
 
@@ -75,19 +77,26 @@ static void _login_update(music_login_state_t *state)
                            status.failure == MUSIC_SERVICE_FAILURE_NONE ?
                            APP_UI_STATUS_NEUTRAL : APP_UI_STATUS_WARNING);
     _login_show_qr(state);
-    if (status.state == MUSIC_SERVICE_STATE_READY)
+    const bool ready = status.state == MUSIC_SERVICE_STATE_READY;
+    if (ready)
     {
         _login_release_qr(state);
-        if (state->wechat_button != NULL)
-        {
-            lv_obj_add_state(state->wechat_button, LV_STATE_DISABLED);
-        }
     }
-    else
+    lv_obj_t *buttons[] = { state->qq_button, state->wechat_button };
+    for (size_t index = 0U; index < sizeof(buttons) / sizeof(buttons[0]);
+            ++index)
     {
-        if (state->wechat_button != NULL)
+        if (buttons[index] == NULL)
         {
-            lv_obj_remove_state(state->wechat_button, LV_STATE_DISABLED);
+            continue;
+        }
+        if (ready)
+        {
+            lv_obj_add_state(buttons[index], LV_STATE_DISABLED);
+        }
+        else
+        {
+            lv_obj_remove_state(buttons[index], LV_STATE_DISABLED);
         }
     }
 }
@@ -116,20 +125,34 @@ static void _login_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
     }
 }
 
-static void _login_wechat_clicked(lv_event_t *event)
+static void _login_start(music_login_state_t *state,
+                         music_login_type_t type)
 {
-    music_login_state_t *state = lv_event_get_user_data(event);
     if (state == NULL)
     {
         return;
     }
+    (void)music_service_login_cancel();
     _login_release_qr(state);
-    const esp_err_t result = music_service_login_begin(MUSIC_LOGIN_TYPE_WECHAT);
+    const esp_err_t result = music_service_login_begin(type);
     if (result != ESP_OK)
     {
         app_ui_set_status_text(state->status_label, "无法开始登录，请稍后重试",
                                APP_UI_STATUS_WARNING);
+        return;
     }
+    app_ui_set_status_text(state->status_label, "正在获取二维码…",
+                           APP_UI_STATUS_NEUTRAL);
+}
+
+static void _login_qq_clicked(lv_event_t *event)
+{
+    _login_start(lv_event_get_user_data(event), MUSIC_LOGIN_TYPE_QQ);
+}
+
+static void _login_wechat_clicked(lv_event_t *event)
+{
+    _login_start(lv_event_get_user_data(event), MUSIC_LOGIN_TYPE_WECHAT);
 }
 
 static void _login_mount(const app_manager_page_context_t *context)
@@ -137,15 +160,18 @@ static void _login_mount(const app_manager_page_context_t *context)
     music_login_state_t *state = context->state;
     state->qr_image = NULL;
     state->qr_object = NULL;
+    state->qq_button = NULL;
+    state->wechat_button = NULL;
     memset(&state->qr_descriptor, 0, sizeof(state->qr_descriptor));
     app_ui_page_create(&state->page, "登录", true);
     (void)app_ui_add_body_label(state->page.content,
-                                "使用微信扫描二维码登录 QQ 音乐。"
-                                "登录态只保存在本机。");
+                                "QQ 或微信登录，登录态仅保存在本机。");
     state->status_label = app_ui_add_body_label(state->page.content,
         "请选择登录方式");
     lv_obj_t *buttons = app_ui_button_row_create(state->page.content,
         APP_UI_BUTTON_HEIGHT);
+    state->qq_button = app_ui_button_create(buttons, "QQ扫码",
+                                            _login_qq_clicked, state);
     state->wechat_button = app_ui_button_create(buttons, "微信扫码",
         _login_wechat_clicked, state);
     state->qr_object = lv_image_create(state->page.content);
@@ -189,6 +215,7 @@ static void _login_unmount(const app_manager_page_context_t *context)
     app_ui_page_destroy(&state->page);
     state->status_label = NULL;
     state->qr_object = NULL;
+    state->qq_button = NULL;
     state->wechat_button = NULL;
 }
 

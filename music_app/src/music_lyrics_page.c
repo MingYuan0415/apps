@@ -17,6 +17,8 @@ typedef struct music_lyrics_state
     music_lyric_snapshot_t *lyric;
     char current_songmid[MUSIC_SERVICE_SONGMID_BYTES];
     uint32_t shown_position;
+    uint16_t lyric_wait_ticks;
+    bool lyric_loading;
     bool lyric_failed;
 } music_lyrics_state_t;
 
@@ -55,6 +57,42 @@ static void _lyrics_build(music_lyrics_state_t *state)
     }
 }
 
+static void _lyrics_acquire(music_lyrics_state_t *state)
+{
+    if (state == NULL || state->current_songmid[0] == '\0')
+    {
+        return;
+    }
+    const music_lyric_snapshot_t *lyric = NULL;
+    const esp_err_t result = music_service_lyric_acquire(
+                                 state->current_songmid, &lyric);
+    if (result == ESP_OK && lyric != NULL)
+    {
+        if (state->lyric != NULL)
+        {
+            music_service_lyric_release(state->lyric);
+        }
+        state->lyric = (music_lyric_snapshot_t *)lyric;
+        state->lyric_loading = false;
+        state->lyric_failed = false;
+        state->lyric_wait_ticks = 0U;
+        _lyrics_build(state);
+        return;
+    }
+    if (result == ESP_ERR_NOT_FOUND)
+    {
+        /* The service queued the request and will publish a LYRIC event
+         * when the snapshot is ready. */
+        state->lyric_loading = true;
+        state->lyric_wait_ticks = 0U;
+        return;
+    }
+    state->lyric_loading = false;
+    state->lyric_failed = true;
+    app_ui_set_status_text(state->status_label, "歌词加载失败",
+                           APP_UI_STATUS_WARNING);
+}
+
 static void _lyrics_timer_cb(lv_timer_t *timer)
 {
     music_lyrics_state_t *state = lv_timer_get_user_data(timer);
@@ -81,19 +119,24 @@ static void _lyrics_timer_cb(lv_timer_t *timer)
         (void)snprintf(state->current_songmid,
                        sizeof(state->current_songmid), "%s", status.songmid);
         state->lyric_failed = false;
-        const music_lyric_snapshot_t *lyric = NULL;
-        const esp_err_t result = music_service_lyric_acquire(
-                                     status.songmid, &lyric);
-        if (result == ESP_OK && lyric != NULL)
+        state->lyric_loading = false;
+        state->lyric_wait_ticks = 0U;
+    }
+    if (state->lyric == NULL && !state->lyric_failed)
+    {
+        if (!state->lyric_loading)
         {
-            state->lyric = (music_lyric_snapshot_t *)lyric;
-            _lyrics_build(state);
+            _lyrics_acquire(state);
         }
-        else if (result != ESP_ERR_NOT_FOUND)
+        else if (state->lyric_wait_ticks < 40U)
         {
-            state->lyric_failed = true;
-            app_ui_set_status_text(state->status_label, "歌词加载失败",
-                                   APP_UI_STATUS_WARNING);
+            ++state->lyric_wait_ticks;
+        }
+        else
+        {
+            /* The event may have been dropped; retry the acquire. */
+            state->lyric_loading = false;
+            state->lyric_wait_ticks = 0U;
         }
     }
     state->shown_position = status.position_ms;
@@ -108,6 +151,21 @@ static void _lyrics_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
     if (state == NULL || state->timer == NULL)
     {
         return;
+    }
+    if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_LYRIC &&
+            payload != NULL && payload_size == sizeof(music_service_event_t))
+    {
+        const music_service_event_t *event = payload;
+        if (event->failure == MUSIC_SERVICE_FAILURE_NONE)
+        {
+            state->lyric_loading = false;
+        }
+        else
+        {
+            state->lyric_failed = true;
+            app_ui_set_status_text(state->status_label, "歌词加载失败",
+                                   APP_UI_STATUS_WARNING);
+        }
     }
     if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_STATUS &&
             payload != NULL && payload_size == sizeof(music_service_event_t))
@@ -130,6 +188,8 @@ static void _lyrics_mount(const app_manager_page_context_t *context)
     state->lyric = NULL;
     state->current_songmid[0] = '\0';
     state->shown_position = 0U;
+    state->lyric_wait_ticks = 0U;
+    state->lyric_loading = false;
     state->lyric_failed = false;
     memset(state->lines, 0, sizeof(state->lines));
     app_ui_page_create(&state->page, "歌词", true);
@@ -144,6 +204,8 @@ static void _lyrics_resume(const app_manager_page_context_t *context)
     (void)event_bus_subscribe(MUSIC_SERVICE_MSG, EVENT_BUS_SUB_TYPE_ANY,
                               _lyrics_event_cb, state, EVENT_BUS_DISPATCH_UI,
                               &state->subscription);
+    state->lyric_loading = false;
+    state->lyric_wait_ticks = 0U;
     state->timer = lv_timer_create(_lyrics_timer_cb, 500U, state);
     _lyrics_timer_cb(state->timer);
 }

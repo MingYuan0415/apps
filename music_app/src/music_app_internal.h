@@ -34,9 +34,10 @@ extern const app_manager_page_definition_t music_login_page_definition;
 void music_ui_format_time(uint32_t milliseconds, char *output,
                           size_t output_size);
 
-/** @brief Show a decoded RGB565 image on an lv_image object. */
+/** @brief Show a decoded RGB565 image fitted into a fixed display box. */
 void music_ui_show_image(lv_obj_t *object, const music_image_t *image,
-                         lv_image_dsc_t *descriptor);
+                         lv_image_dsc_t *descriptor,
+                         uint16_t box_width, uint16_t box_height);
 
 /** @brief Human-readable account/service state. */
 const char *music_ui_state_text(const music_service_status_t *status);

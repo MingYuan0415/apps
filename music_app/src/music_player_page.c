@@ -9,6 +9,7 @@ typedef struct music_player_state
 {
     app_ui_page_t page;
     lv_obj_t *status_label;
+    lv_obj_t *cover_row;
     lv_obj_t *cover_object;
     lv_obj_t *title_label;
     lv_obj_t *artist_label;
@@ -23,6 +24,8 @@ typedef struct music_player_state
     char cover_url[MUSIC_SERVICE_URL_BYTES];
     bool cover_requested;
     bool cover_failed;
+    uint16_t cover_wait_ticks;
+    uint8_t cover_attempts;
 } music_player_state_t;
 
 _Static_assert(sizeof(music_player_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -42,6 +45,25 @@ static uint32_t _player_cover_token(const char *url)
         hash *= 16777619U;
     }
     return hash;
+}
+
+static void _player_release_cover(music_player_state_t *state)
+{
+    if (state->cover_row != NULL)
+    {
+        lv_obj_set_hidden(state->cover_row, true);
+    }
+    if (state->cover_object != NULL)
+    {
+        lv_image_set_src(state->cover_object, NULL);
+        lv_obj_set_hidden(state->cover_object, true);
+    }
+    if (state->cover_image != NULL)
+    {
+        music_service_image_release(state->cover_image);
+        state->cover_image = NULL;
+    }
+    memset(&state->cover_descriptor, 0, sizeof(state->cover_descriptor));
 }
 
 static void _player_update(music_player_state_t *state)
@@ -74,57 +96,73 @@ static void _player_update(music_player_state_t *state)
         app_ui_set_status_text(state->status_label, "",
                                APP_UI_STATUS_NEUTRAL);
     }
-    if (status.cover_url[0] == '\0' && state->cover_image != NULL)
+
+    if (state->cover_requested)
     {
-        if (state->cover_object != NULL)
+        if (state->cover_wait_ticks < UINT16_MAX)
         {
-            lv_image_set_src(state->cover_object, NULL);
-            lv_obj_set_hidden(state->cover_object, true);
+            ++state->cover_wait_ticks;
         }
-        music_service_image_release(state->cover_image);
-        state->cover_image = NULL;
+        if (state->cover_wait_ticks > 40U)
+        {
+            state->cover_requested = false;
+            state->cover_failed = state->cover_attempts >= 2U;
+        }
+    }
+
+    if (status.cover_url[0] == '\0')
+    {
+        _player_release_cover(state);
         state->cover_url[0] = '\0';
         state->cover_requested = false;
         state->cover_failed = false;
+        state->cover_attempts = 0U;
+        state->cover_wait_ticks = 0U;
     }
-    if (status.cover_url[0] != '\0' &&
-            strcmp(state->cover_url, status.cover_url) != 0)
+    else if (strcmp(state->cover_url, status.cover_url) != 0)
     {
+        _player_release_cover(state);
+        (void)snprintf(state->cover_url, sizeof(state->cover_url), "%s",
+                       status.cover_url);
         state->cover_requested = false;
         state->cover_failed = false;
+        state->cover_attempts = 0U;
+        state->cover_wait_ticks = 0U;
     }
-    if (status.cover_url[0] != '\0' &&
-            strcmp(state->cover_url, status.cover_url) != 0 &&
-            !state->cover_requested && !state->cover_failed)
+
+    if (status.cover_url[0] != '\0' && !state->cover_requested &&
+            !state->cover_failed && state->cover_attempts < 2U)
     {
         const music_image_t *image = NULL;
         state->cover_token = _player_cover_token(status.cover_url);
-        (void)snprintf(state->cover_url, sizeof(state->cover_url), "%s",
-                       status.cover_url);
         state->cover_requested = true;
+        state->cover_wait_ticks = 0U;
+        ++state->cover_attempts;
         const esp_err_t result = music_service_image_acquire(
                                      status.cover_url, 200U, 200U,
                                      state->cover_token, &image);
         if (result == ESP_OK && image != NULL)
         {
-            if (state->cover_object != NULL)
-            {
-                lv_image_set_src(state->cover_object, NULL);
-            }
-            music_service_image_release(state->cover_image);
+            _player_release_cover(state);
             state->cover_image = (music_image_t *)image;
             state->cover_requested = false;
             state->cover_failed = false;
+            state->cover_attempts = 0U;
             music_ui_show_image(state->cover_object, image,
-                                &state->cover_descriptor);
+                                &state->cover_descriptor, 200U, 200U);
+            if (state->cover_row != NULL)
+            {
+                lv_obj_set_hidden(state->cover_row, false);
+            }
             lv_obj_set_hidden(state->cover_object, false);
         }
         else if (result != ESP_ERR_NOT_FOUND)
         {
             state->cover_requested = false;
-            state->cover_failed = true;
+            state->cover_failed = state->cover_attempts >= 2U;
         }
     }
+
     char progress[64];
     char position[16];
     char duration[16];
@@ -176,7 +214,16 @@ static void _player_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
         if (event->token == state->cover_token)
         {
             state->cover_requested = false;
-            state->cover_failed = false;
+            state->cover_wait_ticks = 0U;
+            if (event->failure == MUSIC_SERVICE_FAILURE_NONE)
+            {
+                state->cover_failed = false;
+                state->cover_attempts = 0U;
+            }
+            else
+            {
+                state->cover_failed = state->cover_attempts >= 2U;
+            }
         }
     }
     _player_update(state);
@@ -217,12 +264,28 @@ static void _player_mount(const app_manager_page_context_t *context)
 {
     music_player_state_t *state = context->state;
     state->cover_image = NULL;
+    state->cover_row = NULL;
     state->cover_object = NULL;
     state->cover_token = 0U;
     state->cover_url[0] = '\0';
     state->cover_requested = false;
+    state->cover_failed = false;
+    state->cover_wait_ticks = 0U;
+    state->cover_attempts = 0U;
     app_ui_page_create(&state->page, "正在播放", true);
-    state->cover_object = lv_image_create(state->page.content);
+    state->cover_row = lv_obj_create(state->page.content);
+    lv_obj_t *cover_row = state->cover_row;
+    lv_obj_set_width(cover_row, LV_PCT(100));
+    lv_obj_set_height(cover_row, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(cover_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(cover_row, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_bg_opa(cover_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(cover_row, 0, 0);
+    lv_obj_set_style_pad_all(cover_row, 0, 0);
+    lv_obj_set_scroll_dir(cover_row, LV_DIR_NONE);
+    lv_obj_set_hidden(cover_row, true);
+    state->cover_object = lv_image_create(cover_row);
     lv_obj_set_size(state->cover_object, 200, 200);
     lv_obj_set_hidden(state->cover_object, true);
     state->title_label = app_ui_add_body_label(state->page.content,
@@ -270,6 +333,10 @@ static esp_err_t _player_pause(const app_manager_page_context_t *context)
         (void)event_bus_unsubscribe(state->subscription);
         state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     }
+    _player_release_cover(state);
+    state->cover_requested = false;
+    state->cover_attempts = 0U;
+    state->cover_wait_ticks = 0U;
     return ESP_OK;
 }
 
@@ -287,6 +354,7 @@ static void _player_unmount(const app_manager_page_context_t *context)
     }
     memset(&state->cover_descriptor, 0, sizeof(state->cover_descriptor));
     app_ui_page_destroy(&state->page);
+    state->cover_row = NULL;
     state->cover_object = NULL;
     state->title_label = NULL;
     state->artist_label = NULL;

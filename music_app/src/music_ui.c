@@ -4,12 +4,15 @@
 #include <string.h>
 
 void music_ui_show_image(lv_obj_t *object, const music_image_t *image,
-                         lv_image_dsc_t *descriptor)
+                         lv_image_dsc_t *descriptor,
+                         uint16_t box_width, uint16_t box_height)
 {
 #ifdef HOST_TEST
     (void)object;
     (void)image;
     (void)descriptor;
+    (void)box_width;
+    (void)box_height;
 #else
     if (object == NULL || image == NULL || descriptor == NULL)
     {
@@ -23,6 +26,19 @@ void music_ui_show_image(lv_obj_t *object, const music_image_t *image,
     descriptor->header.stride = (uint32_t)image->width * 2U;
     descriptor->data_size = image->data_size;
     descriptor->data = image->pixels;
+    uint32_t zoom = 256U;
+    if (box_width > 0U && box_height > 0U &&
+            image->width > 0U && image->height > 0U)
+    {
+        const uint32_t zoom_x = (uint32_t)box_width * 256U / image->width;
+        const uint32_t zoom_y = (uint32_t)box_height * 256U / image->height;
+        zoom = zoom_x < zoom_y ? zoom_x : zoom_y;
+        if (zoom == 0U)
+        {
+            zoom = 1U;
+        }
+    }
+    lv_image_set_scale(object, zoom);
     lv_image_set_src(object, descriptor);
 #endif
 }
