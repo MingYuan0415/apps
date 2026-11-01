@@ -136,12 +136,16 @@ drivers directly.
   forecasts, including an alert list and a detail page; it consumes only
   `weather_service` snapshots and performs no network, JSON or cache I/O.
 - `music_app/`: QQ Music online player with five pages (root, playlist, player,
-  lyrics and login). It consumes `music_service` snapshots only: root shows the
-  personal and recommended playlists, playlist shows the bounded song list,
-  player shows cover/title/artist/progress and playback controls, lyrics shows
-  the parsed LRC, and login shows the WeChat QR flow. The App never performs
-  network, JSON, image-decode or audio I/O; playback and login state survive
-  page pauses and screen-off while the middleware service owns the session.
+  lyrics and login). It consumes `music_service` snapshots only: root presents a
+  recommended playlist lead, grouped personal/recommended playlists and a
+  conditional mini-player; playlist shows the bounded song list with paged
+  loading; player shows cover, metadata, queue/quality state and transport
+  controls; lyrics keeps a seven-line current-track window; and account handles
+  QQ/WeChat QR states, cancellation, retry and confirmed logout. The App never
+  performs network, JSON, image-decode or audio I/O; playback and login state
+  survive page pauses and screen-off while the middleware service owns the
+  session. Seeking, buffered ranges, downloads and queue editing are absent
+  because the service does not expose them.
 - `flybirds_app/`: single-page tap-to-rise avoidance game with four states:
   ready, running, paused panel and result; `flybirds_game` is the pure logic
   rules, `flybirds_synth` synthesizes 8 bars of chiptune music and four sound

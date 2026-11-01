@@ -59,6 +59,7 @@ typedef struct lv_draw_buf
 #define LV_ALIGN_TOP_LEFT           0
 #define LV_ALIGN_BOTTOM_RIGHT       6
 #define LV_ALIGN_BOTTOM_LEFT        4
+#define LV_IMAGE_ALIGN_COVER        12
 #define LV_DIR_NONE                 0
 #define LV_DIR_VER                  1
 /* Mirrors the LVGL 9.6 enum: production code that registers LV_EVENT_ALL and
@@ -79,6 +80,8 @@ typedef struct lv_draw_buf
 #define LV_FLEX_ALIGN_CENTER        1
 #define LV_FLEX_ALIGN_SPACE_BETWEEN 2
 #define LV_FLEX_ALIGN_START         0
+#define LV_FLEX_ALIGN_END           3
+#define LV_FLEX_ALIGN_SPACE_EVENLY  4
 #define LV_FLEX_FLOW_COLUMN         0
 #define LV_FLEX_FLOW_ROW            1
 #define LV_FONT_DEFAULT             ((const lv_font_t *)0)
@@ -136,6 +139,10 @@ typedef struct lv_draw_buf
 #define LV_SYMBOL_POWER             "power"
 #define LV_SYMBOL_PLAY              "play"
 #define LV_SYMBOL_PAUSE             "pause"
+#define LV_SYMBOL_PREV              "previous"
+#define LV_SYMBOL_NEXT              "next"
+#define LV_SYMBOL_SHUFFLE           "shuffle"
+#define LV_SYMBOL_LOOP              "loop"
 #define LV_SYMBOL_STOP              "stop"
 #define LV_SYMBOL_PLUS              "plus"
 #define LV_SYMBOL_MINUS             "minus"
@@ -170,6 +177,14 @@ void lv_arc_set_rotation(lv_obj_t *object, int32_t rotation);
 void lv_obj_remove_style(lv_obj_t *object, void *style, int selector);
 /** @brief Set a fake image source. */
 void lv_image_set_src(lv_obj_t *object, const lv_image_dsc_t *source);
+/** @brief Set a fake image scale. */
+void lv_image_set_scale(lv_obj_t *object, uint32_t scale);
+/** @brief No-op image content alignment for layout-only host tests. */
+static inline void lv_image_set_inner_align(lv_obj_t *object, int align)
+{
+    (void)object;
+    (void)align;
+}
 /** @brief Return the index-th live fake child, or NULL. */
 lv_obj_t *lv_obj_get_child(lv_obj_t *object, int32_t index);
 /** @brief Return the number of live fake children. */
@@ -317,8 +332,12 @@ APPS_HOST_LV_NOOP_3(lv_obj_set_style_radius, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_shadow_width, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_border_width, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_border_color, lv_obj_t *, lv_color_t, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_border_opa, lv_obj_t *, int, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_border_side, lv_obj_t *, int, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_clip_corner, lv_obj_t *, bool, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_align, lv_obj_t *, int, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_color, lv_obj_t *, lv_color_t, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_opa, lv_obj_t *, int, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_image_recolor, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_image_recolor_opa, lv_obj_t *, int, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_line_space, lv_obj_t *, int32_t, int)

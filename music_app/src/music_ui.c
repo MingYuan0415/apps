@@ -3,6 +3,47 @@
 #include <stdio.h>
 #include <string.h>
 
+#define MUSIC_UI_COVER_RADIUS       APP_UI_RADIUS_CONTROL
+#define MUSIC_UI_LIST_COVER_RADIUS  10
+#define MUSIC_UI_ROW_PAD            8
+#define MUSIC_UI_ORDINAL_WIDTH      28
+
+static lv_obj_t *_music_ui_passive_box(lv_obj_t *parent)
+{
+    lv_obj_t *box = lv_obj_create(parent);
+    if (box == NULL)
+    {
+        return NULL;
+    }
+    lv_obj_remove_style_all(box);
+    lv_obj_set_height(box, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_row(box, 1, 0);
+    app_ui_make_passive(box, false);
+    return box;
+}
+
+static lv_obj_t *_music_ui_row_label(lv_obj_t *parent, const char *text,
+                                     app_theme_font_id_t font,
+                                     uint32_t color, bool one_line)
+{
+    lv_obj_t *label = lv_label_create(parent);
+    if (label == NULL)
+    {
+        return NULL;
+    }
+    lv_obj_set_width(label, LV_PCT(100));
+    lv_label_set_long_mode(label, one_line ? LV_LABEL_LONG_DOT :
+                           LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_font(label, app_ui_font(font), 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(color), 0);
+    lv_label_set_text(label, text != NULL ? text : "");
+    app_ui_make_passive(label, false);
+    return label;
+}
+
 void music_ui_show_image(lv_obj_t *object, const music_image_t *image,
                          lv_image_dsc_t *descriptor,
                          uint16_t box_width, uint16_t box_height)
@@ -43,78 +84,138 @@ void music_ui_show_image(lv_obj_t *object, const music_image_t *image,
 #endif
 }
 
-void music_ui_format_time(uint32_t milliseconds, char *output,
-                          size_t output_size)
+void music_ui_cover_create(music_ui_cover_t *cover, lv_obj_t *parent,
+                           const char *fallback_symbol, int32_t size)
 {
-    if (output == NULL || output_size == 0U)
+    if (cover == NULL)
     {
         return;
     }
-    const uint32_t seconds = milliseconds / 1000U;
-    (void)snprintf(output, output_size, "%u:%02u",
-                   (unsigned)(seconds / 60U), (unsigned)(seconds % 60U));
+    memset(cover, 0, sizeof(*cover));
+    cover->size = size > 0 ? size : MUSIC_UI_LIST_COVER;
+    cover->frame = lv_obj_create(parent);
+    if (cover->frame == NULL)
+    {
+        return;
+    }
+    lv_obj_remove_style_all(cover->frame);
+    lv_obj_set_size(cover->frame, cover->size, cover->size);
+    lv_obj_set_style_radius(cover->frame, MUSIC_UI_COVER_RADIUS, 0);
+    lv_obj_set_style_bg_color(cover->frame,
+                              lv_color_hex(APP_UI_COLOR_RAIN_TINT), 0);
+    lv_obj_set_style_bg_opa(cover->frame, LV_OPA_COVER, 0);
+    lv_obj_set_style_clip_corner(cover->frame, true, 0);
+    app_ui_make_passive(cover->frame, false);
+
+    cover->placeholder = app_ui_image(cover->frame, APP_IMAGE_MUSIC_ICON,
+                                      fallback_symbol != NULL ?
+                                      fallback_symbol : LV_SYMBOL_AUDIO,
+                                      cover->size / 2);
+    if (cover->placeholder != NULL)
+    {
+        app_ui_icon_set_color(cover->placeholder, APP_UI_COLOR_RAIN);
+        lv_obj_center(cover->placeholder);
+    }
+    cover->image_object = lv_image_create(cover->frame);
+    if (cover->image_object != NULL)
+    {
+        lv_obj_set_size(cover->image_object, cover->size, cover->size);
+        lv_obj_center(cover->image_object);
+        app_ui_make_passive(cover->image_object, false);
+        lv_obj_set_hidden(cover->image_object, true);
+    }
 }
 
-const char *music_ui_state_text(const music_service_status_t *status)
+void music_ui_cover_set_image(music_ui_cover_t *cover, music_image_t *image)
 {
-    if (status == NULL)
+    if (cover == NULL || image == NULL || cover->image_object == NULL)
     {
-        return "音乐服务不可用";
+        if (cover != NULL && image != NULL)
+        {
+            music_service_image_release(image);
+        }
+        return;
     }
-    switch (status->state)
+    if (cover->image != NULL)
     {
-    case MUSIC_SERVICE_STATE_WAITING_NETWORK:
-        return "等待网络";
-    case MUSIC_SERVICE_STATE_WAITING_TIME:
-        return "正在同步时间";
-    case MUSIC_SERVICE_STATE_LOGGED_OUT:
-        return "未登录";
-    case MUSIC_SERVICE_STATE_QR_READY:
-        return "请扫码登录";
-    case MUSIC_SERVICE_STATE_QR_SCANNED:
-        return "已扫码，请确认";
-    case MUSIC_SERVICE_STATE_AUTHENTICATING:
-        return "正在登录";
-    case MUSIC_SERVICE_STATE_READY:
-        return status->logged_in ? "已登录" : "未登录";
-    case MUSIC_SERVICE_STATE_AUTH_REQUIRED:
-        return "登录已过期";
-    case MUSIC_SERVICE_STATE_ERROR:
-        return "服务异常";
-    default:
-        return "音乐服务不可用";
+        music_service_image_release(cover->image);
+    }
+    cover->image = image;
+    music_ui_show_image(cover->image_object, image, &cover->descriptor,
+                        (uint16_t)cover->size, (uint16_t)cover->size);
+    lv_image_set_inner_align(cover->image_object, LV_IMAGE_ALIGN_COVER);
+    lv_obj_set_hidden(cover->image_object, false);
+    if (cover->placeholder != NULL)
+    {
+        lv_obj_set_hidden(cover->placeholder, true);
     }
 }
 
-const char *music_ui_failure_text(music_service_failure_t failure)
+bool music_ui_cover_accept_event(music_ui_cover_t *cover, uint32_t token,
+                                 const char *url,
+                                 const music_service_event_t *event)
 {
-    switch (failure)
+    if (cover == NULL || url == NULL || url[0] == '\0' || event == NULL ||
+            event->token != token ||
+            event->failure != MUSIC_SERVICE_FAILURE_NONE)
     {
-    case MUSIC_SERVICE_FAILURE_NETWORK:
-        return "网络不可用";
-    case MUSIC_SERVICE_FAILURE_TIME:
-        return "系统时间未同步";
-    case MUSIC_SERVICE_FAILURE_AUTH:
-        return "登录态已失效";
-    case MUSIC_SERVICE_FAILURE_RATE_LIMIT:
-        return "请求过于频繁";
-    case MUSIC_SERVICE_FAILURE_API:
-        return "音乐服务返回异常";
-    case MUSIC_SERVICE_FAILURE_PARSE:
-        return "音乐数据解析失败";
-    case MUSIC_SERVICE_FAILURE_NO_PERMISSION:
-        return "该歌曲暂无播放权限";
-    case MUSIC_SERVICE_FAILURE_AUDIO_BUSY:
-        return "音频被其他功能占用";
-    case MUSIC_SERVICE_FAILURE_DECODE:
-        return "音频解码失败";
-    case MUSIC_SERVICE_FAILURE_STORAGE:
-        return "登录态保存失败";
-    case MUSIC_SERVICE_FAILURE_INTERNAL:
-        return "内部错误";
-    default:
-        return "请稍后重试";
+        return false;
     }
+    const music_image_t *image = NULL;
+    if (music_service_image_acquire(url, (uint16_t)cover->size,
+                                    (uint16_t)cover->size, token,
+                                    &image) != ESP_OK ||
+            image == NULL)
+    {
+        return false;
+    }
+    music_ui_cover_set_image(cover, (music_image_t *)image);
+    return true;
+}
+
+void music_ui_cover_release(music_ui_cover_t *cover)
+{
+    if (cover == NULL)
+    {
+        return;
+    }
+    if (cover->image_object != NULL)
+    {
+        lv_image_set_src(cover->image_object, NULL);
+        lv_obj_set_hidden(cover->image_object, true);
+    }
+    if (cover->placeholder != NULL)
+    {
+        lv_obj_set_hidden(cover->placeholder, false);
+    }
+    if (cover->image != NULL)
+    {
+        music_service_image_release(cover->image);
+        cover->image = NULL;
+    }
+    memset(&cover->descriptor, 0, sizeof(cover->descriptor));
+}
+
+static lv_obj_t *_music_ui_row_create(lv_obj_t *parent)
+{
+    lv_obj_t *row = lv_button_create(parent);
+    if (row == NULL)
+    {
+        return NULL;
+    }
+    app_ui_click_only(row);
+    lv_obj_set_width(row, LV_PCT(100));
+    lv_obj_set_height(row, MUSIC_UI_ROW_HEIGHT);
+    lv_obj_set_style_radius(row, APP_UI_RADIUS_CONTROL, 0);
+    lv_obj_set_style_bg_color(row, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
+    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(row, 0, 0);
+    lv_obj_set_style_pad_all(row, MUSIC_UI_ROW_PAD, 0);
+    lv_obj_set_style_pad_column(row, 10, 0);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    return row;
 }
 
 lv_obj_t *music_ui_add_playlist_row(lv_obj_t *parent,
@@ -126,12 +227,39 @@ lv_obj_t *music_ui_add_playlist_row(lv_obj_t *parent,
     {
         return NULL;
     }
+    lv_obj_t *row = _music_ui_row_create(parent);
+    if (row == NULL)
+    {
+        return NULL;
+    }
+    music_ui_cover_t cover;
+    music_ui_cover_create(&cover, row, LV_SYMBOL_AUDIO, MUSIC_UI_LIST_COVER);
+    lv_obj_t *text = _music_ui_passive_box(row);
+    if (text == NULL)
+    {
+        return row;
+    }
+    lv_obj_set_width(text, 0);
+    lv_obj_set_flex_grow(text, 1);
+    (void)_music_ui_row_label(text, playlist->title, APP_THEME_FONT_BODY,
+                              APP_UI_COLOR_TEXT, true);
     char subtitle[96];
     (void)snprintf(subtitle, sizeof(subtitle), "%s · %u 首",
                    playlist->creator[0] == '\0' ? "QQ 音乐" : playlist->creator,
                    (unsigned)playlist->track_count);
-    return app_ui_add_action(parent, LV_SYMBOL_AUDIO, playlist->title,
-                             subtitle, callback, user_data);
+    (void)_music_ui_row_label(text, subtitle, APP_THEME_FONT_SMALL,
+                              APP_UI_COLOR_MUTED, true);
+    lv_obj_t *chevron = app_ui_image(row, APP_IMAGE_UI_CHEVRON_RIGHT,
+                                     LV_SYMBOL_RIGHT, 20);
+    if (chevron != NULL)
+    {
+        app_ui_icon_set_color(chevron, APP_UI_COLOR_FAINT);
+    }
+    if (callback != NULL)
+    {
+        lv_obj_add_event_cb(row, callback, LV_EVENT_CLICKED, user_data);
+    }
+    return row;
 }
 
 lv_obj_t *music_ui_add_song_row(lv_obj_t *parent, const music_song_t *song,
@@ -142,11 +270,53 @@ lv_obj_t *music_ui_add_song_row(lv_obj_t *parent, const music_song_t *song,
     {
         return NULL;
     }
-    char title[160];
-    (void)snprintf(title, sizeof(title), "%u. %s", (unsigned)(index + 1U),
-                   song->title);
-    return app_ui_add_action(parent, LV_SYMBOL_PLAY, title,
-                             song->artist, callback, user_data);
+    lv_obj_t *row = _music_ui_row_create(parent);
+    if (row == NULL)
+    {
+        return NULL;
+    }
+    char ordinal[8];
+    (void)snprintf(ordinal, sizeof(ordinal), "%u", (unsigned)(index + 1U));
+    lv_obj_t *number = _music_ui_row_label(row, ordinal, APP_THEME_FONT_SMALL,
+                                           APP_UI_COLOR_FAINT, true);
+    lv_obj_set_width(number, MUSIC_UI_ORDINAL_WIDTH);
+    lv_obj_set_style_text_align(number, LV_TEXT_ALIGN_CENTER, 0);
+
+    lv_obj_t *text = _music_ui_passive_box(row);
+    if (text == NULL)
+    {
+        return row;
+    }
+    lv_obj_set_width(text, 0);
+    lv_obj_set_flex_grow(text, 1);
+    (void)_music_ui_row_label(text, song->title, APP_THEME_FONT_BODY,
+                              APP_UI_COLOR_TEXT, true);
+    char detail[MUSIC_SERVICE_ARTIST_BYTES + MUSIC_SERVICE_ALBUM_BYTES + 4U];
+    if (song->album[0] != '\0')
+    {
+        (void)snprintf(detail, sizeof(detail), "%s · %s",
+                       song->artist[0] == '\0' ? "未知歌手" : song->artist,
+                       song->album);
+    }
+    else
+    {
+        (void)snprintf(detail, sizeof(detail), "%s",
+                       song->artist[0] == '\0' ? "未知歌手" : song->artist);
+    }
+    (void)_music_ui_row_label(text, detail, APP_THEME_FONT_SMALL,
+                              APP_UI_COLOR_MUTED, true);
+
+    char duration[16];
+    music_ui_format_time(song->duration_ms, duration, sizeof(duration));
+    lv_obj_t *time = _music_ui_row_label(row, duration, APP_THEME_FONT_SMALL,
+                                         APP_UI_COLOR_FAINT, true);
+    lv_obj_set_width(time, 46);
+    lv_obj_set_style_text_align(time, LV_TEXT_ALIGN_RIGHT, 0);
+    if (callback != NULL)
+    {
+        lv_obj_add_event_cb(row, callback, LV_EVENT_CLICKED, user_data);
+    }
+    return row;
 }
 
 static void _music_navigation_complete(esp_err_t result, void *context)

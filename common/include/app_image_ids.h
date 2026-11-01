@@ -90,4 +90,12 @@
 #define APP_IMAGE_UI_FOLDER                   0x578EU
 #define APP_IMAGE_UI_FILE                     0x578FU
 
+/* Music playback glyphs: 0x57C0-0x57CF reserved for music_app-owned
+ * controls. Baked in neutral INK and recolored at runtime. */
+#define APP_IMAGE_MUSIC_PREV                  0x57C0U
+#define APP_IMAGE_MUSIC_PLAY                  0x57C1U
+#define APP_IMAGE_MUSIC_PAUSE                 0x57C2U
+#define APP_IMAGE_MUSIC_NEXT                  0x57C3U
+#define APP_IMAGE_MUSIC_STOP                  0x57C4U
+
 #endif /* __APP_IMAGE_IDS_H__ */

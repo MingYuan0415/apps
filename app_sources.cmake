@@ -48,6 +48,7 @@ set(APP_SRCS
     "weather_app/src/weather_forecast_page.c"
     "weather_app/src/weather_alert_pages.c"
     "music_app/src/music_app.c"
+    "music_app/src/music_ui_state.c"
     "music_app/src/music_ui.c"
     "music_app/src/music_root_page.c"
     "music_app/src/music_playlist_page.c"

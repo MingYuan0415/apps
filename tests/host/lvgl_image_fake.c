@@ -11,6 +11,12 @@ void lv_image_set_src(lv_obj_t *object, const lv_image_dsc_t *source)
     (void)source;
 }
 
+void lv_image_set_scale(lv_obj_t *object, uint32_t scale)
+{
+    (void)object;
+    (void)scale;
+}
+
 esp_err_t app_manager_get_image(uint32_t semantic_id,
                                 const lv_image_dsc_t **image)
 {

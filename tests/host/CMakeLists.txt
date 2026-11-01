@@ -244,6 +244,25 @@ configure_apps_host_target(calendar_math_test)
 
 add_apps_host_test(calendar_math_test calendar_math_test)
 
+add_executable(music_ui_state_test
+    music_ui_state_test.c
+    ../../music_app/src/music_ui_state.c
+)
+
+target_include_directories(music_ui_state_test PRIVATE
+    include
+    ../../music_app/src
+    ../../../middleware/components/music_service/include
+    ../../../middleware/components/event_bus/include
+    ../../../app_manager/app_core/include
+    ../../../app_manager/app_theme/include
+)
+
+configure_apps_host_target(music_ui_state_test)
+target_link_libraries(music_ui_state_test PRIVATE Threads::Threads)
+
+add_apps_host_test(music_ui_state_test music_ui_state_test)
+
 add_executable(calculator_math_test
     calculator_math_test.c
     ../../calculator_app/src/calculator_math.c
