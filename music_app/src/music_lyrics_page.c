@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MUSIC_LYRIC_VISIBLE_LINES MUSIC_SERVICE_MAX_LYRIC_LINES
+#define MUSIC_LYRIC_VISIBLE_LINES 11U
 
 typedef struct music_lyrics_state
 {
@@ -17,6 +17,7 @@ typedef struct music_lyrics_state
     music_lyric_snapshot_t *lyric;
     char current_songmid[MUSIC_SERVICE_SONGMID_BYTES];
     uint32_t shown_position;
+    size_t current_line;
     uint16_t lyric_wait_ticks;
     bool lyric_loading;
     bool lyric_failed;
@@ -37,6 +38,18 @@ static void _lyrics_clear(music_lyrics_state_t *state)
     }
 }
 
+static size_t _lyrics_index_at(const music_lyric_snapshot_t *lyric,
+                               uint32_t position_ms)
+{
+    size_t index = 0U;
+    while (lyric != NULL && index + 1U < lyric->line_count &&
+            lyric->lines[index + 1U].offset_ms <= position_ms)
+    {
+        ++index;
+    }
+    return index;
+}
+
 static void _lyrics_build(music_lyrics_state_t *state)
 {
     _lyrics_clear(state);
@@ -46,14 +59,29 @@ static void _lyrics_build(music_lyrics_state_t *state)
                                APP_UI_STATUS_NEUTRAL);
         return;
     }
-    app_ui_set_status_text(state->status_label, "歌词", APP_UI_STATUS_NEUTRAL);
-    const size_t count = state->lyric->line_count < MUSIC_LYRIC_VISIBLE_LINES ?
-                         state->lyric->line_count : MUSIC_LYRIC_VISIBLE_LINES;
-    for (size_t index = 0U; index < count; ++index)
+    const size_t center = _lyrics_index_at(state->lyric,
+                                           state->shown_position);
+    state->current_line = center;
+    size_t first = center > 5U ? center - 5U : 0U;
+    if (first + MUSIC_LYRIC_VISIBLE_LINES > state->lyric->line_count)
     {
-        lv_obj_t *label = app_ui_add_body_label(state->page.content,
-                                                state->lyric->lines[index].text);
-        state->lines[index] = label;
+        first = state->lyric->line_count > MUSIC_LYRIC_VISIBLE_LINES ?
+                state->lyric->line_count - MUSIC_LYRIC_VISIBLE_LINES : 0U;
+    }
+    app_ui_set_status_text(state->status_label, "歌词", APP_UI_STATUS_NEUTRAL);
+    for (size_t index = 0U; index < MUSIC_LYRIC_VISIBLE_LINES; ++index)
+    {
+        const size_t line = first + index;
+        if (line >= state->lyric->line_count)
+        {
+            break;
+        }
+        char text[MUSIC_SERVICE_LYRIC_TEXT_BYTES + 4U];
+        (void)snprintf(text, sizeof(text), "%s%s",
+                       line == center ? "▶ " : "",
+                       state->lyric->lines[line].text);
+        state->lines[index] = app_ui_add_body_label(state->page.content,
+            text);
     }
 }
 
@@ -140,6 +168,15 @@ static void _lyrics_timer_cb(lv_timer_t *timer)
         }
     }
     state->shown_position = status.position_ms;
+    if (state->lyric != NULL)
+    {
+        const size_t current = _lyrics_index_at(state->lyric,
+                                                state->shown_position);
+        if (current != state->current_line)
+        {
+            _lyrics_build(state);
+        }
+    }
 }
 
 static void _lyrics_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
@@ -167,18 +204,6 @@ static void _lyrics_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
                                    APP_UI_STATUS_WARNING);
         }
     }
-    if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_STATUS &&
-            payload != NULL && payload_size == sizeof(music_service_event_t))
-    {
-        const music_service_event_t *event = payload;
-        if (event->failure != MUSIC_SERVICE_FAILURE_NONE &&
-                state->lyric == NULL && state->current_songmid[0] != '\0')
-        {
-            state->lyric_failed = true;
-            app_ui_set_status_text(state->status_label, "歌词加载失败",
-                                   APP_UI_STATUS_WARNING);
-        }
-    }
     _lyrics_timer_cb(state->timer);
 }
 
@@ -188,6 +213,7 @@ static void _lyrics_mount(const app_manager_page_context_t *context)
     state->lyric = NULL;
     state->current_songmid[0] = '\0';
     state->shown_position = 0U;
+    state->current_line = 0U;
     state->lyric_wait_ticks = 0U;
     state->lyric_loading = false;
     state->lyric_failed = false;

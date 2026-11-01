@@ -175,7 +175,9 @@ static void _player_update(music_player_state_t *state)
                            "暂停" :
                            status.state == MUSIC_PLAYBACK_BUFFERING ?
                            "缓冲中" : "播放");
-    if (status.state == MUSIC_PLAYBACK_BUFFERING)
+    if (status.state == MUSIC_PLAYBACK_BUFFERING ||
+            status.state == MUSIC_PLAYBACK_ERROR ||
+            status.title[0] == '\0')
     {
         lv_obj_add_state(state->play_button, LV_STATE_DISABLED);
     }
@@ -316,7 +318,7 @@ static void _player_resume(const app_manager_page_context_t *context)
     (void)event_bus_subscribe(MUSIC_SERVICE_MSG, EVENT_BUS_SUB_TYPE_ANY,
                               _player_event_cb, state, EVENT_BUS_DISPATCH_UI,
                               &state->subscription);
-    state->timer = lv_timer_create(_player_timer_cb, 250U, state);
+    state->timer = lv_timer_create(_player_timer_cb, 1000U, state);
     _player_update(state);
 }
 

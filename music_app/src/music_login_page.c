@@ -72,13 +72,17 @@ static void _login_update(music_login_state_t *state)
                    status.qr_status[0] == '\0' ? "" : " · ",
                    status.qr_status);
     app_ui_set_status_text(state->status_label, text,
+                           status.failure != MUSIC_SERVICE_FAILURE_NONE ?
+                           APP_UI_STATUS_WARNING :
                            status.state == MUSIC_SERVICE_STATE_READY ?
-                           APP_UI_STATUS_SUCCESS :
-                           status.failure == MUSIC_SERVICE_FAILURE_NONE ?
-                           APP_UI_STATUS_NEUTRAL : APP_UI_STATUS_WARNING);
+                           APP_UI_STATUS_SUCCESS : APP_UI_STATUS_NEUTRAL);
     _login_show_qr(state);
     const bool ready = status.state == MUSIC_SERVICE_STATE_READY;
-    if (ready)
+    const bool qr_visible =
+        status.state == MUSIC_SERVICE_STATE_QR_READY ||
+        status.state == MUSIC_SERVICE_STATE_QR_SCANNED ||
+        status.state == MUSIC_SERVICE_STATE_AUTHENTICATING;
+    if (ready || !qr_visible)
     {
         _login_release_qr(state);
     }

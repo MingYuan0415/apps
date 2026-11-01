@@ -76,7 +76,7 @@ const char *music_ui_state_text(const music_service_status_t *status)
     case MUSIC_SERVICE_STATE_AUTHENTICATING:
         return "正在登录";
     case MUSIC_SERVICE_STATE_READY:
-        return "已登录";
+        return status->logged_in ? "已登录" : "未登录";
     case MUSIC_SERVICE_STATE_AUTH_REQUIRED:
         return "登录已过期";
     case MUSIC_SERVICE_STATE_ERROR:

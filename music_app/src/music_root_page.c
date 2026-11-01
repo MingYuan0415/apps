@@ -47,10 +47,10 @@ static void _root_update_status(music_root_state_t *state)
                    status.failure == MUSIC_SERVICE_FAILURE_NONE ? "" :
                    music_ui_failure_text(status.failure));
     app_ui_set_status_text(state->status_label, text,
+                           status.failure != MUSIC_SERVICE_FAILURE_NONE ?
+                           APP_UI_STATUS_WARNING :
                            status.state == MUSIC_SERVICE_STATE_READY ?
-                           APP_UI_STATUS_SUCCESS :
-                           status.failure == MUSIC_SERVICE_FAILURE_NONE ?
-                           APP_UI_STATUS_NEUTRAL : APP_UI_STATUS_WARNING);
+                           APP_UI_STATUS_SUCCESS : APP_UI_STATUS_NEUTRAL);
     const bool logged_in = status.logged_in;
     if (state->login_button != NULL)
     {
@@ -116,6 +116,10 @@ static void _root_build_list(music_root_state_t *state,
     {
         (void)app_ui_add_body_label(state->list, "暂无歌单，稍后重试");
     }
+    else if (!home->recommended_ok || !home->personal_ok)
+    {
+        (void)app_ui_add_body_label(state->list, "部分歌单加载失败，可稍后刷新");
+    }
 }
 
 static void _root_timer_cb(lv_timer_t *timer)
@@ -157,9 +161,13 @@ static void _root_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
                            void *user_data)
 {
     (void)msg_id;
-    (void)sub_type;
     (void)payload;
     (void)payload_size;
+    if (sub_type != MUSIC_SERVICE_MSG_SUB_TYPE_STATUS &&
+            sub_type != MUSIC_SERVICE_MSG_SUB_TYPE_HOME)
+    {
+        return;
+    }
     music_root_state_t *state = user_data;
     if (state != NULL)
     {
@@ -261,10 +269,10 @@ static void _root_resume(const app_manager_page_context_t *context)
     (void)event_bus_subscribe(MUSIC_SERVICE_MSG, EVENT_BUS_SUB_TYPE_ANY,
                               _root_event_bus_cb, state,
                               EVENT_BUS_DISPATCH_UI, &state->subscription);
-    state->timer = lv_timer_create(_root_timer_cb, 500U, state);
+    state->timer = lv_timer_create(_root_timer_cb, 1000U, state);
     state->dirty = true;
     _root_update_status(state);
-    (void)music_service_refresh_home(true);
+    (void)music_service_refresh_home(false);
 }
 
 static esp_err_t _root_pause(const app_manager_page_context_t *context)

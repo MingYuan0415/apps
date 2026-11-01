@@ -16,6 +16,8 @@ typedef struct music_playlist_state
     music_playlist_ref_t ref;
     music_playlist_snapshot_t *snapshot;
     uint16_t requested_offset;
+    uint16_t visible_count;
+    uint32_t loading_since_ms;
     bool loading;
     bool failed;
 } music_playlist_state_t;
@@ -49,6 +51,19 @@ static void _playlist_song_clicked(lv_event_t *event)
     (void)music_ui_open_player();
 }
 
+static void _playlist_build(music_playlist_state_t *state);
+
+static void _playlist_more_clicked(lv_event_t *event)
+{
+    music_playlist_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL || lv_event_get_code(event) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+    state->visible_count = (uint16_t)(state->visible_count + 30U);
+    _playlist_build(state);
+}
+
 static void _playlist_build(music_playlist_state_t *state)
 {
     lv_obj_clean(state->list);
@@ -62,7 +77,9 @@ static void _playlist_build(music_playlist_state_t *state)
                    state->snapshot->playlist.title,
                    (unsigned)state->snapshot->total);
     (void)app_ui_add_section(state->list, summary);
-    for (uint16_t index = 0U; index < state->snapshot->count; ++index)
+    const uint16_t visible = state->visible_count < state->snapshot->count ?
+                             state->visible_count : state->snapshot->count;
+    for (uint16_t index = 0U; index < visible; ++index)
     {
         lv_obj_t *row = music_ui_add_song_row(
                             state->list, &state->snapshot->songs[index], index,
@@ -76,6 +93,11 @@ static void _playlist_build(music_playlist_state_t *state)
     {
         (void)app_ui_add_body_label(state->list, "这个歌单还没有歌曲");
     }
+    else if (visible < state->snapshot->count)
+    {
+        (void)app_ui_add_action(state->list, LV_SYMBOL_LIST, "加载更多",
+                                NULL, _playlist_more_clicked, state);
+    }
 }
 
 static void _playlist_timer_cb(lv_timer_t *timer)
@@ -85,9 +107,17 @@ static void _playlist_timer_cb(lv_timer_t *timer)
     {
         return;
     }
-    if (state->snapshot != NULL || state->loading || state->failed)
+    if (state->snapshot != NULL || state->failed)
     {
         return;
+    }
+    if (state->loading)
+    {
+        if (lv_tick_get() - state->loading_since_ms < 10000U)
+        {
+            return;
+        }
+        state->loading = false;
     }
     const music_playlist_snapshot_t *snapshot = NULL;
     const esp_err_t result = music_service_playlist_acquire(
@@ -96,6 +126,7 @@ static void _playlist_timer_cb(lv_timer_t *timer)
     if (result == ESP_OK && snapshot != NULL)
     {
         state->snapshot = (music_playlist_snapshot_t *)snapshot;
+        state->visible_count = 30U;
         app_ui_set_status_text(state->status_label, "已加载",
                                APP_UI_STATUS_SUCCESS);
         _playlist_build(state);
@@ -103,6 +134,7 @@ static void _playlist_timer_cb(lv_timer_t *timer)
     else if (result == ESP_ERR_NOT_FOUND)
     {
         state->loading = true;
+        state->loading_since_ms = lv_tick_get();
     }
     else
     {
@@ -117,9 +149,13 @@ static void _playlist_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
                                void *user_data)
 {
     (void)msg_id;
-    (void)sub_type;
     (void)payload;
     (void)payload_size;
+    if (sub_type != MUSIC_SERVICE_MSG_SUB_TYPE_PLAYLIST &&
+            sub_type != MUSIC_SERVICE_MSG_SUB_TYPE_STATUS)
+    {
+        return;
+    }
     music_playlist_state_t *state = user_data;
     if (state != NULL)
     {
@@ -152,6 +188,7 @@ static void _playlist_mount(const app_manager_page_context_t *context)
     memset(&state->ref, 0, sizeof(state->ref));
     state->snapshot = NULL;
     state->loading = false;
+    state->loading_since_ms = 0U;
     state->failed = false;
     state->requested_offset = 0U;
     _playlist_copy_arguments(state, context->arguments);
