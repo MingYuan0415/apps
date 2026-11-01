@@ -48,4 +48,29 @@ size_t music_ui_lyric_window_start(size_t line_count, size_t current_line);
 size_t music_ui_lyric_index_at(const music_lyric_snapshot_t *lyric,
                                uint32_t position_ms);
 
+/**
+ * @brief Return the previous, current and next lyric line at a position.
+ *
+ * Missing neighbours are returned as NULL; empty lines are returned as an
+ * empty string. Returns false when no lyric snapshot or line is available.
+ */
+bool music_ui_lyric_triplet(const music_lyric_snapshot_t *lyric,
+                            uint32_t position_ms,
+                            const char **previous,
+                            const char **current,
+                            const char **next);
+
+/**
+ * @brief Find the playlist used by the "喜欢" sidebar shortcut.
+ *
+ * The service exposes the dirId 201 liked-songs playlist in my_favorite.
+ * Returns NULL when the account has no such playlist.
+ */
+const music_playlist_t *music_ui_liked_playlist(
+    const music_home_snapshot_t *home);
+
+/** @brief Pick the recommended playlist used as the personal radio source. */
+const music_playlist_t *music_ui_radio_playlist(
+    const music_home_snapshot_t *home);
+
 #endif /* __MUSIC_UI_STATE_H__ */

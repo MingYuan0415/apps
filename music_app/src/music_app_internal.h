@@ -12,34 +12,72 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define MUSIC_PAGE_ROOT      "root"
-#define MUSIC_PAGE_PLAYLIST  "playlist"
-#define MUSIC_PAGE_PLAYER    "player"
-#define MUSIC_PAGE_LYRICS    "lyrics"
-#define MUSIC_PAGE_LOGIN     "login"
+#define MUSIC_PAGE_START         "start"
+#define MUSIC_PAGE_PLAYER        "player"
+#define MUSIC_PAGE_SIDEBAR       "sidebar"
+#define MUSIC_PAGE_PLAYLIST      "playlist"
+#define MUSIC_PAGE_QUEUE         "queue"
+#define MUSIC_PAGE_LYRICS        "lyrics"
+#define MUSIC_PAGE_LOGIN_METHOD  "login_method"
+#define MUSIC_PAGE_LOGIN         "login"
 
 #define MUSIC_ARGUMENT_PLAYLIST 1U
+#define MUSIC_ARGUMENT_LOGIN    2U
 
-#define MUSIC_UI_PAGE_SIZE       368
-#define MUSIC_UI_HEADER_HEIGHT   64
-#define MUSIC_UI_PAGE_MARGIN     16
-#define MUSIC_UI_ROW_HEIGHT      72
-#define MUSIC_UI_CONTROL_SIZE    56
-#define MUSIC_UI_HERO_COVER      88
-#define MUSIC_UI_LIST_COVER      52
-#define MUSIC_UI_LYRIC_LINES     7U
-#define MUSIC_UI_CONTENT_WIDTH   (MUSIC_UI_PAGE_SIZE - 2 * MUSIC_UI_PAGE_MARGIN)
+#define MUSIC_UI_HEADER_SIZE        64
+#define MUSIC_UI_PAGE_MARGIN        16
+#define MUSIC_UI_GAP                8
+#define MUSIC_UI_ROW_HEIGHT         64
+#define MUSIC_UI_HERO_COVER         96
+#define MUSIC_UI_LIST_COVER         56
+#define MUSIC_UI_CONTROL_SIZE       52
+#define MUSIC_UI_WELL_SIZE          44
+#define MUSIC_UI_TRANSPORT_SIZE     64
+#define MUSIC_UI_PLAY_SIZE          80
+#define MUSIC_UI_LYRIC_LINES        7U
+#define MUSIC_UI_MAX_PLAYLIST_REFS  36U
 
 typedef struct music_playlist_arguments
 {
     music_playlist_ref_t ref;
 } music_playlist_arguments_t;
 
-extern const app_manager_page_definition_t music_root_page_definition;
-extern const app_manager_page_definition_t music_playlist_page_definition;
+typedef struct music_login_arguments
+{
+    music_login_type_t type;
+} music_login_arguments_t;
+
+typedef struct music_playlist_refs
+{
+    music_playlist_ref_t items[MUSIC_UI_MAX_PLAYLIST_REFS];
+    size_t count;
+} music_playlist_refs_t;
+
+extern const app_manager_page_definition_t music_start_page_definition;
 extern const app_manager_page_definition_t music_player_page_definition;
+extern const app_manager_page_definition_t music_sidebar_page_definition;
+extern const app_manager_page_definition_t music_playlist_page_definition;
+extern const app_manager_page_definition_t music_queue_page_definition;
 extern const app_manager_page_definition_t music_lyrics_page_definition;
+extern const app_manager_page_definition_t music_login_method_page_definition;
 extern const app_manager_page_definition_t music_login_page_definition;
+
+/** @brief Create a music icon scaled to the requested display box. */
+lv_obj_t *music_ui_image(lv_obj_t *parent, uint32_t image_id,
+                         const char *fallback_symbol, int32_t size);
+
+/** @brief Remove theme button chrome before applying a local flat style. */
+void music_ui_flat_button_reset(lv_obj_t *button, int32_t radius);
+
+/** @brief Create one transparent text-glyph button. */
+lv_obj_t *music_ui_plain_text_button(lv_obj_t *parent, const char *text,
+                                     int32_t size, app_theme_font_id_t font,
+                                     uint32_t color, lv_event_cb_t callback,
+                                     void *user_data);
+
+/** @brief Create a single-line label that scrolls once when it overflows. */
+lv_obj_t *music_ui_marquee_label(lv_obj_t *parent, const char *text,
+                                 app_theme_font_id_t font, uint32_t color);
 
 /** @brief A fixed square cover with one service image lease at a time. */
 typedef struct music_ui_cover
@@ -72,6 +110,38 @@ bool music_ui_cover_accept_event(music_ui_cover_t *cover, uint32_t token,
 /** @brief Release the service image and restore the cover placeholder. */
 void music_ui_cover_release(music_ui_cover_t *cover);
 
+/** @brief Create one 52 px round icon button with pressed/disabled styling. */
+lv_obj_t *music_ui_icon_button(lv_obj_t *parent, uint32_t image_id,
+                               const char *fallback_symbol, int32_t size,
+                               lv_event_cb_t callback, void *user_data);
+
+/** @brief Create one borderless icon button for transport-style controls. */
+lv_obj_t *music_ui_plain_icon_button(lv_obj_t *parent, uint32_t image_id,
+                                     const char *fallback_symbol, int32_t size,
+                                     int32_t glyph_size, uint32_t color,
+                                     lv_event_cb_t callback, void *user_data);
+
+/** @brief Replace an icon button glyph and tint. */
+void music_ui_set_icon_button(lv_obj_t *button, uint32_t image_id,
+                              const char *fallback_symbol, uint32_t color);
+
+/** @brief Replace a borderless icon button glyph, size and tint. */
+void music_ui_set_plain_icon_button(lv_obj_t *button, uint32_t image_id,
+                                    const char *fallback_symbol,
+                                    int32_t glyph_size, uint32_t color);
+
+/** @brief Enable or disable one icon button. */
+void music_ui_set_button_enabled(lv_obj_t *button, bool enabled);
+
+/** @brief Insert a borderless accent back button and accent the page title. */
+lv_obj_t *music_ui_add_header_back(app_ui_page_t *page);
+
+/** @brief Add an icon-led navigation/command row with one-line scrolling title. */
+lv_obj_t *music_ui_add_nav_row(lv_obj_t *parent, uint32_t image_id,
+                               const char *fallback_symbol, const char *title,
+                               const char *subtitle, lv_event_cb_t callback,
+                               void *user_data, bool danger);
+
 /** @brief Create a playlist row with a music-specific cover placeholder. */
 lv_obj_t *music_ui_add_playlist_row(lv_obj_t *parent,
                                     const music_playlist_t *playlist,
@@ -86,7 +156,38 @@ lv_obj_t *music_ui_add_song_row(lv_obj_t *parent, const music_song_t *song,
 /** @brief Copy one playlist reference into a Typed Blob navigation request. */
 esp_err_t music_ui_open_playlist(const music_playlist_ref_t *ref);
 
-/** @brief Open the player page. */
-esp_err_t music_ui_open_player(void);
+/** @brief Navigate to the sidebar page. */
+esp_err_t music_ui_open_sidebar(void);
+
+/** @brief Navigate to the current playback-queue page. */
+esp_err_t music_ui_open_queue(void);
+
+/** @brief Navigate to the full-lyrics page. */
+esp_err_t music_ui_open_lyrics(void);
+
+/** @brief Navigate to the login-method selection page. */
+esp_err_t music_ui_open_login(void);
+
+/** @brief Navigate to the QR page for one login channel. */
+esp_err_t music_ui_open_login_qr(music_login_type_t type);
+
+/** @brief Enter the QR page from start and remove the start page. */
+esp_err_t music_ui_enter_login_qr(music_login_type_t type);
+
+/** @brief Enter the player and remove the start/login pages if needed. */
+esp_err_t music_ui_enter_player(void);
+
+/** @brief Open the login method page and remove the current app pages. */
+esp_err_t music_ui_reset_to_login(void);
+
+/** @brief Return to the player home, falling back to a page open. */
+esp_err_t music_ui_back_to_player(void);
+
+/** @brief Start a playlist entry and return to the player home. */
+esp_err_t music_ui_play_playlist(const music_playlist_ref_t *ref,
+                                 uint16_t index);
+
+/** @brief Icon shown for one queue play mode. */
+uint32_t music_ui_mode_icon(music_play_mode_t mode);
 
 #endif /* __MUSIC_APP_INTERNAL_H__ */

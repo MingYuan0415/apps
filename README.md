@@ -135,17 +135,25 @@ drivers directly.
 - `weather_app/`: shows the current weather, alerts, 24-hour and 7-day
   forecasts, including an alert list and a detail page; it consumes only
   `weather_service` snapshots and performs no network, JSON or cache I/O.
-- `music_app/`: QQ Music online player with five pages (root, playlist, player,
-  lyrics and login). It consumes `music_service` snapshots only: root presents a
-  recommended playlist lead, grouped personal/recommended playlists and a
-  conditional mini-player; playlist shows the bounded song list with paged
-  loading; player shows cover, metadata, queue/quality state and transport
-  controls; lyrics keeps a seven-line current-track window; and account handles
-  QQ/WeChat QR states, cancellation, retry and confirmed logout. The App never
-  performs network, JSON, image-decode or audio I/O; playback and login state
-  survive page pauses and screen-off while the middleware service owns the
-  session. Seeking, buffered ranges, downloads and queue editing are absent
-  because the service does not expose them.
+- `music_app/`: QQ Music online player with eight routes: a non-interactive
+  start page used as the code root, the player interaction home, sidebar,
+  playlist, queue, lyrics, login-method selection and QR login. The start page
+  checks service/login state and enters the player or login-method page; it is
+  removed after routing. The player shows current-track metadata, a fixed
+  three-line lyric window, progress, and icon-only transport controls. The
+  sidebar is a long scrolling page with personal radio, daily recommendation,
+  liked playlist, self-created and available collected playlists, and
+  confirmed logout. Playlist shows the bounded song list with paged loading;
+  queue shows the live playback queue with switch and delete actions; lyrics
+  keeps a seven-line current-track window; login is split into channel
+  selection and a dedicated non-scrolling QR page with a centred code and a
+  refresh overlay for an expired code. The App
+  consumes `music_service` snapshots only and performs no network, JSON,
+  image-decode or audio I/O; playback, login and queue state live in the
+  middleware service. `music_service` builds the queue from one playlist,
+  exposes queue snapshots and supports queue switch/remove; collected
+  playlists come from the account catalog. Seeking, buffered ranges and
+  downloads are still absent.
 - `flybirds_app/`: single-page tap-to-rise avoidance game with four states:
   ready, running, paused panel and result; `flybirds_game` is the pure logic
   rules, `flybirds_synth` synthesizes 8 bars of chiptune music and four sound
@@ -207,8 +215,9 @@ when the image is missing. The Setup page's Wi-Fi card and its bind /
 disconnect / forget / cancel / done / later row icons have all switched to this
 set. The page-header action button (`app_ui_page_set_action`) is a 42 x 42
 circle, bottom-right aligned, and sits below the system control center's top
-pull-down capture band (the top 20 px of the screen), so page-header content
-must not occupy that top region.
+pull-down capture band (the top 40 px of the screen, with 76 px reserved at
+both corners for page controls), so page-header content must not occupy that
+top region.
 
 Pull-to-refresh is provided by `app_ui_pull_refresh_attach()`: a hint bar
 covered by the page header/content is placed at the page top; dragging down on
@@ -220,7 +229,7 @@ keeps "正在刷新…" (refreshing) until the page springs back via
 root page reuses `weather_service_request_refresh()`, and the settings Wi-Fi
 page reuses the scan request; when the drag starts on a clickable row it is
 handed to the row/scroll and no pull is triggered. The control center's top
-20 px pull-down still belongs to the control center.
+40 px pull-down still belongs to the control center.
 
 Each app describes its typed ops and private memory size with a plain `const`
 Page definition, and explicitly binds `page_id`, the definition and the route

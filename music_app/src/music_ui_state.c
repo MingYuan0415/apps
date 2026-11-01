@@ -240,3 +240,69 @@ size_t music_ui_lyric_index_at(const music_lyric_snapshot_t *lyric,
     }
     return low == 0U ? 0U : low - 1U;
 }
+
+bool music_ui_lyric_triplet(const music_lyric_snapshot_t *lyric,
+                            uint32_t position_ms,
+                            const char **previous,
+                            const char **current,
+                            const char **next)
+{
+    if (previous != NULL)
+    {
+        *previous = NULL;
+    }
+    if (current != NULL)
+    {
+        *current = NULL;
+    }
+    if (next != NULL)
+    {
+        *next = NULL;
+    }
+    if (lyric == NULL || lyric->line_count == 0U)
+    {
+        return false;
+    }
+    const size_t index = music_ui_lyric_index_at(lyric, position_ms);
+    if (previous != NULL && index > 0U)
+    {
+        *previous = lyric->lines[index - 1U].text;
+    }
+    if (current != NULL)
+    {
+        *current = lyric->lines[index].text;
+    }
+    if (next != NULL && index + 1U < lyric->line_count)
+    {
+        *next = lyric->lines[index + 1U].text;
+    }
+    return true;
+}
+
+const music_playlist_t *music_ui_liked_playlist(
+    const music_home_snapshot_t *home)
+{
+    if (home == NULL || home->my_favorite_count == 0U)
+    {
+        return NULL;
+    }
+    for (size_t index = 0U; index < home->my_favorite_count; ++index)
+    {
+        if (home->my_favorite[index].ref.dirid == 201U)
+        {
+            return &home->my_favorite[index];
+        }
+    }
+    return &home->my_favorite[0];
+}
+
+const music_playlist_t *music_ui_radio_playlist(
+    const music_home_snapshot_t *home)
+{
+    if (home == NULL || home->recommended_count == 0U)
+    {
+        return NULL;
+    }
+    return home->recommended_count > 1U ? &home->recommended[1] :
+           &home->recommended[0];
+}

@@ -17,6 +17,7 @@ typedef struct music_playlist_state
 {
     app_ui_page_t page;
     lv_obj_t *hero;
+    lv_obj_t *details;
     lv_obj_t *title_label;
     lv_obj_t *creator_label;
     lv_obj_t *track_count_label;
@@ -71,8 +72,6 @@ static void _playlist_update_cover(music_playlist_state_t *state)
     const char *url = state->snapshot->playlist.cover_url;
     if (url[0] == '\0')
     {
-        app_ui_set_status_text(state->status_label, "封面暂不可用",
-                               APP_UI_STATUS_NEUTRAL);
         return;
     }
     if (state->cover_requested)
@@ -106,24 +105,12 @@ static void _playlist_update_cover(music_playlist_state_t *state)
         state->cover_requested = false;
         state->cover_attempts = 0U;
         music_ui_cover_set_image(&state->cover, (music_image_t *)image);
-        app_ui_set_status_text(state->status_label, "封面已加载",
-                               APP_UI_STATUS_SUCCESS);
     }
     else if (result != ESP_ERR_NOT_FOUND)
     {
         state->cover_requested = false;
         state->cover_failed =
             state->cover_attempts >= MUSIC_PLAYLIST_COVER_MAX_ATTEMPTS;
-        app_ui_set_status_text(state->status_label,
-                               state->cover_failed ? "封面暂不可用" :
-                               "正在加载封面…",
-                               state->cover_failed ? APP_UI_STATUS_NEUTRAL :
-                               APP_UI_STATUS_ACCENT);
-    }
-    else
-    {
-        app_ui_set_status_text(state->status_label, "正在加载封面…",
-                               APP_UI_STATUS_ACCENT);
     }
 }
 
@@ -150,11 +137,13 @@ static void _playlist_song_clicked(lv_event_t *event)
                                "播放请求超时，请重试" :
                                "无法开始播放，请稍后重试",
                                APP_UI_STATUS_WARNING);
+        lv_obj_set_hidden(state->status_label, false);
         return;
     }
     app_ui_set_status_text(state->status_label, "正在准备播放…",
                            APP_UI_STATUS_ACCENT);
-    (void)music_ui_open_player();
+    lv_obj_set_hidden(state->status_label, false);
+    (void)music_ui_back_to_player();
 }
 
 static void _playlist_play_all_clicked(lv_event_t *event)
@@ -173,11 +162,13 @@ static void _playlist_play_all_clicked(lv_event_t *event)
                                "播放请求超时，请重试" :
                                "无法播放歌单，请稍后重试",
                                APP_UI_STATUS_WARNING);
+        lv_obj_set_hidden(state->status_label, false);
         return;
     }
     app_ui_set_status_text(state->status_label, "正在准备播放…",
                            APP_UI_STATUS_ACCENT);
-    (void)music_ui_open_player();
+    lv_obj_set_hidden(state->status_label, false);
+    (void)music_ui_back_to_player();
 }
 
 static void _playlist_more_clicked(lv_event_t *event)
@@ -209,16 +200,8 @@ static void _playlist_build_hero(music_playlist_state_t *state)
                    (unsigned)state->snapshot->total);
     app_ui_label_set_text_if(state->track_count_label, count);
     state->cover_token = _playlist_cover_token(playlist->cover_url);
-    if (playlist->cover_url[0] == '\0')
-    {
-        app_ui_set_status_text(state->status_label, "封面暂不可用",
-                               APP_UI_STATUS_NEUTRAL);
-    }
-    else
-    {
-        app_ui_set_status_text(state->status_label, "正在加载封面…",
-                               APP_UI_STATUS_ACCENT);
-    }
+    lv_obj_set_hidden(state->details, false);
+    lv_obj_set_hidden(state->status_label, true);
     if (state->snapshot->count == 0U)
     {
         lv_obj_add_state(state->play_all_button, LV_STATE_DISABLED);
@@ -249,8 +232,8 @@ static void _playlist_build_songs(music_playlist_state_t *state)
     if (state->snapshot == NULL)
     {
         (void)_playlist_add_notice(state->song_list,
-                                   state->failed ? "歌曲加载失败" :
-                                   "正在加载歌曲…",
+                                   state->failed ? "歌单加载失败" :
+                                   "正在加载歌单…",
                                    state->failed ? APP_UI_STATUS_WARNING :
                                    APP_UI_STATUS_NEUTRAL);
         return;
@@ -330,8 +313,6 @@ static void _playlist_request(music_playlist_state_t *state)
     }
     if (result == ESP_ERR_NOT_FOUND)
     {
-        app_ui_set_status_text(state->status_label, "正在获取歌单…",
-                               APP_UI_STATUS_NEUTRAL);
         return;
     }
     state->loading = false;
@@ -340,6 +321,7 @@ static void _playlist_request(music_playlist_state_t *state)
                            result == ESP_ERR_TIMEOUT ?
                            "加载超时，返回后重试" :
                            "歌单加载失败", APP_UI_STATUS_WARNING);
+    lv_obj_set_hidden(state->status_label, false);
     _playlist_build_songs(state);
 }
 
@@ -372,16 +354,10 @@ static void _playlist_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
             {
                 state->cover_failed = false;
                 state->cover_attempts = 0U;
-                const bool accepted = music_ui_cover_accept_event(
-                                          &state->cover, state->cover_token,
-                                          state->snapshot != NULL ?
-                                          state->snapshot->playlist.cover_url :
-                                          "", event);
-                app_ui_set_status_text(state->status_label,
-                                       accepted ? "封面已加载" :
-                                       "封面暂不可用",
-                                       accepted ? APP_UI_STATUS_SUCCESS :
-                                       APP_UI_STATUS_NEUTRAL);
+                (void)music_ui_cover_accept_event(
+                    &state->cover, state->cover_token,
+                    state->snapshot != NULL ?
+                    state->snapshot->playlist.cover_url : "", event);
             }
             else
             {
@@ -390,9 +366,20 @@ static void _playlist_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
             }
         }
     }
-    if ((sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_PLAYLIST ||
-            sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_STATUS) &&
-            state->snapshot == NULL && !state->failed)
+    if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_PLAYLIST)
+    {
+        if (state->snapshot != NULL)
+        {
+            music_service_playlist_release(state->snapshot);
+            state->snapshot = NULL;
+            state->failed = false;
+            state->loading = false;
+            state->loading_since_ms = 0U;
+        }
+        _playlist_request(state);
+    }
+    else if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_STATUS &&
+             state->snapshot == NULL && !state->failed)
     {
         state->loading = false;
         _playlist_request(state);
@@ -436,10 +423,16 @@ static lv_obj_t *_playlist_build_hero_area(music_playlist_state_t *state)
     lv_obj_set_flex_flow(details, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(details, 4, 0);
     app_ui_make_passive(details, false);
+    state->details = details;
     state->title_label = app_ui_add_section(details, "歌单");
     lv_obj_set_width(state->title_label, LV_PCT(100));
+    lv_obj_set_height(state->title_label,
+                      lv_font_get_line_height(app_ui_font(
+                                  APP_THEME_FONT_BIGL)));
     lv_label_set_long_mode(state->title_label, LV_LABEL_LONG_DOT);
     lv_obj_set_style_pad_top(state->title_label, 0, 0);
+    lv_obj_set_style_text_font(state->title_label,
+                               app_ui_font(APP_THEME_FONT_BIGL), 0);
     lv_obj_set_style_text_color(state->title_label,
                                 lv_color_hex(APP_UI_COLOR_TEXT), 0);
     state->creator_label = app_ui_add_body_label(details, "QQ 音乐");
@@ -450,9 +443,11 @@ static lv_obj_t *_playlist_build_hero_area(music_playlist_state_t *state)
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
     app_ui_set_status_text(state->track_count_label, "共 0 首",
                            APP_UI_STATUS_ACCENT);
-    state->status_label = app_ui_add_body_label(details, "正在加载…");
+    state->status_label = app_ui_add_body_label(details, "");
     lv_obj_set_style_text_font(state->status_label,
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_obj_set_hidden(state->status_label, true);
+    lv_obj_set_hidden(details, true);
     return hero;
 }
 
@@ -463,22 +458,31 @@ static void _playlist_mount(const app_manager_page_context_t *context)
     state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     _playlist_copy_arguments(state, context->arguments);
     app_ui_page_create(&state->page, "歌单", true);
-    lv_obj_set_style_pad_row(state->page.content, APP_UI_GAP, 0);
-    state->hero = _playlist_build_hero_area(state);
-    state->play_all_button = app_ui_button_create(
-                                 state->page.content, "播放全部",
+    music_ui_add_header_back(&state->page);
+    lv_obj_set_style_pad_top(state->page.content, 12, 0);
+    lv_obj_set_style_pad_row(state->page.content, 12, 0);
+    state->play_all_button = music_ui_icon_button(
+                                 state->page.header, APP_IMAGE_MUSIC_PLAY,
+                                 LV_SYMBOL_PLAY, MUSIC_UI_CONTROL_SIZE,
                                  _playlist_play_all_clicked, state);
-    lv_obj_set_flex_grow(state->play_all_button, 0);
-    lv_obj_set_width(state->play_all_button, LV_PCT(100));
-    lv_obj_set_height(state->play_all_button, APP_UI_BUTTON_HEIGHT);
-    app_ui_button_set_kind(state->play_all_button, APP_UI_BUTTON_PRIMARY);
-    lv_obj_add_state(state->play_all_button, LV_STATE_DISABLED);
+    if (state->play_all_button != NULL)
+    {
+        lv_obj_set_ignore_layout(state->play_all_button, true);
+        lv_obj_align(state->play_all_button, LV_ALIGN_BOTTOM_RIGHT, 0, 2);
+        lv_obj_set_style_bg_color(state->play_all_button,
+                                  lv_color_hex(APP_UI_COLOR_RAIN), 0);
+        music_ui_set_icon_button(state->play_all_button,
+                                 APP_IMAGE_MUSIC_PLAY, LV_SYMBOL_PLAY,
+                                 APP_UI_COLOR_BACKGROUND);
+        lv_obj_add_state(state->play_all_button, LV_STATE_DISABLED);
+    }
+    state->hero = _playlist_build_hero_area(state);
     state->song_list = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(state->song_list);
     lv_obj_set_width(state->song_list, LV_PCT(100));
     lv_obj_set_height(state->song_list, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(state->song_list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(state->song_list, APP_UI_GAP_TIGHT, 0);
+    lv_obj_set_style_pad_row(state->song_list, 4, 0);
     lv_obj_set_scroll_dir(state->song_list, LV_DIR_NONE);
     app_ui_make_passive(state->song_list, false);
     _playlist_build_songs(state);
@@ -510,6 +514,14 @@ static esp_err_t _playlist_pause(const app_manager_page_context_t *context)
         state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     }
     music_ui_cover_release(&state->cover);
+    if (state->snapshot != NULL)
+    {
+        music_service_playlist_release(state->snapshot);
+        state->snapshot = NULL;
+    }
+    state->failed = false;
+    state->loading = false;
+    state->loading_since_ms = 0U;
     state->cover_requested = false;
     state->cover_wait_ticks = 0U;
     state->cover_attempts = 0U;

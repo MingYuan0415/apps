@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MicroTech Music glyph: 24-grid, recolored at runtime; INK base. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <rect x="4.5" y="5.5" width="15" height="14" rx="2" stroke="#EAF0F2" stroke-width="1.7"/>
+  <path d="M4.5 10h15M8.5 3.8v3.4M15.5 3.8v3.4M8.2 13.3h2.2M13.6 13.3h2.2M8.2 16.5h2.2M13.6 16.5h2.2" stroke="#EAF0F2" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

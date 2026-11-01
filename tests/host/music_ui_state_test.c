@@ -193,6 +193,61 @@ static void test_lyric_lookup(void)
     assert(music_ui_lyric_index_at(snapshot, UINT32_MAX) == 3U);
 }
 
+
+static void test_lyric_triplet(void)
+{
+    uint8_t storage[sizeof(music_lyric_snapshot_t) +
+                    (3U * sizeof(music_lyric_line_t))] = {0};
+    music_lyric_snapshot_t *snapshot = (music_lyric_snapshot_t *)storage;
+    snapshot->line_count = 3U;
+    snapshot->lines[0].offset_ms = 0U;
+    (void)strcpy(snapshot->lines[0].text, "上一句");
+    snapshot->lines[1].offset_ms = 1000U;
+    (void)strcpy(snapshot->lines[1].text, "当前句");
+    snapshot->lines[2].offset_ms = 2000U;
+    (void)strcpy(snapshot->lines[2].text, "下一句");
+
+    const char *previous = NULL;
+    const char *current = NULL;
+    const char *next = NULL;
+    assert(music_ui_lyric_triplet(snapshot, 0U, &previous, &current, &next));
+    assert(previous == NULL);
+    assert(strcmp(current, "上一句") == 0);
+    assert(strcmp(next, "当前句") == 0);
+
+    assert(music_ui_lyric_triplet(snapshot, 1500U, &previous, &current,
+                                  &next));
+    assert(strcmp(previous, "上一句") == 0);
+    assert(strcmp(current, "当前句") == 0);
+    assert(strcmp(next, "下一句") == 0);
+
+    assert(music_ui_lyric_triplet(snapshot, 9000U, &previous, &current,
+                                  &next));
+    assert(strcmp(previous, "当前句") == 0);
+    assert(strcmp(current, "下一句") == 0);
+    assert(next == NULL);
+
+    assert(!music_ui_lyric_triplet(NULL, 0U, &previous, &current, &next));
+    assert(previous == NULL && current == NULL && next == NULL);
+}
+
+static void test_home_shortcuts(void)
+{
+    music_home_snapshot_t home = {0};
+    assert(music_ui_liked_playlist(NULL) == NULL);
+    assert(music_ui_radio_playlist(NULL) == NULL);
+    home.recommended_count = 2U;
+    home.recommended[0].ref.id = 1U;
+    home.recommended[1].ref.id = 2U;
+    assert(music_ui_radio_playlist(&home) == &home.recommended[1]);
+    home.my_favorite_count = 1U;
+    home.my_favorite[0].ref.id = 3U;
+    home.my_favorite[0].ref.dirid = 201U;
+    assert(music_ui_liked_playlist(&home) == &home.my_favorite[0]);
+    home.my_favorite_count = 0U;
+    assert(music_ui_liked_playlist(&home) == NULL);
+}
+
 int main(void)
 {
     test_time_format();
@@ -203,6 +258,8 @@ int main(void)
     test_queue_text();
     test_lyric_window();
     test_lyric_lookup();
+    test_lyric_triplet();
+    test_home_shortcuts();
     (void)printf("music_ui_state_test: ok\n");
     return 0;
 }

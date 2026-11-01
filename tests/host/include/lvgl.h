@@ -56,8 +56,11 @@ typedef struct lv_draw_buf
 } lv_draw_buf_t;
 
 #define LV_ALIGN_CENTER             0x7FFF
+typedef int lv_text_align_t;
+
 #define LV_ALIGN_TOP_LEFT           0
 #define LV_ALIGN_BOTTOM_RIGHT       6
+#define LV_ALIGN_BOTTOM_MID          7
 #define LV_ALIGN_BOTTOM_LEFT        4
 #define LV_IMAGE_ALIGN_COVER        12
 #define LV_DIR_NONE                 0
@@ -113,6 +116,7 @@ typedef struct lv_draw_buf
 #define LV_STATE_DISABLED            2
 #define LV_STATE_PRESSED             1
 #define LV_STATE_CHECKED             4
+#define LV_TEXT_ALIGN_LEFT           2
 #define LV_TEXT_ALIGN_CENTER         0
 #define LV_TEXT_ALIGN_RIGHT          1
 #define LV_PCT(value)                (value)
@@ -180,6 +184,12 @@ void lv_image_set_src(lv_obj_t *object, const lv_image_dsc_t *source);
 /** @brief Set a fake image scale. */
 void lv_image_set_scale(lv_obj_t *object, uint32_t scale);
 /** @brief No-op image content alignment for layout-only host tests. */
+static inline void lv_image_set_antialias(lv_obj_t *object, bool antialias)
+{
+    (void)object;
+    (void)antialias;
+}
+
 static inline void lv_image_set_inner_align(lv_obj_t *object, int align)
 {
     (void)object;
@@ -330,6 +340,9 @@ APPS_HOST_LV_NOOP_3(lv_obj_set_style_pad_row, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_pad_top, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_radius, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_shadow_width, lv_obj_t *, int32_t, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_shadow_opa, lv_obj_t *, int, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_outline_width, lv_obj_t *, int32_t, int)
+APPS_HOST_LV_NOOP_3(lv_obj_set_style_outline_opa, lv_obj_t *, int, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_border_width, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_border_color, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_border_opa, lv_obj_t *, int, int)

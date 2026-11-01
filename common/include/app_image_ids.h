@@ -90,12 +90,23 @@
 #define APP_IMAGE_UI_FOLDER                   0x578EU
 #define APP_IMAGE_UI_FILE                     0x578FU
 
-/* Music playback glyphs: 0x57C0-0x57CF reserved for music_app-owned
- * controls. Baked in neutral INK and recolored at runtime. */
+/* Music playback and navigation glyphs: 0x57C0-0x57CF reserved for
+ * music_app-owned controls. Baked in neutral INK and recolored at runtime. */
 #define APP_IMAGE_MUSIC_PREV                  0x57C0U
 #define APP_IMAGE_MUSIC_PLAY                  0x57C1U
 #define APP_IMAGE_MUSIC_PAUSE                 0x57C2U
 #define APP_IMAGE_MUSIC_NEXT                  0x57C3U
 #define APP_IMAGE_MUSIC_STOP                  0x57C4U
+#define APP_IMAGE_MUSIC_BACK                  0x57C5U
+#define APP_IMAGE_MUSIC_MENU                  0x57C6U
+#define APP_IMAGE_MUSIC_QUEUE                 0x57C7U
+#define APP_IMAGE_MUSIC_LYRICS                0x57C8U
+#define APP_IMAGE_MUSIC_HEART                 0x57C9U
+#define APP_IMAGE_MUSIC_RADIO                 0x57CAU
+#define APP_IMAGE_MUSIC_DAILY                 0x57CBU
+#define APP_IMAGE_MUSIC_PLAYLIST              0x57CCU
+#define APP_IMAGE_MUSIC_SHUFFLE               0x57CDU
+#define APP_IMAGE_MUSIC_REPEAT_ONE            0x57CEU
+#define APP_IMAGE_MUSIC_SEQUENTIAL            0x57CFU
 
 #endif /* __APP_IMAGE_IDS_H__ */
