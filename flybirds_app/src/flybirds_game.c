@@ -5,11 +5,8 @@
 #define FLYBIRDS_STEP_LIMIT_MS   100U
 #define FLYBIRDS_SUBSTEP_MS      16U
 #define FLYBIRDS_GAP_MARGIN      16.0F
-/* The first column enters view quickly so a run rewards the player early. */
-#define FLYBIRDS_FIRST_PIPE_X    (FLYBIRDS_FIELD_WIDTH + 20.0F)
+#define FLYBIRDS_FIRST_PIPE_GAP  20.0F
 #define FLYBIRDS_RANDOM_SEED     0x1F3D5B79U
-#define FLYBIRDS_START_Y \
-    (((float)FLYBIRDS_PLAY_HEIGHT - (float)FLYBIRDS_BIRD_HEIGHT) * 0.5F)
 
 static uint32_t _game_next_random(flybirds_game_t *game)
 {
@@ -20,8 +17,12 @@ static uint32_t _game_next_random(flybirds_game_t *game)
 static float _game_gap_center(flybirds_game_t *game)
 {
     const float low = (float)FLYBIRDS_PIPE_GAP * 0.5F + FLYBIRDS_GAP_MARGIN;
-    const float high = (float)FLYBIRDS_PLAY_HEIGHT -
+    const float high = (float)flybirds_game_play_height(game) -
                        (float)FLYBIRDS_PIPE_GAP * 0.5F - FLYBIRDS_GAP_MARGIN;
+    if (high <= low)
+    {
+        return low;
+    }
     const uint32_t span = (uint32_t)(high - low);
     if (span == 0U)
     {
@@ -108,13 +109,33 @@ static void _game_advance(flybirds_game_t *game, float dt)
     }
 
     if (game->bird_y + (float)FLYBIRDS_BIRD_HEIGHT >
-            (float)FLYBIRDS_PLAY_HEIGHT)
+            (float)flybirds_game_play_height(game))
     {
-        game->bird_y = (float)FLYBIRDS_PLAY_HEIGHT -
+        game->bird_y = (float)flybirds_game_play_height(game) -
                        (float)FLYBIRDS_BIRD_HEIGHT;
         game->bird_velocity = 0.0F;
         _game_enter_over(game);
     }
+}
+
+void flybirds_game_init(flybirds_game_t *game, uint16_t width, uint16_t height)
+{
+    if (game == NULL)
+    {
+        return;
+    }
+    if (width >= FLYBIRDS_MIN_FIELD_WIDTH && height >= FLYBIRDS_MIN_FIELD_HEIGHT)
+    {
+        game->field_width = width;
+        game->field_height = height;
+    }
+    else if (game->field_width < FLYBIRDS_MIN_FIELD_WIDTH ||
+             game->field_height < FLYBIRDS_MIN_FIELD_HEIGHT)
+    {
+        game->field_width = FLYBIRDS_DEFAULT_FIELD_WIDTH;
+        game->field_height = FLYBIRDS_DEFAULT_FIELD_HEIGHT;
+    }
+    flybirds_game_reset(game);
 }
 
 void flybirds_game_reset(flybirds_game_t *game)
@@ -124,7 +145,8 @@ void flybirds_game_reset(flybirds_game_t *game)
         return;
     }
     game->phase = FLYBIRDS_PHASE_READY;
-    game->bird_y = FLYBIRDS_START_Y;
+    game->bird_y = ((float)flybirds_game_play_height(game) -
+                    (float)FLYBIRDS_BIRD_HEIGHT) * 0.5F;
     game->bird_velocity = 0.0F;
     game->elapsed_ms = 0U;
     game->score = 0U;
@@ -150,7 +172,7 @@ void flybirds_game_start(flybirds_game_t *game)
     for (size_t index = 0U; index < FLYBIRDS_PIPE_COUNT; ++index)
     {
         _game_place_pipe(game, &game->pipes[index],
-                         FLYBIRDS_FIRST_PIPE_X +
+                         (float)game->field_width + FLYBIRDS_FIRST_PIPE_GAP +
                          (float)(FLYBIRDS_PIPE_SPACING * index));
     }
 }

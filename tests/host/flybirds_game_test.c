@@ -10,6 +10,12 @@
 
 #include "flybirds_game.h"
 
+static void _init_game(flybirds_game_t *game, uint16_t width, uint16_t height)
+{
+    memset(game, 0, sizeof(*game));
+    flybirds_game_init(game, width, height);
+}
+
 static void _assert_ready(const flybirds_game_t *game)
 {
     assert(game->phase == FLYBIRDS_PHASE_READY);
@@ -17,7 +23,7 @@ static void _assert_ready(const flybirds_game_t *game)
     assert(fabsf(game->bird_velocity) < 0.001F);
     assert(game->bird_y >= 0.0F);
     assert(game->bird_y + (float)FLYBIRDS_BIRD_HEIGHT <=
-           (float)FLYBIRDS_PLAY_HEIGHT);
+           (float)flybirds_game_play_height(game));
     for (size_t index = 0U; index < FLYBIRDS_PIPE_COUNT; ++index)
     {
         assert(!game->pipes[index].scored);
@@ -29,7 +35,8 @@ static void test_reset_is_ready(void)
 {
     flybirds_game_t game;
     memset(&game, 0xAA, sizeof(game));
-    flybirds_game_reset(&game);
+    flybirds_game_init(&game, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+                       FLYBIRDS_DEFAULT_FIELD_HEIGHT);
     _assert_ready(&game);
     assert(!flybirds_game_take_scored(&game));
     assert(!flybirds_game_take_died(&game));
@@ -38,7 +45,8 @@ static void test_reset_is_ready(void)
 static void test_flap_starts_and_lifts(void)
 {
     flybirds_game_t game;
-    flybirds_game_reset(&game);
+    _init_game(&game, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+               FLYBIRDS_DEFAULT_FIELD_HEIGHT);
     const float start = game.bird_y;
     flybirds_game_flap(&game);
     assert(game.phase == FLYBIRDS_PHASE_PLAYING);
@@ -52,7 +60,8 @@ static void test_flap_starts_and_lifts(void)
 static void test_gravity_reaches_the_ground(void)
 {
     flybirds_game_t game;
-    flybirds_game_reset(&game);
+    _init_game(&game, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+               FLYBIRDS_DEFAULT_FIELD_HEIGHT);
     flybirds_game_flap(&game);
     for (size_t frame = 0U; frame < 240U && game.phase ==
             FLYBIRDS_PHASE_PLAYING; ++frame)
@@ -61,7 +70,7 @@ static void test_gravity_reaches_the_ground(void)
     }
     assert(game.phase == FLYBIRDS_PHASE_OVER);
     assert(fabsf(game.bird_y -
-                 ((float)FLYBIRDS_PLAY_HEIGHT -
+                 ((float)flybirds_game_play_height(&game) -
                   (float)FLYBIRDS_BIRD_HEIGHT)) < 0.001F);
     assert(flybirds_game_take_died(&game));
     assert(!flybirds_game_take_died(&game));
@@ -70,7 +79,8 @@ static void test_gravity_reaches_the_ground(void)
 static void test_ceiling_is_clamped(void)
 {
     flybirds_game_t game;
-    flybirds_game_reset(&game);
+    _init_game(&game, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+               FLYBIRDS_DEFAULT_FIELD_HEIGHT);
     flybirds_game_flap(&game);
     for (size_t frame = 0U; frame < 40U; ++frame)
     {
@@ -84,16 +94,17 @@ static void test_ceiling_is_clamped(void)
 static void test_pipes_spawn_ahead_and_move_left(void)
 {
     flybirds_game_t game;
-    flybirds_game_reset(&game);
+    _init_game(&game, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+               FLYBIRDS_DEFAULT_FIELD_HEIGHT);
     flybirds_game_start(&game);
     assert(game.phase == FLYBIRDS_PHASE_PLAYING);
     for (size_t index = 0U; index < FLYBIRDS_PIPE_COUNT; ++index)
     {
         const flybirds_pipe_t *pipe = &game.pipes[index];
-        assert(pipe->x >= (float)FLYBIRDS_FIELD_WIDTH);
+        assert(pipe->x >= (float)game.field_width);
         assert(pipe->gap_center - (float)FLYBIRDS_PIPE_GAP * 0.5F >= 0.0F);
         assert(pipe->gap_center + (float)FLYBIRDS_PIPE_GAP * 0.5F <=
-               (float)FLYBIRDS_PLAY_HEIGHT);
+               (float)flybirds_game_play_height(&game));
         if (index > 0U)
         {
             assert(fabsf((game.pipes[index].x - game.pipes[index - 1U].x) -
@@ -109,8 +120,10 @@ static void test_gap_generation_is_deterministic(void)
 {
     flybirds_game_t first;
     flybirds_game_t second;
-    flybirds_game_reset(&first);
-    flybirds_game_reset(&second);
+    _init_game(&first, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+               FLYBIRDS_DEFAULT_FIELD_HEIGHT);
+    _init_game(&second, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+               FLYBIRDS_DEFAULT_FIELD_HEIGHT);
     flybirds_game_start(&first);
     flybirds_game_start(&second);
     for (size_t index = 0U; index < FLYBIRDS_PIPE_COUNT; ++index)
@@ -124,7 +137,8 @@ static void test_gap_generation_is_deterministic(void)
 static void test_scoring_awards_each_pipe_once(void)
 {
     flybirds_game_t game;
-    flybirds_game_reset(&game);
+    _init_game(&game, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+               FLYBIRDS_DEFAULT_FIELD_HEIGHT);
     flybirds_game_start(&game);
     /* Park two columns far right and push the first just past the bird. */
     game.pipes[0].x = (float)FLYBIRDS_BIRD_X - (float)FLYBIRDS_PIPE_WIDTH -
@@ -143,7 +157,8 @@ static void test_scoring_awards_each_pipe_once(void)
 static void test_pipe_collision_ends_the_run(void)
 {
     flybirds_game_t game;
-    flybirds_game_reset(&game);
+    _init_game(&game, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+               FLYBIRDS_DEFAULT_FIELD_HEIGHT);
     flybirds_game_start(&game);
     game.pipes[0].x = (float)FLYBIRDS_BIRD_X + 1.0F;
     game.pipes[0].gap_center = 40.0F;
@@ -162,7 +177,8 @@ static void test_pipe_collision_ends_the_run(void)
 static void test_flap_rise_is_about_one_bird_height(void)
 {
     flybirds_game_t game;
-    flybirds_game_reset(&game);
+    _init_game(&game, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+               FLYBIRDS_DEFAULT_FIELD_HEIGHT);
     const float start = game.bird_y;
     flybirds_game_flap(&game);
     for (size_t frame = 0U; frame < 60U && game.bird_velocity < 0.0F; ++frame)
@@ -180,7 +196,8 @@ static void test_flap_rise_is_about_one_bird_height(void)
 static void test_pipe_hitbox_forgives_the_vertical_edge(void)
 {
     flybirds_game_t game;
-    flybirds_game_reset(&game);
+    _init_game(&game, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+               FLYBIRDS_DEFAULT_FIELD_HEIGHT);
     flybirds_game_start(&game);
     const float bird_bottom = game.bird_y + (float)FLYBIRDS_BIRD_HEIGHT;
     game.pipes[0].x = (float)FLYBIRDS_BIRD_X + 1.0F;
@@ -204,7 +221,8 @@ static void test_pipe_hitbox_forgives_the_vertical_edge(void)
 static void test_pipe_hitbox_tolerates_horizontal_brush(void)
 {
     flybirds_game_t game;
-    flybirds_game_reset(&game);
+    _init_game(&game, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+               FLYBIRDS_DEFAULT_FIELD_HEIGHT);
     flybirds_game_start(&game);
     game.pipes[0].gap_center = 40.0F;
     game.pipes[1].x = 900.0F;
@@ -235,10 +253,34 @@ static void test_gap_edges_match_the_centre(void)
     assert(flybirds_pipe_gap_bottom(NULL) == 0.0F);
 }
 
+static void test_runtime_field_adapts(void)
+{
+    flybirds_game_t game;
+    _init_game(&game, 320, 416);
+    assert(game.field_width == 320U);
+    assert(game.field_height == 416U);
+    assert(flybirds_game_play_height(&game) == 404);
+    _assert_ready(&game);
+    flybirds_game_start(&game);
+    for (size_t index = 0U; index < FLYBIRDS_PIPE_COUNT; ++index)
+    {
+        assert(game.pipes[index].x >= (float)game.field_width);
+        assert(game.pipes[index].gap_center +
+               (float)FLYBIRDS_PIPE_GAP * 0.5F <=
+               (float)flybirds_game_play_height(&game));
+    }
+
+    /* A transient zero-sized layout keeps the last valid field. */
+    flybirds_game_init(&game, 0U, 0U);
+    assert(game.field_width == 320U);
+    assert(game.field_height == 416U);
+}
+
 static void test_long_frame_is_bounded(void)
 {
     flybirds_game_t game;
-    flybirds_game_reset(&game);
+    _init_game(&game, FLYBIRDS_DEFAULT_FIELD_WIDTH,
+               FLYBIRDS_DEFAULT_FIELD_HEIGHT);
     flybirds_game_start(&game);
     flybirds_game_step(&game, 1000U);
     assert(game.elapsed_ms == 100U);
@@ -258,6 +300,7 @@ int main(void)
     test_pipe_hitbox_forgives_the_vertical_edge();
     test_pipe_hitbox_tolerates_horizontal_brush();
     test_gap_edges_match_the_centre();
+    test_runtime_field_adapts();
     test_long_frame_is_bounded();
     printf("flybirds_game_test: ok\n");
     return 0;

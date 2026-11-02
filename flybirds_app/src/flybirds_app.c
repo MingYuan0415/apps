@@ -193,6 +193,19 @@ static void _flybirds_build_field(flybirds_page_state_t *state)
     lv_obj_set_clickable(state->field, true);
     state->field_color = APP_UI_COLOR_BACKGROUND;
 
+    /* The same rules drive the 368x384 S3 page and the 320x416 P4 page; read
+     * the real content box instead of baking the panel size into the game. */
+    lv_obj_update_layout(state->page.content);
+    int32_t field_width = lv_obj_get_width(state->page.content);
+    int32_t field_height = lv_obj_get_height(state->page.content);
+    if (field_width <= 0 || field_height <= 0)
+    {
+        field_width = lv_obj_get_width(state->field);
+        field_height = lv_obj_get_height(state->field);
+    }
+    flybirds_game_init(&state->game, (uint16_t)field_width,
+                       (uint16_t)field_height);
+
     static const int32_t stars[FLYBIRDS_STAR_COUNT][2] =
     {
         { 34, 58 }, { 96, 34 }, { 156, 92 },
@@ -203,7 +216,9 @@ static void _flybirds_build_field(flybirds_page_state_t *state)
         lv_obj_t *star = lv_obj_create(state->field);
         lv_obj_remove_style_all(star);
         lv_obj_set_size(star, 2, 2);
-        lv_obj_set_pos(star, stars[index][0], stars[index][1]);
+        lv_obj_set_pos(star,
+                       (stars[index][0] * field_width) / 368,
+                       (stars[index][1] * field_height) / 384);
         lv_obj_set_style_radius(star, LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_bg_color(star, lv_color_hex(APP_UI_COLOR_SURFACE_HI),
                                   0);
@@ -214,7 +229,7 @@ static void _flybirds_build_field(flybirds_page_state_t *state)
     lv_obj_t *ground = lv_obj_create(state->field);
     lv_obj_remove_style_all(ground);
     lv_obj_set_size(ground, LV_PCT(100), FLYBIRDS_GROUND_HEIGHT);
-    lv_obj_set_pos(ground, 0, FLYBIRDS_PLAY_HEIGHT);
+    lv_obj_set_pos(ground, 0, flybirds_game_play_height(&state->game));
     lv_obj_set_style_bg_color(ground, lv_color_hex(APP_UI_COLOR_HAIRLINE), 0);
     lv_obj_set_style_bg_opa(ground, LV_OPA_COVER, 0);
     app_ui_make_passive(ground, false);
@@ -289,7 +304,7 @@ static void _flybirds_build_ready_card(flybirds_page_state_t *state)
     /* Sits below the resting bird so the player sees the avatar before the
      * first tap; the ground band stays clear. */
     lv_obj_set_pos(state->ready_card,
-                   (FLYBIRDS_FIELD_WIDTH - FLYBIRDS_READY_CARD_WIDTH) / 2,
+                   (state->game.field_width - FLYBIRDS_READY_CARD_WIDTH) / 2,
                    216);
 
     (void)_flybirds_add_label(state->ready_card, "轻点屏幕起飞",
@@ -317,7 +332,7 @@ static void _flybirds_build_over_card(flybirds_page_state_t *state)
     lv_obj_set_size(state->over_card, FLYBIRDS_OVER_CARD_WIDTH,
                     FLYBIRDS_OVER_CARD_HEIGHT);
     lv_obj_set_pos(state->over_card,
-                   (FLYBIRDS_FIELD_WIDTH - FLYBIRDS_OVER_CARD_WIDTH) / 2, 84);
+                   (state->game.field_width - FLYBIRDS_OVER_CARD_WIDTH) / 2, 84);
 
     (void)_flybirds_add_label(state->over_card, "本局得分",
                               APP_THEME_FONT_SMALL, APP_UI_COLOR_MUTED, 12);
@@ -393,11 +408,12 @@ static void _flybirds_render_pipes(flybirds_page_state_t *state)
         const int32_t gap_top = (int32_t)flybirds_pipe_gap_top(pipe);
         const int32_t gap_bottom = (int32_t)flybirds_pipe_gap_bottom(pipe);
         const int32_t top_height = gap_top > 0 ? gap_top : 1;
+        const int32_t play_height = flybirds_game_play_height(&state->game);
         const int32_t bottom_height =
-            FLYBIRDS_PLAY_HEIGHT - gap_bottom > 0 ?
-            FLYBIRDS_PLAY_HEIGHT - gap_bottom : 1;
+            play_height - gap_bottom > 0 ?
+            play_height - gap_bottom : 1;
         const bool top_shown = show && gap_top > 0;
-        const bool bottom_shown = show && gap_bottom < FLYBIRDS_PLAY_HEIGHT;
+        const bool bottom_shown = show && gap_bottom < play_height;
 
         if (full || state->pipe_x[index] != x)
         {

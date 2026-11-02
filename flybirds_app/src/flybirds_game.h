@@ -11,10 +11,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/** Playfield width in pixels: the full content area of the page. */
-#define FLYBIRDS_FIELD_WIDTH        368
-/** Playfield height in pixels: page height minus the 64 px header. */
-#define FLYBIRDS_FIELD_HEIGHT       384
+/** Default playfield size: the ESP32-S3 board's 448 px page minus header. */
+#define FLYBIRDS_DEFAULT_FIELD_WIDTH  368
+#define FLYBIRDS_DEFAULT_FIELD_HEIGHT 384
+/** Smallest field the rules accept; below it the gap band has no travel. */
+#define FLYBIRDS_MIN_FIELD_WIDTH      240
+#define FLYBIRDS_MIN_FIELD_HEIGHT     240
 /** Inert ground band at the bottom of the playfield. */
 #define FLYBIRDS_GROUND_HEIGHT      12
 /** Bird collision box width. */
@@ -41,8 +43,6 @@
 #define FLYBIRDS_MAX_FALL_SPEED     310.0F
 /** Pipe contacts ignore this band around the visual box, both axes. */
 #define FLYBIRDS_BIRD_HITBOX_INSET  3
-/** Playable height above the ground band. */
-#define FLYBIRDS_PLAY_HEIGHT        (FLYBIRDS_FIELD_HEIGHT - FLYBIRDS_GROUND_HEIGHT)
 
 _Static_assert(FLYBIRDS_BIRD_HITBOX_INSET * 2 < FLYBIRDS_BIRD_WIDTH,
                "Flybirds hitbox inset must leave a positive hit width");
@@ -70,6 +70,8 @@ typedef struct flybirds_pipe
 /** Complete gameplay state; the page embeds one instance. */
 typedef struct flybirds_game
 {
+    uint16_t field_width;  /**< Playfield width in pixels. */
+    uint16_t field_height; /**< Playfield height in pixels. */
     flybirds_phase_t phase;
     float bird_y;        /**< Bird top edge in field coordinates. */
     float bird_velocity; /**< Vertical speed, positive downwards. */
@@ -82,6 +84,26 @@ typedef struct flybirds_game
     bool scored_event;   /**< A point was awarded since the last take. */
     bool died_event;     /**< The run ended since the last take. */
 } flybirds_game_t;
+
+/** @brief Return the playable height above the ground band. */
+static inline int32_t flybirds_game_play_height(const flybirds_game_t *game)
+{
+    return (int32_t)game->field_height - FLYBIRDS_GROUND_HEIGHT;
+}
+
+/**
+ * @brief Size the playfield and return the game to the ready phase.
+ *
+ * The rules are field-size independent; pass the real content area so the
+ * same code drives the 368x384 S3 page and the 320x416 P4 page. Values below
+ * the minimum keep the previous/default field so a transient zero-sized
+ * layout cannot make the gap span negative.
+ *
+ * @param game is the state to size and reset.
+ * @param width is the playfield width in pixels.
+ * @param height is the playfield height in pixels.
+ */
+void flybirds_game_init(flybirds_game_t *game, uint16_t width, uint16_t height);
 
 /**
  * @brief Return the field to the ready phase with no pipes in flight.

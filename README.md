@@ -10,14 +10,15 @@ drivers directly.
 
 ## Directory Structure and Apps
 
-- `common/`: unified 368 x 448 page skeleton (64 px title bar, 36 px title),
-  circular icon-base navigation/command rows, value rows and semantic status,
-  retaining the async navigation API; grouped lists (`app_ui_group_*`, 1 px
-  separators between rows), capsule buttons (`app_ui_button_set_kind`
-  primary/secondary/danger), segmented control (`app_ui_chip_*`), status pill
-  (`app_ui_add_pill`), in-page modal bottom sheet (`app_ui_sheet_*`) and the
-  shared SVG icon set (`assets/ui_*.svg`, used through `app_ui_image` /
-  `app_ui_icon_set_color` and the `image_id` variants of rows / actions /
+- `common/`: shared page skeleton for the 368 x 448 S3 AMOLED and 320 x 480 P4
+  IPS targets (64 px title bar, 36 px title), circular icon-base
+  navigation/command rows, value rows and semantic status, retaining the async
+  navigation API; grouped lists (`app_ui_group_*`, 1 px separators between
+  rows), capsule buttons (`app_ui_button_set_kind` primary/secondary/danger),
+  segmented control (`app_ui_chip_*`), status pill (`app_ui_add_pill`), in-page
+  modal bottom sheet (`app_ui_sheet_*`) and the shared SVG icon set
+  (`assets/ui_*.svg`, used through `app_ui_image` / `app_ui_icon_set_color` and
+  the `image_id` variants of rows / actions /
   group rows). Size and spacing constants (4 px grid, 12/20/full radii, touch
   height) live in `app_ui_theme.h`.
 - `home_app/`: watch-face home page: a top Wi-Fi/Bluetooth/battery status bar,

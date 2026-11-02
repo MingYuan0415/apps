@@ -369,9 +369,13 @@ static void _settings_about_mount(const app_manager_page_context_t *context)
 
     app_ui_add_section(state->page.content, "硬件");
     lv_obj_t *hardware_group = app_ui_group_create(state->page.content);
-    (void)app_ui_group_add_value(hardware_group, "显示", "368 x 448 AMOLED",
-                                 NULL);
-    (void)app_ui_group_add_value(hardware_group, "平台", "ESP32-S3", NULL);
+    const app_manager_device_info_t *device = app_manager_get_device_info();
+    (void)app_ui_group_add_value(hardware_group, "显示",
+                                 device != NULL && device->panel != NULL ?
+                                 device->panel : "--", NULL);
+    (void)app_ui_group_add_value(hardware_group, "平台",
+                                 device != NULL && device->platform != NULL ?
+                                 device->platform : "--", NULL);
 
     app_ui_add_section(state->page.content, "固件");
     lv_obj_t *firmware_group = app_ui_group_create(state->page.content);
