@@ -13,6 +13,7 @@
 #define MUSIC_PLAYLIST_PAGE_REQUEST_SIZE 10U
 #define MUSIC_PLAYLIST_COVER_SIZE MUSIC_UI_HERO_COVER
 #define MUSIC_PLAYLIST_COVER_TIMEOUT_MS 12000U
+#define MUSIC_PLAYLIST_LOAD_TIMEOUT_MS 15000U
 #define MUSIC_PLAYLIST_COVER_MAX_ATTEMPTS 2U
 
 typedef struct music_playlist_state
@@ -253,7 +254,11 @@ static void _playlist_play_all_clicked(lv_event_t *event)
     {
         return;
     }
-    const esp_err_t result = music_service_play_playlist(&state->ref, 0U);
+    const music_playlist_snapshot_t *first =
+        _playlist_page_snapshot(state, 0U);
+    const esp_err_t result = first != NULL && first->count > 0U ?
+                             music_service_play_playlist_snapshot(first, 0U) :
+                             music_service_play_playlist(&state->ref, 0U);
     if (result != ESP_OK)
     {
         app_ui_set_status_text(state->status_label,
@@ -683,7 +688,8 @@ static void _playlist_timer_cb(lv_timer_t *timer)
     music_playlist_state_t *state = lv_timer_get_user_data(timer);
     _playlist_collect_pending(state);
     if (state->request_pending &&
-            lv_tick_get() - state->loading_since_ms >= 10000U)
+            lv_tick_get() - state->loading_since_ms >=
+            MUSIC_PLAYLIST_LOAD_TIMEOUT_MS)
     {
         state->request_pending = false;
         state->pending_page = UINT16_MAX;
