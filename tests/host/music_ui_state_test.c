@@ -293,6 +293,17 @@ static void test_playlist_identity_and_pages(void)
     assert(music_ui_playlist_page_count(0U, 0U, 1U) == 1U);
     assert(music_ui_playlist_page_count(12U, 12U, 2U) == 2U);
 
+    assert(music_ui_queue_page_count(0U, 20U) == 0U);
+    assert(music_ui_queue_page_count(1U, 20U) == 1U);
+    assert(music_ui_queue_page_count(20U, 20U) == 1U);
+    assert(music_ui_queue_page_count(137U, 20U) == 7U);
+    assert(music_ui_queue_page_count(137U, 0U) == 0U);
+    assert(music_ui_queue_page_for_index(0U, 20U) == 0U);
+    assert(music_ui_queue_page_for_index(19U, 20U) == 0U);
+    assert(music_ui_queue_page_for_index(20U, 20U) == 1U);
+    assert(music_ui_queue_page_for_index(136U, 20U) == 6U);
+    assert(music_ui_queue_page_for_index(136U, 0U) == 0U);
+
 }
 
 static void test_home_shortcuts(void)

@@ -371,6 +371,20 @@ uint16_t music_ui_playlist_page_count(uint32_t total, uint32_t loaded_rows,
     return pages > UINT16_MAX ? UINT16_MAX : (uint16_t)pages;
 }
 
+uint16_t music_ui_queue_page_count(uint16_t total, uint16_t page_size)
+{
+    if (total == 0U || page_size == 0U)
+    {
+        return 0U;
+    }
+    return (uint16_t)(((uint32_t)total + page_size - 1U) / page_size);
+}
+
+uint16_t music_ui_queue_page_for_index(uint16_t index, uint16_t page_size)
+{
+    return page_size == 0U ? 0U : (uint16_t)(index / page_size);
+}
+
 
 const music_playlist_t *music_ui_liked_playlist(
     const music_home_snapshot_t *home)

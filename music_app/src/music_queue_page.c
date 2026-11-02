@@ -6,6 +6,7 @@
 #include <string.h>
 
 #define MUSIC_QUEUE_ROW_HEIGHT 72
+#define MUSIC_QUEUE_PAGE_SIZE 20U
 
 typedef struct music_queue_state
 {
@@ -20,9 +21,17 @@ typedef struct music_queue_state
     music_queue_snapshot_t *queue;
     uint64_t shown_generation;
     uint16_t shown_index;
+    uint16_t current_page;
+    uint16_t page_count;
+    uint16_t total;
     uint16_t pending_remove_index;
+    uint16_t request_page;
+    uint16_t request_offset;
     bool dirty;
     bool busy;
+    bool loading;
+    bool failed;
+    bool request_pending;
 } music_queue_state_t;
 
 _Static_assert(sizeof(music_queue_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -31,7 +40,7 @@ _Static_assert(sizeof(music_queue_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
 static void _queue_refresh(music_queue_state_t *state);
 static void _queue_dismiss_sheet(music_queue_state_t *state);
 
-static void _queue_release(music_queue_state_t *state)
+static void _queue_release_snapshot(music_queue_state_t *state)
 {
     if (state->queue != NULL)
     {
@@ -40,6 +49,19 @@ static void _queue_release(music_queue_state_t *state)
     }
     state->shown_generation = 0U;
     state->shown_index = UINT16_MAX;
+}
+
+static void _queue_release(music_queue_state_t *state)
+{
+    _queue_release_snapshot(state);
+    state->total = 0U;
+    state->current_page = 0U;
+    state->page_count = 0U;
+    state->request_pending = false;
+    state->request_page = UINT16_MAX;
+    state->request_offset = 0U;
+    state->loading = false;
+    state->failed = false;
 }
 
 static lv_obj_t *_queue_label(lv_obj_t *parent, const char *text,
@@ -136,7 +158,7 @@ static void _queue_delete_confirm(lv_event_t *event)
     }
     const uint16_t index = state->pending_remove_index;
     state->pending_remove_index = UINT16_MAX;
-    if (state->queue == NULL || index >= state->queue->count)
+    if (state->queue == NULL || index >= state->total)
     {
         return;
     }
@@ -153,21 +175,28 @@ static void _queue_delete_confirm(lv_event_t *event)
 static void _queue_delete_clicked(lv_event_t *event)
 {
     music_queue_state_t *state = lv_event_get_user_data(event);
-    if (state == NULL || state->busy || state->confirm_sheet != NULL)
+    if (state == NULL || state->busy || state->confirm_sheet != NULL ||
+            state->queue == NULL)
     {
         return;
     }
     const uintptr_t encoded = (uintptr_t)lv_obj_get_user_data(
                                   lv_event_get_target_obj(event));
-    if (encoded == 0U || state->queue == NULL ||
-            encoded > state->queue->count)
+    if (encoded == 0U || encoded > state->total)
     {
         return;
     }
     const uint16_t index = (uint16_t)(encoded - 1U);
+    if (index < state->queue->offset ||
+            (uint32_t)index >= (uint32_t)state->queue->offset +
+            state->queue->count)
+    {
+        return;
+    }
+    const uint16_t local = (uint16_t)(index - state->queue->offset);
     char title[160];
     (void)snprintf(title, sizeof(title), "从播放列表移除《%s》？",
-                   state->queue->songs[index].title);
+                   state->queue->songs[local].title);
     state->pending_remove_index = index;
     state->confirm_sheet = app_ui_sheet_open(state->page.root, title,
         "移除后不会恢复，是否继续？");
@@ -191,7 +220,7 @@ static void _queue_play_clicked(lv_event_t *event)
     }
     const uintptr_t encoded = (uintptr_t)lv_obj_get_user_data(
                                   lv_event_get_target_obj(event));
-    if (encoded == 0U || encoded > state->queue->count)
+    if (encoded == 0U || encoded > state->total)
     {
         return;
     }
@@ -221,7 +250,7 @@ static void _queue_update_summary(music_queue_state_t *state)
     {
         return;
     }
-    if (state->queue == NULL || state->queue->count == 0U)
+    if (state->total == 0U)
     {
         app_ui_label_set_text_if(state->summary_label, "共 0 首");
         return;
@@ -229,23 +258,53 @@ static void _queue_update_summary(music_queue_state_t *state)
     char summary[64];
     music_player_status_t player;
     if (music_service_get_player_status(&player) == ESP_OK &&
-            player.queue_count == state->queue->count &&
+            player.queue_count == state->total &&
             player.queue_index < player.queue_count)
     {
         (void)snprintf(summary, sizeof(summary), "共 %u 首 · 第 %u / %u 首",
-                       (unsigned)state->queue->count,
+                       (unsigned)state->total,
                        (unsigned)(player.queue_index + 1U),
                        (unsigned)player.queue_count);
     }
     else
     {
         (void)snprintf(summary, sizeof(summary), "共 %u 首",
-                       (unsigned)state->queue->count);
+                       (unsigned)state->total);
     }
     app_ui_label_set_text_if(state->summary_label, summary);
 }
 
-static void _queue_rebuild(music_queue_state_t *state)
+static void _queue_prev_clicked(lv_event_t *event)
+{
+    music_queue_state_t *state = lv_event_get_user_data(event);
+    if (state != NULL && state->current_page > 0U)
+    {
+        state->current_page = (uint16_t)(state->current_page - 1U);
+        _queue_release_snapshot(state);
+        state->loading = true;
+        state->failed = false;
+        _queue_refresh(state);
+        lv_obj_update_layout(state->page.content);
+        lv_obj_scroll_to_y(state->page.content, 0, LV_ANIM_OFF);
+    }
+}
+
+static void _queue_next_clicked(lv_event_t *event)
+{
+    music_queue_state_t *state = lv_event_get_user_data(event);
+    if (state != NULL && state->current_page + 1U < state->page_count)
+    {
+        state->current_page = (uint16_t)(state->current_page + 1U);
+        _queue_release_snapshot(state);
+        state->loading = true;
+        state->failed = false;
+        _queue_refresh(state);
+        lv_obj_update_layout(state->page.content);
+        lv_obj_scroll_to_y(state->page.content, 0, LV_ANIM_OFF);
+    }
+}
+
+static void _queue_build_page(music_queue_state_t *state)
 {
     if (state->list == NULL)
     {
@@ -253,106 +312,258 @@ static void _queue_rebuild(music_queue_state_t *state)
     }
     _queue_update_summary(state);
     lv_obj_clean(state->list);
-    if (state->queue == NULL || state->queue->count == 0U)
+    const uint16_t page_count = state->page_count > 0U ? state->page_count : 1U;
+    if (state->current_page > 0U)
     {
-        (void)app_ui_add_empty_state(state->list, "队列为空",
-                                     "从歌单播放歌曲后可在这里管理");
-        return;
+        char subtitle[48];
+        (void)snprintf(subtitle, sizeof(subtitle), "第 %u / %u 页",
+                       (unsigned)(state->current_page + 1U),
+                       (unsigned)page_count);
+        (void)app_ui_add_action(state->list, LV_SYMBOL_PREV, "上一页",
+                                subtitle, _queue_prev_clicked, state);
     }
-    music_player_status_t player;
-    const bool has_player =
-        music_service_get_player_status(&player) == ESP_OK;
-    const uint16_t current = has_player ? player.queue_index : UINT16_MAX;
-    for (uint16_t index = 0U; index < state->queue->count; ++index)
+    if (state->queue == NULL)
     {
-        const music_song_t *song = &state->queue->songs[index];
-        const bool active = index == current;
-        lv_obj_t *row = lv_obj_create(state->list);
-        if (row == NULL)
+        if (state->failed)
         {
-            return;
+            if (state->retry_button != NULL)
+            {
+                lv_obj_set_hidden(state->retry_button, false);
+            }
         }
-        lv_obj_remove_style_all(row);
-        lv_obj_set_width(row, LV_PCT(100));
-        lv_obj_set_height(row, LV_SIZE_CONTENT);
-        lv_obj_set_style_min_height(row, MUSIC_QUEUE_ROW_HEIGHT, 0);
-        lv_obj_set_style_radius(row, APP_UI_RADIUS_CONTROL, 0);
-        lv_obj_set_style_border_width(row, 0, 0);
-        lv_obj_set_style_shadow_width(row, 0, 0);
-        lv_obj_set_style_shadow_opa(row, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_outline_width(row, 0, 0);
-        lv_obj_set_style_outline_opa(row, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_bg_color(row, lv_color_hex(
-                                      active ? APP_UI_COLOR_RAIN_TINT :
-                                      APP_UI_COLOR_SURFACE), 0);
-        lv_obj_set_style_bg_opa(row, active ? LV_OPA_COVER : LV_OPA_TRANSP,
-                                0);
-        lv_obj_set_style_pad_all(row, 8, 0);
-        lv_obj_set_style_pad_column(row, 10, 0);
-        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START,
-                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        app_ui_make_passive(row, false);
-
-        lv_obj_t *main = lv_button_create(row);
-        if (main == NULL)
+        else if (state->loading)
         {
-            continue;
-        }
-        app_ui_click_only(main);
-        lv_obj_set_width(main, 0);
-        lv_obj_set_flex_grow(main, 1);
-        lv_obj_set_height(main, LV_SIZE_CONTENT);
-        lv_obj_set_style_min_height(main, MUSIC_QUEUE_ROW_HEIGHT - 12, 0);
-        music_ui_flat_button_reset(main, APP_UI_RADIUS_CONTROL);
-        lv_obj_set_style_bg_color(main, lv_color_hex(APP_UI_COLOR_SURFACE),
-                                  LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(main, LV_OPA_COVER, LV_STATE_PRESSED);
-        lv_obj_set_style_pad_column(main, 12, 0);
-        lv_obj_set_flex_flow(main, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(main, LV_FLEX_ALIGN_START,
-                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_user_data(main, (void *)(uintptr_t)(index + 1U));
-        lv_obj_add_event_cb(main, _queue_play_clicked, LV_EVENT_CLICKED,
-                            state);
-        if (active)
-        {
-            (void)_queue_equalizer(main, true);
+            (void)app_ui_add_body_label(state->list, "正在加载队列…");
         }
         else
         {
-            char ordinal[8];
-            (void)snprintf(ordinal, sizeof(ordinal), "%u",
-                           (unsigned)(index + 1U));
-            lv_obj_t *number = _queue_label(main, ordinal,
-                                            APP_THEME_FONT_SMALL,
-                                            APP_UI_COLOR_FAINT, true);
-            lv_obj_set_width(number, 30);
-            lv_obj_set_style_text_align(number, LV_TEXT_ALIGN_CENTER, 0);
+            (void)app_ui_add_empty_state(state->list, "队列为空",
+                                         "从歌单播放歌曲后可在这里管理");
         }
-        lv_obj_t *text = lv_obj_create(main);
-        lv_obj_remove_style_all(text);
-        lv_obj_set_width(text, 0);
-        lv_obj_set_flex_grow(text, 1);
-        lv_obj_set_height(text, LV_SIZE_CONTENT);
-        lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_pad_row(text, 1, 0);
-        app_ui_make_passive(text, false);
-        _queue_label(text, song->title, APP_THEME_FONT_BODY,
-                     active ? APP_UI_COLOR_RAIN : APP_UI_COLOR_TEXT, false);
-        _queue_label(text, song->artist[0] == '\0' ? "未知歌手" :
-                     song->artist, APP_THEME_FONT_SMALL,
-                     APP_UI_COLOR_MUTED, true);
-
-        lv_obj_t *remove = music_ui_plain_icon_button(
-                               row, APP_IMAGE_UI_TRASH, LV_SYMBOL_TRASH,
-                               MUSIC_UI_CONTROL_SIZE, 26,
-                               APP_UI_COLOR_FAINT, _queue_delete_clicked,
-                               state);
-        if (remove != NULL)
+    }
+    else
+    {
+        music_player_status_t player;
+        const bool has_player =
+            music_service_get_player_status(&player) == ESP_OK;
+        for (uint16_t index = 0U; index < state->queue->count; ++index)
         {
-            lv_obj_set_user_data(remove, (void *)(uintptr_t)(index + 1U));
+            const uint16_t global_index = (uint16_t)(
+                                              state->queue->offset + index);
+            const music_song_t *song = &state->queue->songs[index];
+            const bool active = has_player &&
+                                player.queue_index == global_index;
+            lv_obj_t *row = lv_obj_create(state->list);
+            if (row == NULL)
+            {
+                return;
+            }
+            lv_obj_remove_style_all(row);
+            lv_obj_set_width(row, LV_PCT(100));
+            lv_obj_set_height(row, LV_SIZE_CONTENT);
+            lv_obj_set_style_min_height(row, MUSIC_QUEUE_ROW_HEIGHT, 0);
+            lv_obj_set_style_radius(row, APP_UI_RADIUS_CONTROL, 0);
+            lv_obj_set_style_border_width(row, 0, 0);
+            lv_obj_set_style_shadow_width(row, 0, 0);
+            lv_obj_set_style_shadow_opa(row, LV_OPA_TRANSP, 0);
+            lv_obj_set_style_outline_width(row, 0, 0);
+            lv_obj_set_style_outline_opa(row, LV_OPA_TRANSP, 0);
+            lv_obj_set_style_bg_color(row, lv_color_hex(
+                                          active ? APP_UI_COLOR_RAIN_TINT :
+                                          APP_UI_COLOR_SURFACE), 0);
+            lv_obj_set_style_bg_opa(row, active ? LV_OPA_COVER :
+                                    LV_OPA_TRANSP, 0);
+            lv_obj_set_style_pad_all(row, 8, 0);
+            lv_obj_set_style_pad_column(row, 10, 0);
+            lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+            lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START,
+                                  LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            app_ui_make_passive(row, false);
+
+            lv_obj_t *main = lv_button_create(row);
+            if (main == NULL)
+            {
+                continue;
+            }
+            app_ui_click_only(main);
+            lv_obj_set_width(main, 0);
+            lv_obj_set_flex_grow(main, 1);
+            lv_obj_set_height(main, LV_SIZE_CONTENT);
+            lv_obj_set_style_min_height(main, MUSIC_QUEUE_ROW_HEIGHT - 12, 0);
+            music_ui_flat_button_reset(main, APP_UI_RADIUS_CONTROL);
+            lv_obj_set_style_bg_color(main, lv_color_hex(APP_UI_COLOR_SURFACE),
+                                      LV_STATE_PRESSED);
+            lv_obj_set_style_bg_opa(main, LV_OPA_COVER, LV_STATE_PRESSED);
+            lv_obj_set_style_pad_column(main, 12, 0);
+            lv_obj_set_flex_flow(main, LV_FLEX_FLOW_ROW);
+            lv_obj_set_flex_align(main, LV_FLEX_ALIGN_START,
+                                  LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_set_user_data(main, (void *)(uintptr_t)(global_index + 1U));
+            lv_obj_add_event_cb(main, _queue_play_clicked, LV_EVENT_CLICKED,
+                                state);
+            if (active)
+            {
+                (void)_queue_equalizer(main, true);
+            }
+            else
+            {
+                char ordinal[8];
+                (void)snprintf(ordinal, sizeof(ordinal), "%u",
+                               (unsigned)(global_index + 1U));
+                lv_obj_t *number = _queue_label(main, ordinal,
+                                                APP_THEME_FONT_SMALL,
+                                                APP_UI_COLOR_FAINT, true);
+                lv_obj_set_width(number, 30);
+                lv_obj_set_style_text_align(number, LV_TEXT_ALIGN_CENTER, 0);
+            }
+            lv_obj_t *text = lv_obj_create(main);
+            lv_obj_remove_style_all(text);
+            lv_obj_set_width(text, 0);
+            lv_obj_set_flex_grow(text, 1);
+            lv_obj_set_height(text, LV_SIZE_CONTENT);
+            lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
+            lv_obj_set_style_pad_row(text, 1, 0);
+            app_ui_make_passive(text, false);
+            _queue_label(text, song->title, APP_THEME_FONT_BODY,
+                         active ? APP_UI_COLOR_RAIN : APP_UI_COLOR_TEXT, false);
+            _queue_label(text, song->artist[0] == '\0' ? "未知歌手" :
+                         song->artist, APP_THEME_FONT_SMALL,
+                         APP_UI_COLOR_MUTED, true);
+
+            lv_obj_t *remove = music_ui_plain_icon_button(
+                                   row, APP_IMAGE_UI_TRASH, LV_SYMBOL_TRASH,
+                                   MUSIC_UI_CONTROL_SIZE, 26,
+                                   APP_UI_COLOR_FAINT, _queue_delete_clicked,
+                                   state);
+            if (remove != NULL)
+            {
+                lv_obj_set_user_data(remove,
+                                     (void *)(uintptr_t)(global_index + 1U));
+            }
         }
+        if (state->queue->count == 0U)
+        {
+            (void)app_ui_add_empty_state(state->list, "队列为空",
+                                         "从歌单播放歌曲后可在这里管理");
+        }
+    }
+    if (state->current_page + 1U < page_count)
+    {
+        char subtitle[48];
+        (void)snprintf(subtitle, sizeof(subtitle), "第 %u / %u 页",
+                       (unsigned)(state->current_page + 2U),
+                       (unsigned)page_count);
+        (void)app_ui_add_action(state->list, LV_SYMBOL_NEXT, "下一页",
+                                subtitle, _queue_next_clicked, state);
+    }
+}
+
+static void _queue_store_view(music_queue_state_t *state,
+                              const music_queue_snapshot_t *view,
+                              uint16_t page)
+{
+    _queue_release_snapshot(state);
+    state->queue = (music_queue_snapshot_t *)view;
+    state->shown_generation = view->generation;
+    state->total = view->total;
+    state->page_count = music_ui_queue_page_count(state->total,
+        MUSIC_QUEUE_PAGE_SIZE);
+    state->current_page = page;
+    state->request_pending = false;
+    state->loading = false;
+    state->failed = false;
+    state->dirty = false;
+    _queue_build_page(state);
+}
+
+static bool _queue_request_page(music_queue_state_t *state, uint16_t page)
+{
+    if (state->request_pending || state->failed)
+    {
+        return false;
+    }
+    if (state->page_count > 0U && page >= state->page_count)
+    {
+        return false;
+    }
+    const uint16_t offset = (uint16_t)(page * MUSIC_QUEUE_PAGE_SIZE);
+    const music_queue_snapshot_t *view = NULL;
+    state->request_page = page;
+    state->request_offset = offset;
+    state->request_pending = true;
+    state->loading = true;
+    const esp_err_t result = music_service_queue_view_acquire(
+                                 offset, MUSIC_QUEUE_PAGE_SIZE, &view);
+    if (result == ESP_OK && view != NULL)
+    {
+        _queue_store_view(state, view, page);
+        return true;
+    }
+    if (result == ESP_ERR_NOT_FOUND)
+    {
+        return true;
+    }
+    state->request_pending = false;
+    state->loading = false;
+    if (result == ESP_ERR_INVALID_STATE)
+    {
+        _queue_release_snapshot(state);
+        state->total = 0U;
+        state->page_count = 0U;
+        state->current_page = 0U;
+        _queue_build_page(state);
+        return false;
+    }
+    state->failed = true;
+    _queue_status(state, result == ESP_ERR_TIMEOUT ?
+                  "队列加载超时，请重试" : "队列加载失败",
+                  APP_UI_STATUS_WARNING);
+    _queue_build_page(state);
+    return false;
+}
+
+static void _queue_refresh(music_queue_state_t *state)
+{
+    if (state->request_pending)
+    {
+        const music_queue_snapshot_t *view = NULL;
+        const esp_err_t result = music_service_queue_view_acquire(
+                                     state->request_offset,
+                                     MUSIC_QUEUE_PAGE_SIZE, &view);
+        if (result == ESP_OK && view != NULL)
+        {
+            _queue_store_view(state, view, state->request_page);
+        }
+        else if (result == ESP_ERR_INVALID_STATE)
+        {
+            state->request_pending = false;
+            state->loading = false;
+            _queue_release_snapshot(state);
+            state->total = 0U;
+            state->page_count = 0U;
+            _queue_build_page(state);
+        }
+        else if (result != ESP_ERR_NOT_FOUND)
+        {
+            state->request_pending = false;
+            state->loading = false;
+            state->failed = true;
+            _queue_build_page(state);
+        }
+        return;
+    }
+    if (state->failed || state->total == 0U)
+    {
+        return;
+    }
+    if (state->queue == NULL)
+    {
+        _queue_request_page(state, state->current_page);
+    }
+    else if (state->dirty)
+    {
+        state->dirty = false;
+        _queue_build_page(state);
     }
 }
 
@@ -363,56 +574,16 @@ static void _queue_retry_clicked(lv_event_t *event)
     {
         return;
     }
+    const uint16_t page = state->current_page;
     _queue_release(state);
-    _queue_status(state, "", APP_UI_STATUS_NEUTRAL);
-    state->dirty = true;
-    _queue_refresh(state);
-}
-
-static void _queue_refresh(music_queue_state_t *state)
-{
-    const music_queue_snapshot_t *current = NULL;
-    const esp_err_t result = music_service_queue_acquire(&current);
-    if (result == ESP_OK && current != NULL)
-    {
-        if (state->retry_button != NULL)
-        {
-            lv_obj_set_hidden(state->retry_button, true);
-        }
-        const bool changed = state->queue == NULL ||
-                             current->generation != state->shown_generation ||
-                             state->dirty;
-        if (state->queue != NULL)
-        {
-            music_service_queue_release(state->queue);
-        }
-        state->queue = (music_queue_snapshot_t *)current;
-        state->shown_generation = current->generation;
-        if (changed)
-        {
-            _queue_rebuild(state);
-        }
-        state->dirty = false;
-        return;
-    }
-    if (result == ESP_ERR_NOT_FOUND)
-    {
-        if (state->retry_button != NULL)
-        {
-            lv_obj_set_hidden(state->retry_button, true);
-        }
-        if (state->queue != NULL || state->shown_generation != 0U)
-        {
-            _queue_release(state);
-            _queue_rebuild(state);
-        }
-        return;
-    }
-    _queue_status(state, "队列加载失败", APP_UI_STATUS_WARNING);
+    state->current_page = page;
     if (state->retry_button != NULL)
     {
-        lv_obj_set_hidden(state->retry_button, false);
+        lv_obj_set_hidden(state->retry_button, true);
     }
+    _queue_status(state, "", APP_UI_STATUS_NEUTRAL);
+    state->dirty = true;
+    _queue_request_page(state, page);
 }
 
 static void _queue_timer_cb(lv_timer_t *timer)
@@ -423,11 +594,20 @@ static void _queue_timer_cb(lv_timer_t *timer)
         return;
     }
     music_player_status_t player;
-    if (music_service_get_player_status(&player) == ESP_OK &&
-            player.queue_index != state->shown_index)
+    if (music_service_get_player_status(&player) == ESP_OK)
     {
-        state->shown_index = player.queue_index;
-        state->dirty = true;
+        if (player.queue_index != state->shown_index)
+        {
+            state->shown_index = player.queue_index;
+            state->dirty = true;
+        }
+        if (player.queue_count != state->total && player.queue_count != 0U)
+        {
+            state->total = player.queue_count;
+            state->page_count = music_ui_queue_page_count(
+                                    state->total, MUSIC_QUEUE_PAGE_SIZE);
+            state->dirty = true;
+        }
     }
     _queue_refresh(state);
 }
@@ -437,8 +617,6 @@ static void _queue_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
                             void *user_data)
 {
     (void)msg_id;
-    (void)payload;
-    (void)payload_size;
     music_queue_state_t *state = user_data;
     if (state == NULL)
     {
@@ -447,13 +625,25 @@ static void _queue_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
     if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_QUEUE)
     {
         _queue_dismiss_sheet(state);
-    }
-    if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_QUEUE ||
-            sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_STATUS)
-    {
         state->busy = false;
+        state->request_pending = false;
+        state->loading = false;
+        const music_service_event_t *event = payload;
+        if (event != NULL && payload_size >= sizeof(*event) &&
+                event->failure != MUSIC_SERVICE_FAILURE_NONE)
+        {
+            state->failed = true;
+            _queue_status(state, "队列加载失败", APP_UI_STATUS_WARNING);
+            _queue_build_page(state);
+            return;
+        }
         _queue_status(state, "", APP_UI_STATUS_NEUTRAL);
+        _queue_release_snapshot(state);
         state->dirty = true;
+        _queue_refresh(state);
+    }
+    else if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_STATUS)
+    {
         _queue_refresh(state);
     }
 }
@@ -465,6 +655,7 @@ static void _queue_mount(const app_manager_page_context_t *context)
     state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     state->shown_index = UINT16_MAX;
     state->pending_remove_index = UINT16_MAX;
+    state->request_page = UINT16_MAX;
     state->dirty = true;
     app_ui_page_create(&state->page, "播放列表", true);
     music_ui_add_header_back(&state->page);
@@ -498,7 +689,7 @@ static void _queue_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_pad_row(state->list, 4, 0);
     lv_obj_set_scroll_dir(state->list, LV_DIR_NONE);
     app_ui_make_passive(state->list, false);
-    _queue_rebuild(state);
+    _queue_build_page(state);
 }
 
 static void _queue_resume(const app_manager_page_context_t *context)
@@ -509,7 +700,17 @@ static void _queue_resume(const app_manager_page_context_t *context)
                               _queue_event_cb, state, EVENT_BUS_DISPATCH_UI,
                               &state->subscription);
     state->timer = lv_timer_create(_queue_timer_cb, 500U, state);
-    _queue_refresh(state);
+    music_player_status_t player;
+    if (music_service_get_player_status(&player) == ESP_OK &&
+            player.queue_count > 0U)
+    {
+        state->total = player.queue_count;
+        state->page_count = music_ui_queue_page_count(
+                                state->total, MUSIC_QUEUE_PAGE_SIZE);
+        state->current_page = music_ui_queue_page_for_index(
+                                  player.queue_index, MUSIC_QUEUE_PAGE_SIZE);
+    }
+    _queue_request_page(state, state->current_page);
 }
 
 static void _queue_dismiss_sheet(music_queue_state_t *state)

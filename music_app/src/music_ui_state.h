@@ -59,6 +59,12 @@ bool music_ui_playlist_ref_valid(const music_playlist_ref_t *ref);
 uint16_t music_ui_playlist_page_count(uint32_t total, uint32_t loaded_rows,
                                       uint16_t loaded_pages);
 
+/** @brief Number of pages needed to browse a logical playback queue. */
+uint16_t music_ui_queue_page_count(uint16_t total, uint16_t page_size);
+
+/** @brief Page containing one logical queue index. */
+uint16_t music_ui_queue_page_for_index(uint16_t index, uint16_t page_size);
+
 /** @brief Format the queue position without inventing unavailable data. */
 void music_ui_queue_text(const music_player_status_t *status, char *output,
                          size_t output_size);

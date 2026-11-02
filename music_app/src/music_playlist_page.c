@@ -252,14 +252,11 @@ static void _playlist_song_clicked(lv_event_t *event)
 static void _playlist_play_all_clicked(lv_event_t *event)
 {
     music_playlist_state_t *state = lv_event_get_user_data(event);
-    const music_playlist_snapshot_t *snapshot = state != NULL ?
-        _playlist_page_snapshot(state, state->current_page) : NULL;
-    if (snapshot == NULL || snapshot->count == 0U)
+    if (state == NULL)
     {
         return;
     }
-    const esp_err_t result = music_service_play_playlist_snapshot(
-                                 snapshot, 0U);
+    const esp_err_t result = music_service_play_playlist(&state->ref, 0U);
     if (result != ESP_OK)
     {
         app_ui_set_status_text(state->status_label,
