@@ -143,10 +143,11 @@ drivers directly.
   current-track thumbnail, title/artist, a three-line lyric window
   that opens the lyrics page when tapped, progress, transport controls, a
   mode/volume/stop tool row, idle selection guidance and playback-error retry.
-  The sidebar is a long scrolling
-  page with personal radio, daily recommendation, liked playlist, self-created
-  and available collected playlists, and confirmed logout. Playlist uses
-  10-track pages with previous/next controls at the list ends, prefetches the
+  The sidebar is a long scrolling page that shows the current signed-in account
+  avatar and display name, and includes personal radio, daily recommendation,
+  liked playlist, self-created and available collected playlists, and confirmed
+  logout. Playlist
+  uses 10-track pages with previous/next controls at the list ends, prefetches the
   current page and the two adjacent pages, and returns to the list top after a
   page change; queue shows the live playback queue with a summary, switch and
   confirmed delete actions; lyrics keeps a seven-line current-track window and

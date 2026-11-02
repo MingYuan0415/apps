@@ -59,6 +59,41 @@ static void test_service_and_player_copy(void)
                   "播放失败") == 0);
 }
 
+static void test_account_text(void)
+{
+    char text[MUSIC_UI_ACCOUNT_TEXT_BYTES];
+    music_service_status_t service = {0};
+
+    music_ui_account_text(NULL, text, sizeof(text));
+    assert(strcmp(text, "未登录") == 0);
+    music_ui_account_text(&service, text, sizeof(text));
+    assert(strcmp(text, "未登录") == 0);
+
+    service.logged_in = true;
+    music_ui_account_text(&service, text, sizeof(text));
+    assert(strcmp(text, "已登录 QQ 音乐") == 0);
+
+    (void)strcpy(service.user_id, "123456789");
+    service.login_type = MUSIC_LOGIN_TYPE_QQ;
+    music_ui_account_text(&service, text, sizeof(text));
+    assert(strcmp(text, "QQ 123456789") == 0);
+    service.login_type = MUSIC_LOGIN_TYPE_WECHAT;
+    music_ui_account_text(&service, text, sizeof(text));
+    assert(strcmp(text, "微信 123456789") == 0);
+
+    (void)strcpy(service.user_name, "测试用户");
+    music_ui_account_text(&service, text, sizeof(text));
+    assert(strcmp(text, "测试用户") == 0);
+
+    (void)strcpy(service.user_name,
+                 "这是一个很长很长的模拟昵称用于布局检查");
+    music_ui_account_text(&service, text, sizeof(text));
+    assert(strcmp(text, "这是一个很长很长的模拟昵称用于布局检查") == 0);
+
+    music_ui_account_text(&service, NULL, sizeof(text));
+    music_ui_account_text(&service, text, 0U);
+}
+
 static void test_mode_quality_copy(void)
 {
     assert(strcmp(music_ui_mode_text(MUSIC_PLAY_MODE_SEQUENTIAL),
@@ -327,6 +362,7 @@ int main(void)
 {
     test_time_format();
     test_service_and_player_copy();
+    test_account_text();
     test_mode_quality_copy();
     test_control_availability();
     test_repeat_one_prev_semantics();

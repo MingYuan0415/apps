@@ -10,11 +10,24 @@
 /** @brief Capacity for music_ui_queue_text() output. */
 #define MUSIC_UI_QUEUE_TEXT_BYTES 48U
 
+/** @brief Capacity for music_ui_account_text() output. */
+#define MUSIC_UI_ACCOUNT_TEXT_BYTES 128U
+
 void music_ui_format_time(uint32_t milliseconds, char *output,
                           size_t output_size);
 
 /** @brief Human-readable account/service state. */
 const char *music_ui_state_text(const music_service_status_t *status);
+
+/**
+ * @brief Format the current account label for the sidebar.
+ *
+ * @param status Account/service status, or NULL for the logged-out label.
+ * @param output Output buffer.
+ * @param output_size Output buffer size.
+ */
+void music_ui_account_text(const music_service_status_t *status, char *output,
+                           size_t output_size);
 
 /** @brief Human-readable failure text. */
 const char *music_ui_failure_text(music_service_failure_t failure);

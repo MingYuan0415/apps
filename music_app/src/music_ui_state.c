@@ -50,6 +50,33 @@ const char *music_ui_state_text(const music_service_status_t *status)
     }
 }
 
+void music_ui_account_text(const music_service_status_t *status, char *output,
+                           size_t output_size)
+{
+    if (output == NULL || output_size == 0U)
+    {
+        return;
+    }
+    if (status == NULL || !status->logged_in)
+    {
+        (void)snprintf(output, output_size, "未登录");
+        return;
+    }
+    if (status->user_name[0] != '\0')
+    {
+        (void)snprintf(output, output_size, "%s", status->user_name);
+        return;
+    }
+    if (status->user_id[0] != '\0')
+    {
+        (void)snprintf(output, output_size,
+                       status->login_type == MUSIC_LOGIN_TYPE_QQ ?
+                       "QQ %s" : "微信 %s", status->user_id);
+        return;
+    }
+    (void)snprintf(output, output_size, "已登录 QQ 音乐");
+}
+
 const char *music_ui_failure_text(music_service_failure_t failure)
 {
     switch (failure)

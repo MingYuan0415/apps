@@ -7,6 +7,9 @@
 
 #define MUSIC_SIDEBAR_MAX_REFS 36U
 #define MUSIC_SIDEBAR_IDENTITY_HEIGHT 72
+#define MUSIC_SIDEBAR_AVATAR_SIZE 56
+#define MUSIC_SIDEBAR_AVATAR_TIMEOUT_MS 8000U
+#define MUSIC_SIDEBAR_AVATAR_MAX_ATTEMPTS 3U
 #define MUSIC_SIDEBAR_RADIO_HEIGHT 128
 #define MUSIC_SIDEBAR_SHORTCUT_HEIGHT 128
 
@@ -19,11 +22,17 @@ typedef struct music_sidebar_state
     lv_obj_t *confirm_sheet;
     lv_timer_t *timer;
     event_bus_sub_handle_t subscription;
+    music_ui_cover_t avatar;
     music_playlist_refs_t refs;
     uint64_t shown_generation;
     uint32_t refresh_request_ms;
+    uint32_t avatar_token;
+    uint32_t avatar_requested_ms;
+    uint8_t avatar_attempts;
     uint8_t last_state;
     uint8_t last_failure;
+    bool avatar_requested;
+    bool avatar_failed;
     bool dirty;
     bool logged_in;
     bool logout_pending;
@@ -34,6 +43,8 @@ _Static_assert(sizeof(music_sidebar_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
 
 static void _sidebar_update_service(music_sidebar_state_t *state);
 static void _sidebar_refresh(music_sidebar_state_t *state);
+static void _sidebar_update_avatar(music_sidebar_state_t *state,
+                                   const music_service_status_t *status);
 
 static void _sidebar_close_clicked(lv_event_t *event)
 {
@@ -419,11 +430,84 @@ static void _sidebar_rebuild(music_sidebar_state_t *state,
     lv_obj_scroll_to_y(state->scroll, scroll_y, LV_ANIM_OFF);
 }
 
+static void _sidebar_update_avatar(music_sidebar_state_t *state,
+                                   const music_service_status_t *status)
+{
+    if (state->avatar.frame == NULL)
+    {
+        return;
+    }
+    if (status == NULL || !status->logged_in ||
+            status->user_avatar[0] == '\0')
+    {
+        if (state->avatar.image != NULL || state->avatar_token != 0U)
+        {
+            music_ui_cover_release(&state->avatar);
+        }
+        state->avatar_token = 0U;
+        state->avatar_requested = false;
+        state->avatar_attempts = 0U;
+        state->avatar_failed = false;
+        return;
+    }
+
+    const uint32_t token = music_ui_url_token(status->user_avatar);
+    if (token != state->avatar_token)
+    {
+        music_ui_cover_release(&state->avatar);
+        state->avatar_token = token;
+        state->avatar_requested = false;
+        state->avatar_attempts = 0U;
+        state->avatar_failed = false;
+    }
+    if (state->avatar.image != NULL || state->avatar_failed)
+    {
+        return;
+    }
+    if (state->avatar_requested)
+    {
+        if ((uint32_t)(lv_tick_get() - state->avatar_requested_ms) <
+                MUSIC_SIDEBAR_AVATAR_TIMEOUT_MS)
+        {
+            return;
+        }
+        state->avatar_requested = false;
+    }
+    if (state->avatar_attempts >= MUSIC_SIDEBAR_AVATAR_MAX_ATTEMPTS)
+    {
+        state->avatar_failed = true;
+        return;
+    }
+
+    const music_image_t *image = NULL;
+    state->avatar_requested = true;
+    state->avatar_requested_ms = lv_tick_get();
+    ++state->avatar_attempts;
+    const esp_err_t result = music_service_image_acquire(
+                                 status->user_avatar,
+                                 MUSIC_SIDEBAR_AVATAR_SIZE,
+                                 MUSIC_SIDEBAR_AVATAR_SIZE, token, &image);
+    if (result == ESP_OK && image != NULL)
+    {
+        state->avatar_requested = false;
+        state->avatar_attempts = 0U;
+        state->avatar_failed = false;
+        music_ui_cover_set_image(&state->avatar, (music_image_t *)image);
+    }
+    else if (result != ESP_ERR_NOT_FOUND)
+    {
+        state->avatar_requested = false;
+        state->avatar_failed =
+            state->avatar_attempts >= MUSIC_SIDEBAR_AVATAR_MAX_ATTEMPTS;
+    }
+}
+
 static void _sidebar_update_service(music_sidebar_state_t *state)
 {
     music_service_status_t status;
     if (music_service_get_status(&status) != ESP_OK)
     {
+        _sidebar_update_avatar(state, NULL);
         app_ui_label_set_text_if(state->account_label, "未登录");
         app_ui_set_status_text(state->status_label, "音乐服务暂不可用",
                                APP_UI_STATUS_ERROR);
@@ -444,6 +528,7 @@ static void _sidebar_update_service(music_sidebar_state_t *state)
                                APP_UI_STATUS_WARNING);
         lv_obj_set_hidden(state->status_label, false);
         state->logged_in = false;
+        _sidebar_update_avatar(state, NULL);
         const bool changed = status.state != state->last_state ||
                              status.failure != state->last_failure;
         state->last_state = status.state;
@@ -455,23 +540,10 @@ static void _sidebar_update_service(music_sidebar_state_t *state)
         return;
     }
     state->logged_in = status.logged_in;
-    char account[96];
-    if (status.logged_in && status.user_name[0] != '\0')
-    {
-        (void)snprintf(account, sizeof(account), "Hi, %s", status.user_name);
-    }
-    else if (status.logged_in)
-    {
-        (void)snprintf(account, sizeof(account), "已登录 QQ 音乐");
-    }
-    else
-    {
-        (void)snprintf(account, sizeof(account), "未登录");
-    }
-    if (account[0] != '\0')
-    {
-        app_ui_label_set_text_if(state->account_label, account);
-    }
+    char account[MUSIC_UI_ACCOUNT_TEXT_BYTES];
+    music_ui_account_text(&status, account, sizeof(account));
+    app_ui_label_set_text_if(state->account_label, account);
+    _sidebar_update_avatar(state, &status);
     const bool warning = status.failure != MUSIC_SERVICE_FAILURE_NONE ||
                          status.state == MUSIC_SERVICE_STATE_ERROR;
     app_ui_set_status_text(state->status_label, music_ui_state_text(&status),
@@ -567,15 +639,35 @@ static void _sidebar_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
                               void *user_data)
 {
     (void)msg_id;
-    (void)payload;
-    (void)payload_size;
     music_sidebar_state_t *state = user_data;
     if (state == NULL)
     {
         return;
     }
-    if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_STATUS ||
-            sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_HOME)
+    if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_IMAGE &&
+            payload != NULL && payload_size == sizeof(music_service_event_t))
+    {
+        const music_service_event_t *event = payload;
+        if (event->token == state->avatar_token)
+        {
+            state->avatar_requested = false;
+            state->avatar_requested_ms = 0U;
+            if (event->failure != MUSIC_SERVICE_FAILURE_NONE)
+            {
+                state->avatar_failed =
+                    state->avatar_attempts >=
+                    MUSIC_SIDEBAR_AVATAR_MAX_ATTEMPTS;
+            }
+            _sidebar_update_service(state);
+        }
+        return;
+    }
+    if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_STATUS)
+    {
+        _sidebar_update_service(state);
+        _sidebar_refresh(state);
+    }
+    else if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_HOME)
     {
         state->dirty = true;
         _sidebar_update_service(state);
@@ -597,17 +689,19 @@ static void _sidebar_mount(const app_manager_page_context_t *context)
     lv_obj_t *identity = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(identity);
     lv_obj_set_width(identity, LV_PCT(100));
-    lv_obj_set_height(identity, MUSIC_SIDEBAR_IDENTITY_HEIGHT);
+    lv_obj_set_height(identity, LV_SIZE_CONTENT);
+    lv_obj_set_style_min_height(identity, MUSIC_SIDEBAR_IDENTITY_HEIGHT, 0);
+    lv_obj_set_style_pad_ver(identity, 4, 0);
     lv_obj_set_flex_flow(identity, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(identity, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(identity, 10, 0);
     app_ui_make_passive(identity, false);
-    lv_obj_t *icon = music_ui_image(identity, APP_IMAGE_MUSIC_ICON,
-                                    LV_SYMBOL_AUDIO, 40);
-    if (icon != NULL)
+    music_ui_cover_create(&state->avatar, identity, LV_SYMBOL_AUDIO,
+                          MUSIC_SIDEBAR_AVATAR_SIZE);
+    if (state->avatar.frame != NULL)
     {
-        app_ui_icon_set_color(icon, APP_UI_COLOR_RAIN);
+        lv_obj_set_style_radius(state->avatar.frame, LV_RADIUS_CIRCLE, 0);
     }
     lv_obj_t *text = lv_obj_create(identity);
     lv_obj_remove_style_all(text);
@@ -689,12 +783,18 @@ static esp_err_t _sidebar_pause(const app_manager_page_context_t *context)
         app_ui_sheet_dismiss(state->confirm_sheet);
         state->confirm_sheet = NULL;
     }
+    music_ui_cover_release(&state->avatar);
+    state->avatar_token = 0U;
+    state->avatar_requested = false;
+    state->avatar_attempts = 0U;
+    state->avatar_failed = false;
     return ESP_OK;
 }
 
 static void _sidebar_unmount(const app_manager_page_context_t *context)
 {
     music_sidebar_state_t *state = context->state;
+    music_ui_cover_release(&state->avatar);
     app_ui_page_destroy(&state->page);
     memset(state, 0, sizeof(*state));
     state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
