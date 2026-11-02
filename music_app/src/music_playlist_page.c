@@ -8,7 +8,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MUSIC_PLAYLIST_PAGE_STEP 30U
+#define MUSIC_PLAYLIST_PAGE_SIZE 10U
+#define MUSIC_PLAYLIST_PAGE_RADIUS 2U
+#define MUSIC_PLAYLIST_PAGE_CACHE (MUSIC_PLAYLIST_PAGE_RADIUS * 2U + 1U)
 #define MUSIC_PLAYLIST_COVER_SIZE MUSIC_UI_HERO_COVER
 #define MUSIC_PLAYLIST_COVER_TIMEOUT_TICKS 40U
 #define MUSIC_PLAYLIST_COVER_MAX_ATTEMPTS 2U
@@ -24,20 +26,25 @@ typedef struct music_playlist_state
     lv_obj_t *status_label;
     lv_obj_t *play_all_button;
     lv_obj_t *song_list;
-    lv_obj_t *more_button;
     lv_timer_t *timer;
     event_bus_sub_handle_t subscription;
     music_playlist_ref_t ref;
-    music_playlist_snapshot_t *snapshot;
+    music_playlist_t info;
+    music_playlist_snapshot_t *pages[MUSIC_PLAYLIST_PAGE_CACHE];
+    uint16_t page_ids[MUSIC_PLAYLIST_PAGE_CACHE];
+    uint16_t current_page;
+    uint16_t page_count;
+    uint16_t pending_page;
+    uint32_t total;
+    uint64_t page_generation;
     music_ui_cover_t cover;
-    uint16_t requested_offset;
-    uint16_t visible_count;
     uint16_t cover_wait_ticks;
     uint32_t cover_token;
     uint32_t loading_since_ms;
     uint8_t cover_attempts;
     bool loading;
     bool failed;
+    bool request_pending;
     bool cover_requested;
     bool cover_failed;
 } music_playlist_state_t;
@@ -45,31 +52,18 @@ typedef struct music_playlist_state
 _Static_assert(sizeof(music_playlist_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Music playlist state exceeds the page arena");
 
-static void _playlist_build_songs(music_playlist_state_t *state);
-static void _playlist_request(music_playlist_state_t *state);
-
-static uint32_t _playlist_cover_token(const char *url)
-{
-    uint32_t hash = 2166136261u;
-    if (url != NULL)
-    {
-        for (const unsigned char *cursor = (const unsigned char *)url;
-                *cursor != '\0'; ++cursor)
-        {
-            hash ^= *cursor;
-            hash *= 16777619u;
-        }
-    }
-    return hash;
-}
+static void _playlist_build_hero(music_playlist_state_t *state);
+static void _playlist_build_page(music_playlist_state_t *state);
+static void _playlist_schedule(music_playlist_state_t *state);
+static void _playlist_retry_clicked(lv_event_t *event);
 
 static void _playlist_update_cover(music_playlist_state_t *state)
 {
-    if (state->cover.frame == NULL || state->snapshot == NULL)
+    if (state->cover.frame == NULL)
     {
         return;
     }
-    const char *url = state->snapshot->playlist.cover_url;
+    const char *url = state->info.cover_url;
     if (url[0] == '\0')
     {
         return;
@@ -92,7 +86,7 @@ static void _playlist_update_cover(music_playlist_state_t *state)
         return;
     }
     const music_image_t *image = NULL;
-    state->cover_token = _playlist_cover_token(url);
+    state->cover_token = music_ui_url_token(url);
     state->cover_requested = true;
     state->cover_wait_ticks = 0U;
     ++state->cover_attempts;
@@ -114,22 +108,127 @@ static void _playlist_update_cover(music_playlist_state_t *state)
     }
 }
 
+static music_playlist_snapshot_t *_playlist_page_snapshot(
+    music_playlist_state_t *state, uint16_t page)
+{
+    for (size_t slot = 0U; slot < MUSIC_PLAYLIST_PAGE_CACHE; ++slot)
+    {
+        if (state->pages[slot] != NULL && state->page_ids[slot] == page)
+        {
+            return state->pages[slot];
+        }
+    }
+    return NULL;
+}
+
+static void _playlist_refresh_after_store(music_playlist_state_t *state,
+        uint16_t stored_page)
+{
+    if (stored_page == state->current_page ||
+            _playlist_page_snapshot(state, state->current_page) == NULL)
+    {
+        _playlist_build_page(state);
+    }
+}
+
+static void _playlist_release_page(music_playlist_state_t *state,
+                                   size_t slot)
+{
+    if (state->pages[slot] != NULL)
+    {
+        music_service_playlist_release(state->pages[slot]);
+        state->pages[slot] = NULL;
+        state->page_ids[slot] = UINT16_MAX;
+    }
+}
+
+static void _playlist_release_all_pages(music_playlist_state_t *state)
+{
+    for (size_t slot = 0U; slot < MUSIC_PLAYLIST_PAGE_CACHE; ++slot)
+    {
+        _playlist_release_page(state, slot);
+    }
+}
+
+static void _playlist_release_outside_window(music_playlist_state_t *state)
+{
+    if (state->page_count == 0U)
+    {
+        return;
+    }
+    const int32_t first = (int32_t)state->current_page -
+                          (int32_t)MUSIC_PLAYLIST_PAGE_RADIUS;
+    const int32_t last = (int32_t)state->current_page +
+                         (int32_t)MUSIC_PLAYLIST_PAGE_RADIUS;
+    for (size_t slot = 0U; slot < MUSIC_PLAYLIST_PAGE_CACHE; ++slot)
+    {
+        if (state->pages[slot] == NULL)
+        {
+            continue;
+        }
+        const int32_t page = (int32_t)state->page_ids[slot];
+        if (page < first || page > last)
+        {
+            _playlist_release_page(state, slot);
+        }
+    }
+}
+
+static void _playlist_go_to_page(music_playlist_state_t *state,
+                                 uint16_t page)
+{
+    if (state->page_count == 0U || page >= state->page_count)
+    {
+        return;
+    }
+    state->current_page = page;
+    _playlist_release_outside_window(state);
+    _playlist_build_hero(state);
+    _playlist_build_page(state);
+    lv_obj_update_layout(state->page.content);
+    lv_obj_scroll_to_y(state->page.content, 0, LV_ANIM_OFF);
+    _playlist_schedule(state);
+}
+
+static void _playlist_prev_clicked(lv_event_t *event)
+{
+    music_playlist_state_t *state = lv_event_get_user_data(event);
+    if (state != NULL && state->current_page > 0U)
+    {
+        _playlist_go_to_page(state, (uint16_t)(state->current_page - 1U));
+    }
+}
+
+static void _playlist_next_clicked(lv_event_t *event)
+{
+    music_playlist_state_t *state = lv_event_get_user_data(event);
+    if (state != NULL && state->current_page + 1U < state->page_count)
+    {
+        _playlist_go_to_page(state, (uint16_t)(state->current_page + 1U));
+    }
+}
+
 static void _playlist_song_clicked(lv_event_t *event)
 {
     music_playlist_state_t *state = lv_event_get_user_data(event);
-    if (state == NULL || lv_event_get_code(event) != LV_EVENT_CLICKED ||
-            state->snapshot == NULL)
+    if (state == NULL || lv_event_get_code(event) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+    const music_playlist_snapshot_t *snapshot =
+        _playlist_page_snapshot(state, state->current_page);
+    if (snapshot == NULL)
     {
         return;
     }
     const uintptr_t encoded = (uintptr_t)lv_obj_get_user_data(
                                   lv_event_get_target_obj(event));
-    if (encoded == 0U || encoded > state->snapshot->count)
+    if (encoded == 0U || encoded > snapshot->count)
     {
         return;
     }
-    const esp_err_t result = music_service_play_playlist(
-                                 &state->ref, (uint16_t)(encoded - 1U));
+    const esp_err_t result = music_service_play_playlist_snapshot(
+                                 snapshot, (uint16_t)(encoded - 1U));
     if (result != ESP_OK)
     {
         app_ui_set_status_text(state->status_label,
@@ -149,12 +248,14 @@ static void _playlist_song_clicked(lv_event_t *event)
 static void _playlist_play_all_clicked(lv_event_t *event)
 {
     music_playlist_state_t *state = lv_event_get_user_data(event);
-    if (state == NULL || state->snapshot == NULL ||
-            state->snapshot->count == 0U)
+    const music_playlist_snapshot_t *snapshot = state != NULL ?
+        _playlist_page_snapshot(state, state->current_page) : NULL;
+    if (snapshot == NULL || snapshot->count == 0U)
     {
         return;
     }
-    const esp_err_t result = music_service_play_playlist(&state->ref, 0U);
+    const esp_err_t result = music_service_play_playlist_snapshot(
+                                 snapshot, 0U);
     if (result != ESP_OK)
     {
         app_ui_set_status_text(state->status_label,
@@ -171,38 +272,57 @@ static void _playlist_play_all_clicked(lv_event_t *event)
     (void)music_ui_back_to_player();
 }
 
-static void _playlist_more_clicked(lv_event_t *event)
+static uint16_t _playlist_page_count(uint32_t total, uint16_t count)
 {
-    music_playlist_state_t *state = lv_event_get_user_data(event);
-    if (state == NULL || state->snapshot == NULL ||
-            lv_event_get_code(event) != LV_EVENT_CLICKED)
+    uint32_t pages = total / MUSIC_PLAYLIST_PAGE_SIZE;
+    if (total % MUSIC_PLAYLIST_PAGE_SIZE != 0U)
     {
-        return;
+        ++pages;
     }
-    state->visible_count = (uint16_t)(state->visible_count +
-                                      MUSIC_PLAYLIST_PAGE_STEP);
-    _playlist_build_songs(state);
+    if (pages == 0U && count > 0U)
+    {
+        pages = 1U;
+    }
+    return pages > UINT16_MAX ? UINT16_MAX : (uint16_t)pages;
 }
 
 static void _playlist_build_hero(music_playlist_state_t *state)
 {
-    if (state->hero == NULL || state->snapshot == NULL)
+    if (state->hero == NULL)
     {
         return;
     }
-    const music_playlist_t *playlist = &state->snapshot->playlist;
-    app_ui_label_set_text_if(state->title_label, playlist->title);
+    app_ui_label_set_text_if(state->title_label, state->info.title);
     app_ui_label_set_text_if(state->creator_label,
-                             playlist->creator[0] == '\0' ?
-                             "QQ 音乐" : playlist->creator);
-    char count[48];
-    (void)snprintf(count, sizeof(count), "共 %u 首",
-                   (unsigned)state->snapshot->total);
+                             state->info.creator[0] == '\0' ?
+                             "QQ 音乐" : state->info.creator);
+    char count[80];
+    if (state->page_count > 1U)
+    {
+        (void)snprintf(count, sizeof(count), "共 %u 首 · 第 %u / %u 页",
+                       (unsigned)state->total,
+                       (unsigned)(state->current_page + 1U),
+                       (unsigned)state->page_count);
+    }
+    else
+    {
+        (void)snprintf(count, sizeof(count), "共 %u 首",
+                       (unsigned)state->total);
+    }
     app_ui_label_set_text_if(state->track_count_label, count);
-    state->cover_token = _playlist_cover_token(playlist->cover_url);
+    const uint32_t token = music_ui_url_token(state->info.cover_url);
+    if (token != state->cover_token)
+    {
+        music_ui_cover_release(&state->cover);
+        state->cover_token = token;
+        state->cover_attempts = 0U;
+        state->cover_wait_ticks = 0U;
+        state->cover_requested = false;
+        state->cover_failed = false;
+    }
     lv_obj_set_hidden(state->details, false);
     lv_obj_set_hidden(state->status_label, true);
-    if (state->snapshot->count == 0U)
+    if (state->total == 0U)
     {
         lv_obj_add_state(state->play_all_button, LV_STATE_DISABLED);
     }
@@ -221,115 +341,301 @@ static lv_obj_t *_playlist_add_notice(lv_obj_t *parent, const char *text,
     return label;
 }
 
-static void _playlist_build_songs(music_playlist_state_t *state)
+static bool _playlist_store_page(music_playlist_state_t *state,
+                                 uint16_t page,
+                                 music_playlist_snapshot_t *snapshot)
+{
+    if (snapshot == NULL)
+    {
+        return false;
+    }
+    const size_t slot = (size_t)(page % MUSIC_PLAYLIST_PAGE_CACHE);
+    if (state->pages[slot] != NULL && state->page_ids[slot] != page)
+    {
+        _playlist_release_page(state, slot);
+    }
+    if (state->pages[slot] != NULL)
+    {
+        music_service_playlist_release(state->pages[slot]);
+    }
+    state->pages[slot] = snapshot;
+    state->page_ids[slot] = page;
+    if (page == 0U)
+    {
+        state->info = snapshot->playlist;
+        state->total = snapshot->total != 0U ? snapshot->total :
+                       snapshot->count;
+        state->page_generation = snapshot->generation;
+        state->page_count = _playlist_page_count(state->total,
+            snapshot->count);
+        _playlist_build_hero(state);
+    }
+    return true;
+}
+
+static void _playlist_build_page(music_playlist_state_t *state)
 {
     if (state->song_list == NULL)
     {
         return;
     }
     lv_obj_clean(state->song_list);
-    state->more_button = NULL;
-    if (state->snapshot == NULL)
+    const music_playlist_snapshot_t *snapshot =
+        _playlist_page_snapshot(state, state->current_page);
+    if (snapshot == NULL)
     {
-        (void)_playlist_add_notice(state->song_list,
-                                   state->failed ? "歌单加载失败" :
-                                   "正在加载歌单…",
-                                   state->failed ? APP_UI_STATUS_WARNING :
-                                   APP_UI_STATUS_NEUTRAL);
+        const uint16_t page_count = state->page_count > 0U ?
+                                    state->page_count : 1U;
+        if (state->current_page > 0U)
+        {
+            char subtitle[48];
+            (void)snprintf(subtitle, sizeof(subtitle), "第 %u / %u 页",
+                           (unsigned)(state->current_page + 1U),
+                           (unsigned)page_count);
+            (void)app_ui_add_action(state->song_list, LV_SYMBOL_PREV,
+                                    "上一页", subtitle,
+                                    _playlist_prev_clicked, state);
+        }
+        if (state->failed)
+        {
+            (void)_playlist_add_notice(state->song_list, "歌单加载失败",
+                                       APP_UI_STATUS_WARNING);
+            (void)app_ui_add_action(state->song_list, LV_SYMBOL_REFRESH,
+                                    "重新加载", "重试获取这份歌单",
+                                    _playlist_retry_clicked, state);
+        }
+        else
+        {
+            (void)_playlist_add_notice(state->song_list, "正在加载歌单…",
+                                       APP_UI_STATUS_NEUTRAL);
+        }
+        if (state->current_page + 1U < page_count)
+        {
+            char subtitle[48];
+            (void)snprintf(subtitle, sizeof(subtitle), "第 %u / %u 页",
+                           (unsigned)(state->current_page + 2U),
+                           (unsigned)page_count);
+            (void)app_ui_add_action(state->song_list, LV_SYMBOL_NEXT,
+                                    "下一页", subtitle,
+                                    _playlist_next_clicked, state);
+        }
         return;
     }
-    const uint16_t count = state->snapshot->count;
-    const uint16_t visible = state->visible_count < count ?
-                             state->visible_count : count;
-    for (uint16_t index = 0U; index < visible; ++index)
+    const uint16_t page_count = state->page_count > 0U ?
+                                state->page_count : 1U;
+    if (state->current_page > 0U)
     {
+        char subtitle[48];
+        (void)snprintf(subtitle, sizeof(subtitle), "第 %u / %u 页",
+                       (unsigned)(state->current_page + 1U),
+                       (unsigned)page_count);
+        (void)app_ui_add_action(state->song_list, LV_SYMBOL_PREV,
+                                "上一页", subtitle,
+                                _playlist_prev_clicked, state);
+    }
+    for (uint16_t index = 0U; index < snapshot->count; ++index)
+    {
+        const uint32_t global_index =
+            (uint32_t)state->current_page * MUSIC_PLAYLIST_PAGE_SIZE + index;
         lv_obj_t *row = music_ui_add_song_row(
-                            state->song_list, &state->snapshot->songs[index],
-                            index, _playlist_song_clicked, state);
+                            state->song_list, &snapshot->songs[index],
+                            (uint16_t)global_index, _playlist_song_clicked,
+                            state);
         if (row != NULL)
         {
             lv_obj_set_user_data(row, (void *)(uintptr_t)(index + 1U));
         }
     }
-    if (count == 0U)
+    if (snapshot->count == 0U)
     {
         (void)_playlist_add_notice(state->song_list,
                                    "这个歌单还没有歌曲",
                                    APP_UI_STATUS_NEUTRAL);
-        return;
     }
-    if (state->snapshot->total > MUSIC_SERVICE_MAX_SONGS)
+    if (state->current_page + 1U < page_count)
     {
-        char note[96];
-        (void)snprintf(note, sizeof(note),
-                       "当前版本最多显示前 %u 首",
-                       (unsigned)MUSIC_SERVICE_MAX_SONGS);
-        (void)_playlist_add_notice(state->song_list, note,
-                                   APP_UI_STATUS_WARNING);
+        char subtitle[48];
+        (void)snprintf(subtitle, sizeof(subtitle), "第 %u / %u 页",
+                       (unsigned)(state->current_page + 2U),
+                       (unsigned)page_count);
+        (void)app_ui_add_action(state->song_list, LV_SYMBOL_NEXT,
+                                "下一页", subtitle,
+                                _playlist_next_clicked, state);
     }
-    if (visible < count)
+    if (snapshot->count > 0U)
     {
-        state->more_button = app_ui_add_action(state->song_list,
-                                               LV_SYMBOL_DOWN,
-                                               "加载更多",
-                                               "每次增加 30 首",
-                                               _playlist_more_clicked, state);
+        lv_obj_remove_state(state->play_all_button, LV_STATE_DISABLED);
     }
-    else if (count < state->snapshot->total)
+    else
     {
-        (void)_playlist_add_notice(state->song_list,
-                                   "其余歌曲暂未由服务提供",
-                                   APP_UI_STATUS_NEUTRAL);
+        lv_obj_add_state(state->play_all_button, LV_STATE_DISABLED);
     }
 }
 
-static void _playlist_request(music_playlist_state_t *state)
+static void _playlist_retry_clicked(lv_event_t *event)
 {
-    if (state == NULL || state->snapshot != NULL || state->failed)
+    music_playlist_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
     {
         return;
     }
-    if (state->loading &&
-            lv_tick_get() - state->loading_since_ms < 10000U)
+    state->failed = false;
+    state->loading = false;
+    state->loading_since_ms = 0U;
+    state->request_pending = false;
+    state->pending_page = UINT16_MAX;
+    lv_obj_set_hidden(state->status_label, true);
+    _playlist_build_page(state);
+    _playlist_schedule(state);
+}
+
+static bool _playlist_request_page(music_playlist_state_t *state,
+                                   uint16_t page)
+{
+    if (state->request_pending || state->failed)
     {
-        return;
+        return false;
     }
+    if (state->page_count > 0U && page >= state->page_count)
+    {
+        return false;
+    }
+    if (_playlist_page_snapshot(state, page) != NULL)
+    {
+        return false;
+    }
+    const uint16_t offset = (uint16_t)(page * MUSIC_PLAYLIST_PAGE_SIZE);
+    const music_playlist_snapshot_t *snapshot = NULL;
+    state->pending_page = page;
+    state->request_pending = true;
     state->loading = true;
     state->loading_since_ms = lv_tick_get();
-    const music_playlist_snapshot_t *snapshot = NULL;
     const esp_err_t result = music_service_playlist_acquire(
-                                 &state->ref, state->requested_offset,
-                                 MUSIC_SERVICE_MAX_SONGS, &snapshot);
+                                 &state->ref, offset, MUSIC_PLAYLIST_PAGE_SIZE,
+                                 &snapshot);
     if (result == ESP_OK && snapshot != NULL)
     {
-        state->snapshot = (music_playlist_snapshot_t *)snapshot;
+        state->request_pending = false;
+        state->pending_page = UINT16_MAX;
         state->loading = false;
-        const uint16_t count = state->snapshot->count;
-        state->visible_count = count < MUSIC_PLAYLIST_PAGE_STEP ?
-                               count : MUSIC_PLAYLIST_PAGE_STEP;
-        _playlist_build_hero(state);
-        _playlist_build_songs(state);
-        return;
+        state->failed = false;
+        _playlist_store_page(state, page,
+                             (music_playlist_snapshot_t *)snapshot);
+        _playlist_refresh_after_store(state, page);
+        return true;
     }
     if (result == ESP_ERR_NOT_FOUND)
     {
-        return;
+        return true;
     }
+    state->request_pending = false;
+    state->pending_page = UINT16_MAX;
     state->loading = false;
     state->failed = true;
     app_ui_set_status_text(state->status_label,
                            result == ESP_ERR_TIMEOUT ?
-                           "加载超时，返回后重试" :
-                           "歌单加载失败", APP_UI_STATUS_WARNING);
+                           "加载超时，请重试" : "歌单加载失败",
+                           APP_UI_STATUS_WARNING);
     lv_obj_set_hidden(state->status_label, false);
-    _playlist_build_songs(state);
+    _playlist_build_page(state);
+    return false;
+}
+
+static void _playlist_collect_pending(music_playlist_state_t *state)
+{
+    if (!state->request_pending || state->pending_page == UINT16_MAX)
+    {
+        return;
+    }
+    const uint16_t page = state->pending_page;
+    const uint16_t offset = (uint16_t)(page * MUSIC_PLAYLIST_PAGE_SIZE);
+    const music_playlist_snapshot_t *snapshot = NULL;
+    const esp_err_t result = music_service_playlist_acquire(
+                                 &state->ref, offset, MUSIC_PLAYLIST_PAGE_SIZE,
+                                 &snapshot);
+    if (result == ESP_OK && snapshot != NULL)
+    {
+        state->request_pending = false;
+        state->pending_page = UINT16_MAX;
+        state->loading = false;
+        state->failed = false;
+        _playlist_store_page(state, page,
+                             (music_playlist_snapshot_t *)snapshot);
+        _playlist_refresh_after_store(state, page);
+        return;
+    }
+    if (result != ESP_ERR_NOT_FOUND)
+    {
+        state->request_pending = false;
+        state->pending_page = UINT16_MAX;
+        state->loading = false;
+        state->failed = true;
+        app_ui_set_status_text(state->status_label, "歌单加载失败",
+                               APP_UI_STATUS_WARNING);
+        lv_obj_set_hidden(state->status_label, false);
+        _playlist_build_page(state);
+    }
+}
+
+static void _playlist_schedule(music_playlist_state_t *state)
+{
+    if (state == NULL || state->request_pending || state->failed)
+    {
+        return;
+    }
+    if (state->page_count == 0U)
+    {
+        if (_playlist_page_snapshot(state, 0U) == NULL)
+        {
+            (void)_playlist_request_page(state, 0U);
+        }
+        return;
+    }
+    static const int8_t deltas[MUSIC_PLAYLIST_PAGE_CACHE] =
+    {
+        0, -1, 1, -2, 2
+    };
+    for (size_t index = 0U;
+            index < sizeof(deltas) / sizeof(deltas[0]); ++index)
+    {
+        const int32_t page = (int32_t)state->current_page + deltas[index];
+        if (page < 0 || page >= (int32_t)state->page_count)
+        {
+            continue;
+        }
+        if (_playlist_page_snapshot(state, (uint16_t)page) != NULL)
+        {
+            continue;
+        }
+        if (_playlist_request_page(state, (uint16_t)page))
+        {
+            return;
+        }
+        if (state->request_pending || state->failed)
+        {
+            return;
+        }
+    }
 }
 
 static void _playlist_timer_cb(lv_timer_t *timer)
 {
     music_playlist_state_t *state = lv_timer_get_user_data(timer);
+    if (state->request_pending &&
+            lv_tick_get() - state->loading_since_ms >= 10000U)
+    {
+        state->request_pending = false;
+        state->pending_page = UINT16_MAX;
+        state->loading = false;
+        state->failed = true;
+        app_ui_set_status_text(state->status_label, "加载超时，请重试",
+                               APP_UI_STATUS_WARNING);
+        lv_obj_set_hidden(state->status_label, false);
+        _playlist_build_page(state);
+    }
+    _playlist_collect_pending(state);
     _playlist_update_cover(state);
-    _playlist_request(state);
+    _playlist_schedule(state);
 }
 
 static void _playlist_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
@@ -356,8 +662,7 @@ static void _playlist_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
                 state->cover_attempts = 0U;
                 (void)music_ui_cover_accept_event(
                     &state->cover, state->cover_token,
-                    state->snapshot != NULL ?
-                    state->snapshot->playlist.cover_url : "", event);
+                    state->info.cover_url, event);
             }
             else
             {
@@ -368,21 +673,33 @@ static void _playlist_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
     }
     if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_PLAYLIST)
     {
-        if (state->snapshot != NULL)
+        if (state->request_pending)
         {
-            music_service_playlist_release(state->snapshot);
-            state->snapshot = NULL;
-            state->failed = false;
-            state->loading = false;
-            state->loading_since_ms = 0U;
+            _playlist_collect_pending(state);
         }
-        _playlist_request(state);
+        else if (payload != NULL &&
+                 payload_size == sizeof(music_service_event_t))
+        {
+            const music_service_event_t *event = payload;
+            if (state->page_generation != 0U &&
+                    event->generation != state->page_generation)
+            {
+                _playlist_release_all_pages(state);
+                state->current_page = 0U;
+                state->page_count = 0U;
+                state->total = 0U;
+                state->page_generation = 0U;
+                memset(&state->info, 0, sizeof(state->info));
+                lv_obj_set_hidden(state->details, true);
+                _playlist_build_page(state);
+            }
+        }
+        _playlist_schedule(state);
     }
     else if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_STATUS &&
-             state->snapshot == NULL && !state->failed)
+             _playlist_page_snapshot(state, 0U) == NULL && !state->failed)
     {
-        state->loading = false;
-        _playlist_request(state);
+        _playlist_schedule(state);
     }
     _playlist_update_cover(state);
 }
@@ -426,10 +743,8 @@ static lv_obj_t *_playlist_build_hero_area(music_playlist_state_t *state)
     state->details = details;
     state->title_label = app_ui_add_section(details, "歌单");
     lv_obj_set_width(state->title_label, LV_PCT(100));
-    lv_obj_set_height(state->title_label,
-                      lv_font_get_line_height(app_ui_font(
-                                  APP_THEME_FONT_BIGL)));
-    lv_label_set_long_mode(state->title_label, LV_LABEL_LONG_DOT);
+    lv_obj_set_height(state->title_label, LV_SIZE_CONTENT);
+    lv_label_set_long_mode(state->title_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_pad_top(state->title_label, 0, 0);
     lv_obj_set_style_text_font(state->title_label,
                                app_ui_font(APP_THEME_FONT_BIGL), 0);
@@ -456,6 +771,11 @@ static void _playlist_mount(const app_manager_page_context_t *context)
     music_playlist_state_t *state = context->state;
     memset(state, 0, sizeof(*state));
     state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+    state->pending_page = UINT16_MAX;
+    for (size_t slot = 0U; slot < MUSIC_PLAYLIST_PAGE_CACHE; ++slot)
+    {
+        state->page_ids[slot] = UINT16_MAX;
+    }
     _playlist_copy_arguments(state, context->arguments);
     app_ui_page_create(&state->page, "歌单", true);
     music_ui_add_header_back(&state->page);
@@ -485,7 +805,49 @@ static void _playlist_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_pad_row(state->song_list, 4, 0);
     lv_obj_set_scroll_dir(state->song_list, LV_DIR_NONE);
     app_ui_make_passive(state->song_list, false);
-    _playlist_build_songs(state);
+    _playlist_build_page(state);
+}
+
+static void _playlist_probe_first_page(music_playlist_state_t *state)
+{
+    if (state->request_pending)
+    {
+        return;
+    }
+    const music_playlist_snapshot_t *snapshot = NULL;
+    const esp_err_t result = music_service_playlist_acquire(
+                                 &state->ref, 0U, MUSIC_PLAYLIST_PAGE_SIZE,
+                                 &snapshot);
+    if (result == ESP_OK && snapshot != NULL)
+    {
+        if (state->page_generation != 0U &&
+                snapshot->generation == state->page_generation)
+        {
+            music_service_playlist_release(snapshot);
+            return;
+        }
+        _playlist_release_all_pages(state);
+        state->current_page = 0U;
+        state->page_count = 0U;
+        state->total = 0U;
+        state->page_generation = 0U;
+        memset(&state->info, 0, sizeof(state->info));
+        _playlist_store_page(state, 0U,
+                             (music_playlist_snapshot_t *)snapshot);
+        _playlist_refresh_after_store(state, 0U);
+        return;
+    }
+    if (result == ESP_ERR_INVALID_STATE || result == ESP_ERR_TIMEOUT)
+    {
+        _playlist_release_all_pages(state);
+        state->current_page = 0U;
+        state->page_count = 0U;
+        state->total = 0U;
+        state->page_generation = 0U;
+        memset(&state->info, 0, sizeof(state->info));
+        state->failed = false;
+        _playlist_build_page(state);
+    }
 }
 
 static void _playlist_resume(const app_manager_page_context_t *context)
@@ -496,8 +858,9 @@ static void _playlist_resume(const app_manager_page_context_t *context)
                               _playlist_event_cb, state,
                               EVENT_BUS_DISPATCH_UI, &state->subscription);
     state->timer = lv_timer_create(_playlist_timer_cb, 500U, state);
+    _playlist_probe_first_page(state);
     _playlist_update_cover(state);
-    _playlist_request(state);
+    _playlist_schedule(state);
 }
 
 static esp_err_t _playlist_pause(const app_manager_page_context_t *context)
@@ -514,14 +877,12 @@ static esp_err_t _playlist_pause(const app_manager_page_context_t *context)
         state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     }
     music_ui_cover_release(&state->cover);
-    if (state->snapshot != NULL)
-    {
-        music_service_playlist_release(state->snapshot);
-        state->snapshot = NULL;
-    }
+    _playlist_release_all_pages(state);
     state->failed = false;
     state->loading = false;
     state->loading_since_ms = 0U;
+    state->request_pending = false;
+    state->pending_page = UINT16_MAX;
     state->cover_requested = false;
     state->cover_wait_ticks = 0U;
     state->cover_attempts = 0U;
@@ -532,11 +893,7 @@ static void _playlist_unmount(const app_manager_page_context_t *context)
 {
     music_playlist_state_t *state = context->state;
     music_ui_cover_release(&state->cover);
-    if (state->snapshot != NULL)
-    {
-        music_service_playlist_release(state->snapshot);
-        state->snapshot = NULL;
-    }
+    _playlist_release_all_pages(state);
     app_ui_page_destroy(&state->page);
     memset(state, 0, sizeof(*state));
     state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;

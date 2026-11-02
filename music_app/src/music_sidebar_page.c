@@ -21,6 +21,7 @@ typedef struct music_sidebar_state
     event_bus_sub_handle_t subscription;
     music_playlist_refs_t refs;
     uint64_t shown_generation;
+    uint32_t refresh_request_ms;
     uint8_t last_state;
     uint8_t last_failure;
     bool dirty;
@@ -30,6 +31,9 @@ typedef struct music_sidebar_state
 
 _Static_assert(sizeof(music_sidebar_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Music sidebar state exceeds the page arena");
+
+static void _sidebar_update_service(music_sidebar_state_t *state);
+static void _sidebar_refresh(music_sidebar_state_t *state);
 
 static void _sidebar_close_clicked(lv_event_t *event)
 {
@@ -41,6 +45,20 @@ static void _sidebar_login_clicked(lv_event_t *event)
 {
     (void)event;
     (void)music_ui_open_login();
+}
+
+static void _sidebar_retry_clicked(lv_event_t *event)
+{
+    music_sidebar_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
+    {
+        return;
+    }
+    (void)music_service_retry();
+    (void)music_service_refresh_home(false);
+    state->dirty = true;
+    _sidebar_update_service(state);
+    _sidebar_refresh(state);
 }
 
 static lv_obj_t *_sidebar_card_label(lv_obj_t *parent, const char *text,
@@ -221,8 +239,8 @@ static lv_obj_t *_sidebar_card(lv_obj_t *parent, uint32_t image_id,
                               APP_UI_COLOR_TEXT, false);
     if (subtitle != NULL && subtitle[0] != '\0')
     {
-        (void)music_ui_marquee_label(card, subtitle, APP_THEME_FONT_SMALL,
-                                     APP_UI_COLOR_MUTED);
+        (void)_sidebar_card_label(card, subtitle, APP_THEME_FONT_SMALL,
+                                  APP_UI_COLOR_MUTED, true);
     }
     if (callback != NULL)
     {
@@ -288,9 +306,8 @@ static void _sidebar_rebuild(music_sidebar_state_t *state,
     {
         if (state->logged_in)
         {
-            lv_obj_t *loading = app_ui_add_body_label(state->scroll,
-                "正在同步歌单…");
-            lv_obj_set_width(loading, LV_PCT(100));
+            (void)app_ui_add_empty_state(state->scroll, "正在同步歌单…",
+                                         "登录后同步自建歌单、收藏与每日推荐");
         }
         else if (state->last_state != MUSIC_SERVICE_STATE_ERROR)
         {
@@ -305,6 +322,22 @@ static void _sidebar_rebuild(music_sidebar_state_t *state,
                 lv_obj_set_width(login_card, LV_PCT(100));
                 lv_obj_set_flex_grow(login_card, 0);
             }
+            lv_obj_t *benefit = app_ui_add_body_label(
+                                    state->scroll,
+                                    "登录后同步歌单、收藏与每日推荐");
+            lv_obj_set_width(benefit, LV_PCT(100));
+            lv_obj_set_style_text_font(benefit,
+                                       app_ui_font(APP_THEME_FONT_SMALL), 0);
+            lv_obj_set_style_text_color(benefit,
+                                        lv_color_hex(APP_UI_COLOR_MUTED), 0);
+            lv_obj_set_style_text_align(benefit, LV_TEXT_ALIGN_CENTER, 0);
+        }
+        else
+        {
+            (void)music_ui_add_nav_row(state->scroll, APP_IMAGE_UI_REFRESH,
+                                       LV_SYMBOL_REFRESH, "重新检查",
+                                       "音乐服务暂不可用",
+                                       _sidebar_retry_clicked, state, false);
         }
         lv_obj_scroll_to_y(state->scroll, scroll_y, LV_ANIM_OFF);
         return;
@@ -520,6 +553,12 @@ static void _sidebar_timer_cb(lv_timer_t *timer)
     }
     _sidebar_update_service(state);
     _sidebar_refresh(state);
+    if (state->shown_generation == 0U && state->logged_in &&
+            lv_tick_get() - state->refresh_request_ms >= 5000U)
+    {
+        state->refresh_request_ms = lv_tick_get();
+        (void)music_service_refresh_home(false);
+    }
 }
 
 static void _sidebar_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
@@ -627,6 +666,7 @@ static void _sidebar_resume(const app_manager_page_context_t *context)
     state->timer = lv_timer_create(_sidebar_timer_cb, 1000U, state);
     _sidebar_update_service(state);
     _sidebar_refresh(state);
+    state->refresh_request_ms = lv_tick_get();
     (void)music_service_refresh_home(false);
 }
 

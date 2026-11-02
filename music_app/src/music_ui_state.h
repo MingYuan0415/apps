@@ -37,6 +37,15 @@ bool music_ui_can_toggle_playback(const music_player_status_t *status);
 /** @brief Whether the service can step in the requested queue direction. */
 bool music_ui_can_step(const music_player_status_t *status, bool forward);
 
+/** @brief Whether an error can be recovered by replaying the current queue item. */
+bool music_ui_can_retry_playback(const music_player_status_t *status);
+
+/** @brief Whether a service failure should offer an explicit retry action. */
+bool music_ui_failure_is_retryable(music_service_failure_t failure);
+
+/** @brief Stable token for an image URL, shared by cover requesters. */
+uint32_t music_ui_url_token(const char *url);
+
 /** @brief Format the queue position without inventing unavailable data. */
 void music_ui_queue_text(const music_player_status_t *status, char *output,
                          size_t output_size);

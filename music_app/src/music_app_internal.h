@@ -24,9 +24,7 @@
 #define MUSIC_ARGUMENT_PLAYLIST 1U
 #define MUSIC_ARGUMENT_LOGIN    2U
 
-#define MUSIC_UI_HEADER_SIZE        64
 #define MUSIC_UI_PAGE_MARGIN        16
-#define MUSIC_UI_GAP                8
 #define MUSIC_UI_ROW_HEIGHT         64
 #define MUSIC_UI_HERO_COVER         96
 #define MUSIC_UI_LIST_COVER         56
@@ -74,10 +72,6 @@ lv_obj_t *music_ui_plain_text_button(lv_obj_t *parent, const char *text,
                                      int32_t size, app_theme_font_id_t font,
                                      uint32_t color, lv_event_cb_t callback,
                                      void *user_data);
-
-/** @brief Create a single-line label that scrolls once when it overflows. */
-lv_obj_t *music_ui_marquee_label(lv_obj_t *parent, const char *text,
-                                 app_theme_font_id_t font, uint32_t color);
 
 /** @brief A fixed square cover with one service image lease at a time. */
 typedef struct music_ui_cover
@@ -136,19 +130,13 @@ void music_ui_set_button_enabled(lv_obj_t *button, bool enabled);
 /** @brief Insert a borderless accent back button and accent the page title. */
 lv_obj_t *music_ui_add_header_back(app_ui_page_t *page);
 
-/** @brief Add an icon-led navigation/command row with one-line scrolling title. */
+/** @brief Add an icon-led navigation/command row with a wrapped title. */
 lv_obj_t *music_ui_add_nav_row(lv_obj_t *parent, uint32_t image_id,
                                const char *fallback_symbol, const char *title,
                                const char *subtitle, lv_event_cb_t callback,
                                void *user_data, bool danger);
 
-/** @brief Create a playlist row with a music-specific cover placeholder. */
-lv_obj_t *music_ui_add_playlist_row(lv_obj_t *parent,
-                                    const music_playlist_t *playlist,
-                                    lv_event_cb_t callback,
-                                    void *user_data);
-
-/** @brief Create a song row with ordinal, title, artist, album and duration. */
+/** @brief Create a song row with ordinal, wrapped title, artist, album and duration. */
 lv_obj_t *music_ui_add_song_row(lv_obj_t *parent, const music_song_t *song,
                                 uint16_t index, lv_event_cb_t callback,
                                 void *user_data);

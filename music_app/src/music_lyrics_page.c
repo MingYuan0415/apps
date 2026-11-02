@@ -13,6 +13,7 @@ typedef struct music_lyrics_state
     lv_obj_t *lyric_panel;
     lv_obj_t *lines[MUSIC_UI_LYRIC_LINES];
     lv_obj_t *status_label;
+    lv_obj_t *retry_button;
     lv_obj_t *play_button;
     lv_timer_t *timer;
     event_bus_sub_handle_t subscription;
@@ -27,6 +28,8 @@ typedef struct music_lyrics_state
 _Static_assert(sizeof(music_lyrics_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Music lyrics state exceeds the page arena");
 
+static void _lyrics_poll(music_lyrics_state_t *state);
+
 static void _lyrics_label(lv_obj_t *label, const char *text, uint32_t color,
                           app_theme_font_id_t font)
 {
@@ -38,7 +41,8 @@ static void _lyrics_label(lv_obj_t *label, const char *text, uint32_t color,
     lv_obj_set_style_text_color(label, lv_color_hex(color), 0);
     const lv_font_t *font_ptr = app_ui_font(font);
     lv_obj_set_style_text_font(label, font_ptr, 0);
-    lv_obj_set_height(label, lv_font_get_line_height(font_ptr));
+    lv_obj_set_height(label, LV_SIZE_CONTENT);
+    lv_obj_set_style_min_height(label, lv_font_get_line_height(font_ptr), 0);
 }
 
 static void _lyrics_clear_window(music_lyrics_state_t *state)
@@ -114,6 +118,32 @@ static void _lyrics_set_status(music_lyrics_state_t *state, const char *text,
     lv_obj_set_hidden(state->status_label, text == NULL || text[0] == '\0');
 }
 
+static void _lyrics_set_retry(music_lyrics_state_t *state, bool visible)
+{
+    if (state->retry_button != NULL)
+    {
+        lv_obj_set_hidden(state->retry_button, !visible);
+    }
+}
+
+static void _lyrics_retry_clicked(lv_event_t *event)
+{
+    music_lyrics_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
+    {
+        return;
+    }
+    music_service_status_t service;
+    if (music_service_get_status(&service) != ESP_OK ||
+            service.state == MUSIC_SERVICE_STATE_ERROR)
+    {
+        (void)music_service_retry();
+    }
+    music_lyrics_view_retry(&state->view);
+    _lyrics_set_retry(state, false);
+    _lyrics_poll(state);
+}
+
 static void _lyrics_poll(music_lyrics_state_t *state)
 {
     music_player_status_t status;
@@ -122,6 +152,7 @@ static void _lyrics_poll(music_lyrics_state_t *state)
         _lyrics_set_status(state, "播放服务不可用", APP_UI_STATUS_ERROR);
         music_ui_set_button_enabled(state->play_button, false);
         _lyrics_clear_window(state);
+        _lyrics_set_retry(state, true);
         return;
     }
     app_ui_label_set_text_if(state->title_label,
@@ -153,6 +184,7 @@ static void _lyrics_poll(music_lyrics_state_t *state)
         music_lyrics_view_reset(&state->view);
         _lyrics_clear_window(state);
         _lyrics_set_status(state, "播放歌曲后显示歌词", APP_UI_STATUS_NEUTRAL);
+        _lyrics_set_retry(state, false);
         return;
     }
     const bool changed = music_lyrics_view_poll(&state->view, &status);
@@ -160,12 +192,14 @@ static void _lyrics_poll(music_lyrics_state_t *state)
     {
         _lyrics_clear_window(state);
         _lyrics_set_status(state, "歌词加载失败", APP_UI_STATUS_WARNING);
+        _lyrics_set_retry(state, true);
         return;
     }
     if (state->view.snapshot == NULL)
     {
         _lyrics_clear_window(state);
         _lyrics_set_status(state, "正在加载歌词…", APP_UI_STATUS_NEUTRAL);
+        _lyrics_set_retry(state, false);
         return;
     }
     _lyrics_show_window(state, changed);
@@ -173,10 +207,12 @@ static void _lyrics_poll(music_lyrics_state_t *state)
     {
         _lyrics_clear_window(state);
         _lyrics_set_status(state, "暂无歌词", APP_UI_STATUS_NEUTRAL);
+        _lyrics_set_retry(state, false);
     }
     else
     {
         _lyrics_set_status(state, "", APP_UI_STATUS_NEUTRAL);
+        _lyrics_set_retry(state, false);
     }
 }
 
@@ -274,17 +310,19 @@ static void _lyrics_mount(const app_manager_page_context_t *context)
     lv_obj_set_flex_align(state->lyric_panel, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(state->lyric_panel, 6, 0);
-    lv_obj_set_scroll_dir(state->lyric_panel, LV_DIR_NONE);
+    lv_obj_set_scroll_dir(state->lyric_panel, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(state->lyric_panel, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_set_hidden(state->lyric_panel, true);
     app_ui_make_passive(state->lyric_panel, false);
     for (size_t slot = 0U; slot < MUSIC_UI_LYRIC_LINES; ++slot)
     {
         state->lines[slot] = app_ui_add_body_label(state->lyric_panel, "");
         lv_obj_set_width(state->lines[slot], LV_PCT(100));
-        lv_label_set_long_mode(state->lines[slot], LV_LABEL_LONG_DOT);
-        lv_obj_set_height(state->lines[slot],
-                          lv_font_get_line_height(app_ui_font(
-                                      APP_THEME_FONT_SMALL)));
+        lv_label_set_long_mode(state->lines[slot], LV_LABEL_LONG_WRAP);
+        lv_obj_set_height(state->lines[slot], LV_SIZE_CONTENT);
+        lv_obj_set_style_min_height(state->lines[slot],
+                                    lv_font_get_line_height(
+                                        app_ui_font(APP_THEME_FONT_SMALL)), 0);
         lv_obj_set_style_text_font(state->lines[slot],
                                    app_ui_font(APP_THEME_FONT_SMALL), 0);
         lv_obj_set_style_text_color(state->lines[slot],
@@ -298,7 +336,14 @@ static void _lyrics_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_font(state->status_label,
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_obj_set_style_text_align(state->status_label, LV_TEXT_ALIGN_CENTER, 0);
-
+    state->retry_button = app_ui_add_action(state->page.content,
+                                            LV_SYMBOL_REFRESH,
+                                            "重新加载歌词", NULL,
+                                            _lyrics_retry_clicked, state);
+    if (state->retry_button != NULL)
+    {
+        lv_obj_set_hidden(state->retry_button, true);
+    }
 }
 
 static void _lyrics_resume(const app_manager_page_context_t *context)

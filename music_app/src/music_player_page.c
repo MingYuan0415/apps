@@ -1,5 +1,6 @@
 #include "music_app_internal.h"
 
+#include "audio_service.h"
 #include "event_bus.h"
 #include "music_lyrics_view.h"
 
@@ -7,15 +8,23 @@
 #include <string.h>
 
 #define MUSIC_PLAYER_LYRIC_HEIGHT 84
+#define MUSIC_PLAYER_COVER_SIZE 64
+#define MUSIC_PLAYER_COVER_TIMEOUT_TICKS 8U
+#define MUSIC_PLAYER_COVER_MAX_ATTEMPTS 2U
+#define MUSIC_PLAYER_NOTICE_MS 1500U
 
 typedef struct music_player_state
 {
     app_ui_page_t page;
     lv_obj_t *play_view;
     lv_obj_t *context_label;
+    lv_obj_t *heading;
     lv_obj_t *title_label;
     lv_obj_t *artist_label;
     lv_obj_t *meta_label;
+    lv_obj_t *browse_button;
+    lv_obj_t *browse_title;
+    lv_obj_t *browse_subtitle;
     lv_obj_t *lyric_button;
     lv_obj_t *lyric_previous;
     lv_obj_t *lyric_current;
@@ -28,16 +37,34 @@ typedef struct music_player_state
     lv_obj_t *play_button;
     lv_obj_t *next_button;
     lv_obj_t *mode_button;
+    lv_obj_t *volume_button;
     lv_obj_t *lyrics_button;
     lv_obj_t *stop_button;
+    lv_obj_t *stop_sheet;
+    lv_obj_t *volume_sheet;
+    lv_obj_t *volume_slider;
+    lv_obj_t *volume_percent;
+    lv_obj_t *volume_status;
+    lv_obj_t *info_sheet;
     lv_timer_t *timer;
     event_bus_sub_handle_t subscription;
     music_lyrics_view_t lyrics;
+    music_ui_cover_t cover;
+    uint32_t cover_token;
+    uint32_t notice_until_ms;
+    char notice_text[64];
     uint8_t shown_play_state;
     uint8_t shown_mode;
     int16_t shown_percent;
+    uint8_t cover_attempts;
+    uint8_t cover_wait_ticks;
     bool play_state_valid;
     bool mode_valid;
+    bool shown_retry;
+    bool retry_state_valid;
+    bool cover_requested;
+    bool cover_failed;
+    bool service_retry;
     bool routed_login;
 } music_player_state_t;
 
@@ -169,6 +196,100 @@ static void _player_update_lyrics(music_player_state_t *state,
                             APP_UI_COLOR_MUTED, APP_THEME_FONT_SMALL);
 }
 
+static void _player_update_browse(music_player_state_t *state, bool has_track)
+{
+    if (state->browse_button == NULL)
+    {
+        return;
+    }
+    lv_obj_set_hidden(state->browse_button, has_track);
+    if (has_track)
+    {
+        return;
+    }
+    if (state->service_retry)
+    {
+        app_ui_label_set_text_if(state->browse_title, "重新检查音乐服务");
+        app_ui_label_set_text_if(state->browse_subtitle,
+                                 "服务恢复后可继续播放");
+        return;
+    }
+    app_ui_label_set_text_if(state->browse_title, "去歌单选择音乐");
+    app_ui_label_set_text_if(state->browse_subtitle, "从侧边栏选择歌单");
+}
+
+static void _player_update_cover(music_player_state_t *state,
+                                 const music_player_status_t *status)
+{
+    if (state->cover.frame == NULL)
+    {
+        return;
+    }
+    const bool has_cover = status != NULL && status->title[0] != '\0' &&
+                           status->cover_url[0] != '\0';
+    if (!has_cover)
+    {
+        music_ui_cover_release(&state->cover);
+        state->cover_token = 0U;
+        state->cover_requested = false;
+        state->cover_attempts = 0U;
+        state->cover_wait_ticks = 0U;
+        state->cover_failed = false;
+        return;
+    }
+    const uint32_t token = music_ui_url_token(status->cover_url);
+    if (token != state->cover_token)
+    {
+        music_ui_cover_release(&state->cover);
+        state->cover_token = token;
+        state->cover_requested = false;
+        state->cover_attempts = 0U;
+        state->cover_wait_ticks = 0U;
+        state->cover_failed = false;
+    }
+    if (state->cover.image != NULL || state->cover_failed)
+    {
+        return;
+    }
+    if (state->cover_requested)
+    {
+        if (state->cover_wait_ticks < UINT8_MAX)
+        {
+            ++state->cover_wait_ticks;
+        }
+        if (state->cover_wait_ticks <= MUSIC_PLAYER_COVER_TIMEOUT_TICKS)
+        {
+            return;
+        }
+        state->cover_requested = false;
+    }
+    if (state->cover_attempts >= MUSIC_PLAYER_COVER_MAX_ATTEMPTS)
+    {
+        state->cover_failed = true;
+        return;
+    }
+    const music_image_t *image = NULL;
+    state->cover_requested = true;
+    state->cover_wait_ticks = 0U;
+    ++state->cover_attempts;
+    const esp_err_t result = music_service_image_acquire(
+                                 status->cover_url, MUSIC_PLAYER_COVER_SIZE,
+                                 MUSIC_PLAYER_COVER_SIZE, token, &image);
+    if (result == ESP_OK && image != NULL)
+    {
+        state->cover_requested = false;
+        state->cover_attempts = 0U;
+        state->cover_failed = false;
+        music_ui_cover_set_image(&state->cover, (music_image_t *)image);
+    }
+    else if (result != ESP_ERR_NOT_FOUND)
+    {
+        state->cover_requested = false;
+        state->cover_failed = state->cover_attempts >=
+                              MUSIC_PLAYER_COVER_MAX_ATTEMPTS;
+    }
+}
+
 static void _player_update_play_button(music_player_state_t *state,
                                        const music_player_status_t *status)
 {
@@ -177,21 +298,32 @@ static void _player_update_play_button(music_player_state_t *state,
         return;
     }
     const bool playing = status->state == MUSIC_PLAYBACK_PLAYING;
-    const bool enabled = music_ui_can_toggle_playback(status);
-    if (!state->play_state_valid || state->shown_play_state != status->state)
+    const bool retry = music_ui_can_retry_playback(status);
+    const bool enabled = music_ui_can_toggle_playback(status) || retry;
+    if (!state->play_state_valid || state->shown_play_state != status->state ||
+            !state->retry_state_valid || state->shown_retry != retry)
     {
         music_ui_set_plain_icon_button(
             state->play_button,
-            playing ? APP_IMAGE_MUSIC_PAUSE : APP_IMAGE_MUSIC_PLAY,
-            playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY, 38,
+            retry ? APP_IMAGE_UI_REFRESH :
+            (playing ? APP_IMAGE_MUSIC_PAUSE : APP_IMAGE_MUSIC_PLAY),
+            retry ? LV_SYMBOL_REFRESH :
+            (playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY),
+            retry ? 34 : 38,
             enabled ? APP_UI_COLOR_TEXT : APP_UI_COLOR_FAINT);
         state->shown_play_state = status->state;
+        state->shown_retry = retry;
         state->play_state_valid = true;
+        state->retry_state_valid = true;
     }
     music_ui_set_button_enabled(state->play_button, enabled);
+    uint32_t border = APP_UI_COLOR_FAINT;
+    if (enabled)
+    {
+        border = retry ? APP_UI_COLOR_SUN : APP_UI_COLOR_RAIN;
+    }
     lv_obj_set_style_border_color(state->play_button,
-                                  lv_color_hex(enabled ? APP_UI_COLOR_RAIN :
-                                          APP_UI_COLOR_FAINT), 0);
+                                  lv_color_hex(border), 0);
     lv_obj_set_style_border_width(state->play_button, 3, 0);
 }
 
@@ -212,20 +344,40 @@ static void _player_update(music_player_state_t *state)
     music_player_status_t status;
     if (music_service_get_player_status(&status) != ESP_OK)
     {
+        state->service_retry = true;
         app_ui_label_set_text_if(state->title_label, "音乐服务不可用");
-        app_ui_label_set_text_if(state->artist_label, "请返回后重新打开音乐");
+        app_ui_label_set_text_if(state->artist_label, "点击下方按钮重新检查");
         app_ui_label_set_text_if(state->context_label, "QQ 音乐");
-        app_ui_label_set_text_if(state->meta_label, "");
-        music_ui_set_button_enabled(state->play_button, false);
+        app_ui_label_set_text_if(state->meta_label, "音乐服务暂不可用");
+        lv_obj_set_hidden(state->timeline, true);
+        lv_obj_set_hidden(state->lyric_button, true);
+        _player_update_browse(state, false);
+        _player_update_cover(state, NULL);
+        music_ui_set_plain_icon_button(
+            state->play_button, APP_IMAGE_UI_REFRESH, LV_SYMBOL_REFRESH,
+            34, APP_UI_COLOR_TEXT);
+        music_ui_set_button_enabled(state->play_button, true);
+        lv_obj_set_style_border_color(state->play_button,
+                                      lv_color_hex(APP_UI_COLOR_SUN), 0);
+        lv_obj_set_style_border_width(state->play_button, 3, 0);
         music_ui_set_button_enabled(state->previous_button, false);
         music_ui_set_button_enabled(state->next_button, false);
         music_ui_set_button_enabled(state->stop_button, false);
         music_ui_set_button_enabled(state->lyrics_button, false);
+        music_ui_set_button_enabled(state->mode_button, false);
+        state->play_state_valid = false;
+        state->retry_state_valid = false;
+        lv_obj_set_style_text_color(state->meta_label,
+                                    lv_color_hex(APP_UI_COLOR_SUN), 0);
         return;
     }
 
+    state->service_retry = false;
     const bool has_track = status.title[0] != '\0';
     lv_obj_set_hidden(state->timeline, !has_track);
+    lv_obj_set_hidden(state->lyric_button, !has_track);
+    _player_update_browse(state, has_track);
+    _player_update_cover(state, &status);
     app_ui_label_set_text_if(state->context_label,
                              _player_context_text(&status, has_track));
     app_ui_label_set_text_if(state->title_label,
@@ -236,10 +388,18 @@ static void _player_update(music_player_state_t *state)
                               status.artist) :
                              "从侧边栏选择歌单开始播放");
 
+    const bool notice_active =
+        state->notice_text[0] != '\0' &&
+        (uint32_t)(lv_tick_get() - state->notice_until_ms) <
+        MUSIC_PLAYER_NOTICE_MS;
     char queue[MUSIC_UI_QUEUE_TEXT_BYTES];
     music_ui_queue_text(&status, queue, sizeof(queue));
-    if (status.state == MUSIC_PLAYBACK_ERROR &&
-            status.failure != MUSIC_SERVICE_FAILURE_NONE)
+    if (notice_active)
+    {
+        app_ui_label_set_text_if(state->meta_label, state->notice_text);
+    }
+    else if (status.state == MUSIC_PLAYBACK_ERROR &&
+             status.failure != MUSIC_SERVICE_FAILURE_NONE)
     {
         app_ui_label_set_text_if(state->meta_label,
                                  music_ui_failure_text(status.failure));
@@ -278,9 +438,14 @@ static void _player_update(music_player_state_t *state)
     music_ui_set_button_enabled(state->stop_button, has_track);
     music_ui_set_button_enabled(state->lyrics_button,
                                 has_track && status.songmid[0] != '\0');
+    music_ui_set_button_enabled(state->mode_button, has_track);
 
     uint32_t meta_color = APP_UI_COLOR_FAINT;
-    if (status.state == MUSIC_PLAYBACK_ERROR)
+    if (notice_active)
+    {
+        meta_color = APP_UI_COLOR_RAIN;
+    }
+    else if (status.state == MUSIC_PLAYBACK_ERROR)
     {
         meta_color = APP_UI_COLOR_SUN;
     }
@@ -306,21 +471,92 @@ static void _player_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
                              void *user_data)
 {
     (void)msg_id;
-    (void)sub_type;
-    (void)payload;
-    (void)payload_size;
     music_player_state_t *state = user_data;
-    if (state != NULL)
+    if (state == NULL)
     {
-        _player_update(state);
+        return;
     }
+    if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_IMAGE &&
+            payload != NULL && payload_size == sizeof(music_service_event_t))
+    {
+        const music_service_event_t *event = payload;
+        if (event->token != state->cover_token || state->cover_token == 0U)
+        {
+            return;
+        }
+        state->cover_requested = false;
+        state->cover_wait_ticks = 0U;
+        if (event->failure != MUSIC_SERVICE_FAILURE_NONE)
+        {
+            state->cover_failed = state->cover_attempts >=
+                                  MUSIC_PLAYER_COVER_MAX_ATTEMPTS;
+            return;
+        }
+        music_player_status_t status;
+        if (music_service_get_player_status(&status) != ESP_OK ||
+                music_ui_url_token(status.cover_url) != state->cover_token)
+        {
+            return;
+        }
+        if (music_ui_cover_accept_event(&state->cover, state->cover_token,
+                                        status.cover_url, event))
+        {
+            state->cover_attempts = 0U;
+            state->cover_failed = false;
+        }
+        else
+        {
+            state->cover_failed = state->cover_attempts >=
+                                  MUSIC_PLAYER_COVER_MAX_ATTEMPTS;
+        }
+    }
+    _player_update(state);
 }
 
 static void _player_play_clicked(lv_event_t *event)
 {
     music_player_state_t *state = lv_event_get_user_data(event);
-    const esp_err_t result = music_service_play_pause();
-    if (state != NULL && result != ESP_OK)
+    if (state == NULL)
+    {
+        return;
+    }
+    if (state->service_retry)
+    {
+        const esp_err_t result = music_service_retry();
+        if (result != ESP_OK)
+        {
+            app_ui_label_set_text_if(state->meta_label,
+                                     "重新检查失败，请稍后重试");
+            lv_obj_set_style_text_color(state->meta_label,
+                                        lv_color_hex(APP_UI_COLOR_SUN), 0);
+        }
+        _player_update(state);
+        return;
+    }
+
+    music_player_status_t status;
+    if (music_service_get_player_status(&status) != ESP_OK)
+    {
+        state->service_retry = true;
+        _player_update(state);
+        return;
+    }
+    esp_err_t result;
+    if (music_ui_can_retry_playback(&status))
+    {
+        result = music_service_queue_play(status.queue_index);
+        if (result == ESP_OK)
+        {
+            app_ui_label_set_text_if(state->meta_label, "正在重试…");
+            lv_obj_set_style_text_color(state->meta_label,
+                                        lv_color_hex(APP_UI_COLOR_RAIN), 0);
+        }
+    }
+    else
+    {
+        result = music_service_play_pause();
+    }
+    if (result != ESP_OK)
     {
         app_ui_label_set_text_if(state->meta_label,
                                  result == ESP_ERR_TIMEOUT ?
@@ -329,10 +565,7 @@ static void _player_play_clicked(lv_event_t *event)
         lv_obj_set_style_text_color(state->meta_label,
                                     lv_color_hex(APP_UI_COLOR_SUN), 0);
     }
-    if (state != NULL)
-    {
-        _player_update(state);
-    }
+    _player_update(state);
 }
 
 static void _player_prev_clicked(lv_event_t *event)
@@ -395,18 +628,272 @@ static void _player_mode_clicked(lv_event_t *event)
         app_ui_label_set_text_if(state->meta_label, "播放模式切换失败");
         return;
     }
+    (void)snprintf(state->notice_text, sizeof(state->notice_text), "%s",
+                   music_ui_mode_text(next));
+    state->notice_until_ms = lv_tick_get() + MUSIC_PLAYER_NOTICE_MS;
+    _player_update(state);
+}
+
+static void _player_stop_cancel(lv_event_t *event)
+{
+    music_player_state_t *state = lv_event_get_user_data(event);
+    if (state != NULL && state->stop_sheet != NULL)
+    {
+        app_ui_sheet_dismiss(state->stop_sheet);
+        state->stop_sheet = NULL;
+    }
+}
+
+static void _player_stop_confirm(lv_event_t *event)
+{
+    music_player_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
+    {
+        return;
+    }
+    if (state->stop_sheet != NULL)
+    {
+        app_ui_sheet_dismiss(state->stop_sheet);
+        state->stop_sheet = NULL;
+    }
+    if (music_service_stop() != ESP_OK)
+    {
+        app_ui_label_set_text_if(state->meta_label, "停止播放失败，请重试");
+        lv_obj_set_style_text_color(state->meta_label,
+                                    lv_color_hex(APP_UI_COLOR_SUN), 0);
+        return;
+    }
     _player_update(state);
 }
 
 static void _player_stop_clicked(lv_event_t *event)
 {
     music_player_state_t *state = lv_event_get_user_data(event);
-    if (music_service_stop() != ESP_OK)
+    if (state == NULL || state->stop_sheet != NULL)
     {
-        app_ui_label_set_text_if(state->meta_label, "停止播放失败，请重试");
         return;
     }
-    _player_update(state);
+    state->stop_sheet = app_ui_sheet_open(
+                            state->page.root, "停止播放",
+                            "停止后会清空当前播放列表，是否继续？");
+    if (state->stop_sheet == NULL)
+    {
+        return;
+    }
+    (void)app_ui_sheet_add_action(state->stop_sheet, "停止播放", true,
+                                  _player_stop_confirm, state);
+    (void)app_ui_sheet_add_action(state->stop_sheet, "取消", false,
+                                  _player_stop_cancel, state);
+}
+
+static void _player_browse_clicked(lv_event_t *event)
+{
+    music_player_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
+    {
+        return;
+    }
+    if (state->service_retry)
+    {
+        (void)music_service_retry();
+        _player_update(state);
+        return;
+    }
+    (void)music_ui_open_sidebar();
+}
+
+static void _player_info_dismiss(lv_event_t *event)
+{
+    music_player_state_t *state = lv_event_get_user_data(event);
+    if (state != NULL && state->info_sheet != NULL)
+    {
+        app_ui_sheet_dismiss(state->info_sheet);
+        state->info_sheet = NULL;
+    }
+}
+
+static void _player_info_clicked(lv_event_t *event)
+{
+    music_player_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL || state->info_sheet != NULL)
+    {
+        return;
+    }
+    music_player_status_t status;
+    if (music_service_get_player_status(&status) != ESP_OK ||
+            status.title[0] == '\0')
+    {
+        return;
+    }
+    char duration[16];
+    char detail[320];
+    music_ui_format_time(status.duration_ms, duration, sizeof(duration));
+    (void)snprintf(detail, sizeof(detail), "%s · %s · %s",
+                   status.artist[0] == '\0' ? "未知歌手" : status.artist,
+                   music_ui_quality_text(status.quality), duration);
+    state->info_sheet = app_ui_sheet_open(state->page.root, status.title,
+                                          detail);
+    if (state->info_sheet == NULL)
+    {
+        return;
+    }
+    (void)app_ui_sheet_add_action(state->info_sheet, "关闭", false,
+                                  _player_info_dismiss, state);
+}
+
+static void _player_volume_sync(music_player_state_t *state)
+{
+    if (state->volume_slider == NULL || state->volume_percent == NULL)
+    {
+        return;
+    }
+    uint8_t percent = 0U;
+    if (audio_service_get_volume(&percent) != ESP_OK)
+    {
+        lv_obj_add_state(state->volume_slider, LV_STATE_DISABLED);
+        lv_label_set_text(state->volume_percent, "--");
+        app_ui_set_status_text(state->volume_status, "音频不可用",
+                               APP_UI_STATUS_WARNING);
+        return;
+    }
+    lv_obj_remove_state(state->volume_slider, LV_STATE_DISABLED);
+    if (percent > 100U)
+    {
+        percent = 100U;
+    }
+    lv_slider_set_value(state->volume_slider, (int32_t)percent, LV_ANIM_OFF);
+    lv_label_set_text_fmt(state->volume_percent, "%u%%", (unsigned)percent);
+    app_ui_set_status_text(state->volume_status, "拖动即时生效，松手保存",
+                           APP_UI_STATUS_NEUTRAL);
+}
+
+static void _player_volume_event(lv_event_t *event)
+{
+    music_player_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL || state->volume_slider == NULL)
+    {
+        return;
+    }
+    const uint8_t percent =
+        (uint8_t)lv_slider_get_value(state->volume_slider);
+    lv_label_set_text_fmt(state->volume_percent, "%u%%", (unsigned)percent);
+    if (lv_event_get_code(event) == LV_EVENT_VALUE_CHANGED)
+    {
+        const esp_err_t result = audio_service_set_volume(percent);
+        app_ui_set_status_text(state->volume_status,
+                               result == ESP_OK ? "正在应用" : "应用失败",
+                               result == ESP_OK ? APP_UI_STATUS_ACCENT :
+                               APP_UI_STATUS_WARNING);
+    }
+    else if (lv_event_get_code(event) == LV_EVENT_RELEASED)
+    {
+        const esp_err_t result = audio_service_set_volume_persisted(percent);
+        app_ui_set_status_text(state->volume_status,
+                               result == ESP_OK ? "已保存" : "保存失败",
+                               result == ESP_OK ? APP_UI_STATUS_SUCCESS :
+                               APP_UI_STATUS_ERROR);
+    }
+}
+
+static void _player_volume_dismiss(lv_event_t *event)
+{
+    music_player_state_t *state = lv_event_get_user_data(event);
+    if (state != NULL && state->volume_sheet != NULL)
+    {
+        app_ui_sheet_dismiss(state->volume_sheet);
+        state->volume_sheet = NULL;
+        state->volume_slider = NULL;
+        state->volume_percent = NULL;
+        state->volume_status = NULL;
+    }
+}
+
+static void _player_volume_clicked(lv_event_t *event)
+{
+    music_player_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL || state->volume_sheet != NULL)
+    {
+        return;
+    }
+    state->volume_sheet = app_ui_sheet_open(state->page.root, "音量", NULL);
+    if (state->volume_sheet == NULL)
+    {
+        return;
+    }
+    lv_obj_t *panel = lv_obj_get_child(state->volume_sheet, 0);
+    if (panel == NULL)
+    {
+        return;
+    }
+    lv_obj_t *row = lv_obj_create(panel);
+    if (row != NULL)
+    {
+        lv_obj_remove_style_all(row);
+        lv_obj_set_width(row, LV_PCT(100));
+        lv_obj_set_height(row, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        app_ui_make_passive(row, false);
+        lv_obj_t *caption = lv_label_create(row);
+        if (caption != NULL)
+        {
+            lv_obj_set_style_text_font(caption,
+                                       app_ui_font(APP_THEME_FONT_BODY), 0);
+            lv_obj_set_style_text_color(caption,
+                                        lv_color_hex(APP_UI_COLOR_TEXT), 0);
+            lv_label_set_text(caption, "媒体音量");
+            app_ui_make_passive(caption, false);
+        }
+        state->volume_percent = lv_label_create(row);
+        if (state->volume_percent != NULL)
+        {
+            lv_obj_set_style_text_font(state->volume_percent,
+                                       app_ui_font(APP_THEME_FONT_BODY), 0);
+            lv_obj_set_style_text_color(state->volume_percent,
+                                        lv_color_hex(APP_UI_COLOR_RAIN), 0);
+            lv_label_set_text(state->volume_percent, "--");
+            app_ui_make_passive(state->volume_percent, false);
+        }
+    }
+    state->volume_slider = lv_slider_create(panel);
+    if (state->volume_slider != NULL)
+    {
+        lv_obj_set_width(state->volume_slider, LV_PCT(100));
+        lv_obj_set_height(state->volume_slider, 16);
+        lv_slider_set_range(state->volume_slider, 0, 100);
+        lv_obj_set_style_bg_color(state->volume_slider,
+                                  lv_color_hex(APP_UI_COLOR_TRACK),
+                                  LV_PART_MAIN);
+        lv_obj_set_style_pad_left(state->volume_slider, 18, LV_PART_MAIN);
+        lv_obj_set_style_pad_right(state->volume_slider, 18, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(state->volume_slider,
+                                  lv_color_hex(APP_UI_COLOR_RAIN),
+                                  LV_PART_INDICATOR);
+        lv_obj_set_style_bg_color(state->volume_slider,
+                                  lv_color_hex(APP_UI_COLOR_TEXT),
+                                  LV_PART_KNOB);
+        lv_obj_set_style_radius(state->volume_slider, LV_RADIUS_CIRCLE,
+                                LV_PART_KNOB);
+        lv_obj_set_style_pad_all(state->volume_slider, 8, LV_PART_KNOB);
+        lv_obj_set_style_shadow_width(state->volume_slider, 0,
+                                      LV_PART_KNOB);
+        lv_obj_set_ext_click_area(state->volume_slider, 18);
+        lv_obj_add_event_cb(state->volume_slider, _player_volume_event,
+                            LV_EVENT_VALUE_CHANGED, state);
+        lv_obj_add_event_cb(state->volume_slider, _player_volume_event,
+                            LV_EVENT_RELEASED, state);
+    }
+    state->volume_status = app_ui_add_body_label(panel, " ");
+    if (state->volume_status != NULL)
+    {
+        lv_obj_set_width(state->volume_status, LV_PCT(100));
+        lv_obj_set_style_text_font(state->volume_status,
+                                   app_ui_font(APP_THEME_FONT_SMALL), 0);
+    }
+    (void)app_ui_sheet_add_action(state->volume_sheet, "关闭", false,
+                                  _player_volume_dismiss, state);
+    _player_volume_sync(state);
 }
 
 static void _player_sidebar_clicked(lv_event_t *event)
@@ -423,7 +910,13 @@ static void _player_queue_clicked(lv_event_t *event)
 
 static void _player_lyrics_clicked(lv_event_t *event)
 {
-    (void)event;
+    music_player_state_t *state = lv_event_get_user_data(event);
+    if (state != NULL && state->lyrics.failed)
+    {
+        music_lyrics_view_reset(&state->lyrics);
+        _player_update(state);
+        return;
+    }
     (void)music_ui_open_lyrics();
 }
 
@@ -460,7 +953,7 @@ static void _player_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_pad_bottom(state->play_view, 8, 0);
     lv_obj_set_style_pad_left(state->play_view, 16, 0);
     lv_obj_set_style_pad_right(state->play_view, 16, 0);
-    lv_obj_set_style_pad_row(state->play_view, 6, 0);
+    lv_obj_set_style_pad_row(state->play_view, 4, 0);
     lv_obj_set_flex_flow(state->play_view, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(state->play_view, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -497,23 +990,84 @@ static void _player_mount(const app_manager_page_context_t *context)
         MUSIC_UI_CONTROL_SIZE, 30, APP_UI_COLOR_TEXT,
         _player_queue_clicked, state);
 
-    lv_obj_t *heading = lv_obj_create(state->play_view);
-    lv_obj_remove_style_all(heading);
-    lv_obj_set_width(heading, LV_PCT(100));
-    lv_obj_set_height(heading, 68);
-    lv_obj_set_flex_flow(heading, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(heading, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(heading, 4, 0);
-    app_ui_make_passive(heading, false);
-    state->title_label = _player_label(heading, "暂无播放",
-                                       APP_THEME_FONT_BIGL,
-                                       APP_UI_COLOR_TEXT,
-                                       LV_TEXT_ALIGN_CENTER, true);
-    state->artist_label = _player_label(heading, "从侧边栏选择歌单开始播放",
-                                        APP_THEME_FONT_SMALL,
-                                        APP_UI_COLOR_MUTED,
-                                        LV_TEXT_ALIGN_CENTER, true);
+    state->heading = lv_button_create(state->play_view);
+    if (state->heading != NULL)
+    {
+        app_ui_click_only(state->heading);
+        lv_obj_set_width(state->heading, LV_PCT(100));
+        lv_obj_set_height(state->heading, 68);
+        music_ui_flat_button_reset(state->heading, APP_UI_RADIUS_CONTROL);
+        lv_obj_set_style_bg_color(state->heading,
+                                  lv_color_hex(APP_UI_COLOR_SURFACE),
+                                  LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(state->heading, LV_OPA_COVER,
+                                LV_STATE_PRESSED);
+        lv_obj_set_style_pad_column(state->heading, 8, 0);
+        lv_obj_set_flex_flow(state->heading, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(state->heading, LV_FLEX_ALIGN_START,
+                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_add_event_cb(state->heading, _player_info_clicked,
+                            LV_EVENT_CLICKED, state);
+        music_ui_cover_create(&state->cover, state->heading,
+                              LV_SYMBOL_AUDIO, MUSIC_PLAYER_COVER_SIZE);
+        lv_obj_t *heading_text = lv_obj_create(state->heading);
+        if (heading_text != NULL)
+        {
+            lv_obj_remove_style_all(heading_text);
+            lv_obj_set_width(heading_text, 0);
+            lv_obj_set_flex_grow(heading_text, 1);
+            lv_obj_set_height(heading_text, LV_SIZE_CONTENT);
+            lv_obj_set_flex_flow(heading_text, LV_FLEX_FLOW_COLUMN);
+            lv_obj_set_flex_align(heading_text, LV_FLEX_ALIGN_CENTER,
+                                  LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+            lv_obj_set_style_pad_row(heading_text, 4, 0);
+            app_ui_make_passive(heading_text, false);
+            state->title_label = _player_label(heading_text, "暂无播放",
+                                               APP_THEME_FONT_HEAD,
+                                               APP_UI_COLOR_TEXT,
+                                               LV_TEXT_ALIGN_LEFT, true);
+            state->artist_label = _player_label(heading_text,
+                                                "从侧边栏选择歌单开始播放",
+                                                APP_THEME_FONT_SMALL,
+                                                APP_UI_COLOR_MUTED,
+                                                LV_TEXT_ALIGN_LEFT, true);
+        }
+    }
+
+    state->browse_button = lv_button_create(state->play_view);
+    if (state->browse_button != NULL)
+    {
+        app_ui_click_only(state->browse_button);
+        lv_obj_set_width(state->browse_button, LV_PCT(100));
+        lv_obj_set_height(state->browse_button, MUSIC_PLAYER_LYRIC_HEIGHT);
+        music_ui_flat_button_reset(state->browse_button,
+                                   APP_UI_RADIUS_CONTROL);
+        lv_obj_set_style_bg_color(state->browse_button,
+                                  lv_color_hex(APP_UI_COLOR_SURFACE), 0);
+        lv_obj_set_style_bg_opa(state->browse_button, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(state->browse_button,
+                                  lv_color_hex(APP_UI_COLOR_SURFACE_HI),
+                                  LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(state->browse_button, LV_OPA_COVER,
+                                LV_STATE_PRESSED);
+        lv_obj_set_style_pad_all(state->browse_button, 4, 0);
+        lv_obj_set_style_pad_row(state->browse_button, 2, 0);
+        lv_obj_set_flex_flow(state->browse_button, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(state->browse_button, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_add_event_cb(state->browse_button, _player_browse_clicked,
+                            LV_EVENT_CLICKED, state);
+        state->browse_title = _player_label(state->browse_button,
+                                            "去歌单选择音乐",
+                                            APP_THEME_FONT_BODY,
+                                            APP_UI_COLOR_TEXT,
+                                            LV_TEXT_ALIGN_CENTER, true);
+        state->browse_subtitle = _player_label(state->browse_button,
+                                               "从侧边栏选择歌单",
+                                               APP_THEME_FONT_SMALL,
+                                               APP_UI_COLOR_MUTED,
+                                               LV_TEXT_ALIGN_CENTER, true);
+    }
 
     state->lyric_button = lv_button_create(state->play_view);
     if (state->lyric_button != NULL)
@@ -626,9 +1180,14 @@ static void _player_mount(const app_manager_page_context_t *context)
                              secondary, APP_IMAGE_MUSIC_SEQUENTIAL,
                              LV_SYMBOL_LOOP, MUSIC_UI_CONTROL_SIZE, 32,
                              APP_UI_COLOR_TEXT, _player_mode_clicked, state);
+    state->volume_button = music_ui_plain_icon_button(
+                               secondary, APP_IMAGE_UI_VOLUME,
+                               LV_SYMBOL_VOLUME_MAX, MUSIC_UI_CONTROL_SIZE,
+                               30, APP_UI_COLOR_TEXT,
+                               _player_volume_clicked, state);
     state->lyrics_button = music_ui_plain_text_button(
-                               secondary, "词", MUSIC_UI_CONTROL_SIZE,
-                               APP_THEME_FONT_HEAD, APP_UI_COLOR_TEXT,
+                               secondary, "歌词", MUSIC_UI_CONTROL_SIZE,
+                               APP_THEME_FONT_BODY, APP_UI_COLOR_TEXT,
                                _player_lyrics_clicked, state);
     state->stop_button = music_ui_plain_icon_button(
                              secondary, APP_IMAGE_MUSIC_STOP,
@@ -648,6 +1207,28 @@ static void _player_resume(const app_manager_page_context_t *context)
     _player_update(state);
 }
 
+static void _player_dismiss_sheets(music_player_state_t *state)
+{
+    if (state->stop_sheet != NULL)
+    {
+        app_ui_sheet_dismiss(state->stop_sheet);
+        state->stop_sheet = NULL;
+    }
+    if (state->volume_sheet != NULL)
+    {
+        app_ui_sheet_dismiss(state->volume_sheet);
+        state->volume_sheet = NULL;
+        state->volume_slider = NULL;
+        state->volume_percent = NULL;
+        state->volume_status = NULL;
+    }
+    if (state->info_sheet != NULL)
+    {
+        app_ui_sheet_dismiss(state->info_sheet);
+        state->info_sheet = NULL;
+    }
+}
+
 static esp_err_t _player_pause(const app_manager_page_context_t *context)
 {
     music_player_state_t *state = context->state;
@@ -661,6 +1242,13 @@ static esp_err_t _player_pause(const app_manager_page_context_t *context)
         (void)event_bus_unsubscribe(state->subscription);
         state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     }
+    _player_dismiss_sheets(state);
+    music_ui_cover_release(&state->cover);
+    state->cover_token = 0U;
+    state->cover_requested = false;
+    state->cover_attempts = 0U;
+    state->cover_wait_ticks = 0U;
+    state->cover_failed = false;
     music_lyrics_view_reset(&state->lyrics);
     return ESP_OK;
 }
@@ -668,6 +1256,8 @@ static esp_err_t _player_pause(const app_manager_page_context_t *context)
 static void _player_unmount(const app_manager_page_context_t *context)
 {
     music_player_state_t *state = context->state;
+    _player_dismiss_sheets(state);
+    music_ui_cover_release(&state->cover);
     music_lyrics_view_reset(&state->lyrics);
     app_ui_page_destroy(&state->page);
     memset(state, 0, sizeof(*state));

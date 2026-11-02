@@ -4,7 +4,6 @@
 #include <string.h>
 
 #define MUSIC_UI_COVER_RADIUS       APP_UI_RADIUS_CONTROL
-#define MUSIC_UI_LIST_COVER_RADIUS  10
 #define MUSIC_UI_ROW_PAD            8
 #define MUSIC_UI_ORDINAL_WIDTH      30
 
@@ -70,57 +69,6 @@ void music_ui_flat_button_reset(lv_obj_t *button, int32_t radius)
     lv_obj_set_style_outline_width(button, 0, 0);
     lv_obj_set_style_outline_opa(button, LV_OPA_TRANSP, 0);
     lv_obj_set_style_pad_all(button, 0, 0);
-}
-
-static void _music_ui_set_x_anim(void *object, int32_t value)
-{
-    lv_obj_set_x((lv_obj_t *)object, value);
-}
-
-lv_obj_t *music_ui_marquee_label(lv_obj_t *parent, const char *text,
-                                 app_theme_font_id_t font, uint32_t color)
-{
-    if (parent == NULL)
-    {
-        return NULL;
-    }
-    lv_obj_t *viewport = lv_obj_create(parent);
-    if (viewport == NULL)
-    {
-        return NULL;
-    }
-    lv_obj_remove_style_all(viewport);
-    lv_obj_set_width(viewport, LV_PCT(100));
-    const lv_font_t *font_ptr = app_ui_font(font);
-    lv_obj_set_height(viewport, lv_font_get_line_height(font_ptr));
-    lv_obj_set_style_clip_corner(viewport, true, 0);
-    app_ui_make_passive(viewport, false);
-    lv_obj_t *label = lv_label_create(viewport);
-    if (label == NULL)
-    {
-        return viewport;
-    }
-    lv_obj_set_width(label, LV_SIZE_CONTENT);
-    lv_obj_set_height(label, lv_font_get_line_height(font_ptr));
-    lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
-    lv_obj_set_style_text_font(label, font_ptr, 0);
-    lv_obj_set_style_text_color(label, lv_color_hex(color), 0);
-    lv_label_set_text(label, text != NULL ? text : "");
-    app_ui_make_passive(label, false);
-    lv_obj_update_layout(viewport);
-    const int32_t overflow = lv_obj_get_width(label) -
-                             lv_obj_get_width(viewport);
-    if (overflow > 0 && lv_obj_get_width(viewport) > 0)
-    {
-        lv_anim_t animation;
-        lv_anim_init(&animation);
-        lv_anim_set_var(&animation, label);
-        lv_anim_set_exec_cb(&animation, _music_ui_set_x_anim);
-        lv_anim_set_values(&animation, 0, -overflow);
-        lv_anim_set_duration(&animation, 1600U);
-        (void)lv_anim_start(&animation);
-    }
-    return viewport;
 }
 
 lv_obj_t *music_ui_plain_text_button(lv_obj_t *parent, const char *text,
@@ -392,9 +340,9 @@ lv_obj_t *music_ui_add_nav_row(lv_obj_t *parent, uint32_t image_id,
     }
     lv_obj_set_width(text, 0);
     lv_obj_set_flex_grow(text, 1);
-    (void)music_ui_marquee_label(text, title, APP_THEME_FONT_BODY,
-                                 danger ? APP_UI_COLOR_WARNING :
-                                 APP_UI_COLOR_TEXT);
+    (void)_music_ui_row_label(text, title, APP_THEME_FONT_BODY,
+                              danger ? APP_UI_COLOR_WARNING :
+                              APP_UI_COLOR_TEXT, false);
     if (subtitle != NULL && subtitle[0] != '\0')
     {
         (void)_music_ui_row_label(text, subtitle, APP_THEME_FONT_SMALL,
@@ -635,50 +583,6 @@ static lv_obj_t *_music_ui_row_create(lv_obj_t *parent)
     return row;
 }
 
-lv_obj_t *music_ui_add_playlist_row(lv_obj_t *parent,
-                                    const music_playlist_t *playlist,
-                                    lv_event_cb_t callback,
-                                    void *user_data)
-{
-    if (parent == NULL || playlist == NULL)
-    {
-        return NULL;
-    }
-    lv_obj_t *row = _music_ui_row_create(parent);
-    if (row == NULL)
-    {
-        return NULL;
-    }
-    music_ui_cover_t cover;
-    music_ui_cover_create(&cover, row, LV_SYMBOL_AUDIO, MUSIC_UI_LIST_COVER);
-    lv_obj_t *text = _music_ui_passive_box(row);
-    if (text == NULL)
-    {
-        return row;
-    }
-    lv_obj_set_width(text, 0);
-    lv_obj_set_flex_grow(text, 1);
-    (void)music_ui_marquee_label(text, playlist->title,
-                                 APP_THEME_FONT_BODY, APP_UI_COLOR_TEXT);
-    char subtitle[96];
-    (void)snprintf(subtitle, sizeof(subtitle), "%s · %u 首",
-                   playlist->creator[0] == '\0' ? "QQ 音乐" : playlist->creator,
-                   (unsigned)playlist->track_count);
-    (void)_music_ui_row_label(text, subtitle, APP_THEME_FONT_SMALL,
-                              APP_UI_COLOR_MUTED, true);
-    lv_obj_t *chevron = music_ui_image(row, APP_IMAGE_UI_CHEVRON_RIGHT,
-                                       LV_SYMBOL_RIGHT, 20);
-    if (chevron != NULL)
-    {
-        app_ui_icon_set_color(chevron, APP_UI_COLOR_FAINT);
-    }
-    if (callback != NULL)
-    {
-        lv_obj_add_event_cb(row, callback, LV_EVENT_CLICKED, user_data);
-    }
-    return row;
-}
-
 lv_obj_t *music_ui_add_song_row(lv_obj_t *parent, const music_song_t *song,
                                 uint16_t index, lv_event_cb_t callback,
                                 void *user_data)
@@ -707,7 +611,7 @@ lv_obj_t *music_ui_add_song_row(lv_obj_t *parent, const music_song_t *song,
     lv_obj_set_width(text, 0);
     lv_obj_set_flex_grow(text, 1);
     (void)_music_ui_row_label(text, song->title, APP_THEME_FONT_BODY,
-                              APP_UI_COLOR_TEXT, true);
+                              APP_UI_COLOR_TEXT, false);
     char detail[MUSIC_SERVICE_ARTIST_BYTES + MUSIC_SERVICE_ALBUM_BYTES + 4U];
     if (song->album[0] != '\0')
     {

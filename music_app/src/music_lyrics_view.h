@@ -22,6 +22,9 @@ void music_lyrics_view_reset(music_lyrics_view_t *view);
 /** @brief Release the current snapshot but keep the active song identity. */
 void music_lyrics_view_release(music_lyrics_view_t *view);
 
+/** @brief Clear a terminal failure so the next poll requests lyrics again. */
+void music_lyrics_view_retry(music_lyrics_view_t *view);
+
 /**
  * @brief Poll the service for the current track's lyric snapshot.
  *

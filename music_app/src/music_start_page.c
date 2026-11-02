@@ -11,8 +11,6 @@ typedef struct music_start_state
     lv_obj_t *retry_button;
     lv_timer_t *timer;
     event_bus_sub_handle_t subscription;
-    uint8_t last_state;
-    uint8_t last_failure;
     bool routed;
 } music_start_state_t;
 
@@ -43,8 +41,8 @@ static void _start_check(music_start_state_t *state)
     music_service_status_t status;
     if (music_service_get_status(&status) != ESP_OK)
     {
-        _start_set_status(state, "正在启动音乐服务…", APP_UI_COLOR_MUTED);
-        _start_set_retry(state, false);
+        _start_set_status(state, "音乐服务暂不可用", APP_UI_COLOR_SUN);
+        _start_set_retry(state, true);
         return;
     }
 
@@ -60,6 +58,7 @@ static void _start_check(music_start_state_t *state)
 
     if (status.state == MUSIC_SERVICE_STATE_QR_READY ||
             status.state == MUSIC_SERVICE_STATE_QR_SCANNED ||
+            status.state == MUSIC_SERVICE_STATE_QR_EXPIRED ||
             status.state == MUSIC_SERVICE_STATE_AUTHENTICATING)
     {
         if (!state->routed)
@@ -114,9 +113,16 @@ static void _start_retry_clicked(lv_event_t *event)
     music_start_state_t *state = lv_event_get_user_data(event);
     if (state != NULL)
     {
+        (void)music_service_retry();
         state->routed = false;
         _start_check(state);
     }
+}
+
+static void _start_close_clicked(lv_event_t *event)
+{
+    (void)event;
+    app_ui_request_back();
 }
 
 static void _start_timer_cb(lv_timer_t *timer)
@@ -155,6 +161,17 @@ static void _start_mount(const app_manager_page_context_t *context)
     lv_obj_set_flex_align(state->page.content, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(state->page.content, 12, 0);
+
+    lv_obj_t *close_button = music_ui_plain_icon_button(
+                                 state->page.content, APP_IMAGE_UI_CLOSE,
+                                 LV_SYMBOL_CLOSE, MUSIC_UI_CONTROL_SIZE, 26,
+                                 APP_UI_COLOR_MUTED, _start_close_clicked,
+                                 state);
+    if (close_button != NULL)
+    {
+        lv_obj_set_ignore_layout(close_button, true);
+        lv_obj_align(close_button, LV_ALIGN_TOP_RIGHT, -4, 4);
+    }
 
     lv_obj_t *icon = music_ui_image(state->page.content,
                                     APP_IMAGE_MUSIC_ICON, LV_SYMBOL_AUDIO,

@@ -135,25 +135,31 @@ drivers directly.
 - `weather_app/`: shows the current weather, alerts, 24-hour and 7-day
   forecasts, including an alert list and a detail page; it consumes only
   `weather_service` snapshots and performs no network, JSON or cache I/O.
-- `music_app/`: QQ Music online player with eight routes: a non-interactive
-  start page used as the code root, the player interaction home, sidebar,
+- `music_app/`: QQ Music online player with eight routes: a startup gate
+  used as the code root, the player interaction home, sidebar,
   playlist, queue, lyrics, login-method selection and QR login. The start page
   checks service/login state and enters the player or login-method page; it is
-  removed after routing. The player shows current-track metadata, a fixed
-  three-line lyric window, progress, and icon-only transport controls. The
-  sidebar is a long scrolling page with personal radio, daily recommendation,
-  liked playlist, self-created and available collected playlists, and
-  confirmed logout. Playlist shows the bounded song list with paged loading;
-  queue shows the live playback queue with switch and delete actions; lyrics
-  keeps a seven-line current-track window; login is split into channel
-  selection and a dedicated non-scrolling QR page with a centred code and a
-  refresh overlay for an expired code. The App
+  removed after routing and can be closed while waiting. The player shows a
+  current-track thumbnail, wrapped title/artist, a three-line lyric window,
+  progress, transport controls, a mode/volume/lyrics/stop tool row, idle
+  selection guidance and playback-error retry. The sidebar is a long scrolling
+  page with personal radio, daily recommendation, liked playlist, self-created
+  and available collected playlists, and confirmed logout. Playlist uses
+  10-track pages with previous/next controls at the list ends, prefetches the
+  current page and the two adjacent pages, and returns to the list top after a
+  page change; queue shows the live playback queue with a summary, switch and
+  confirmed delete actions; lyrics keeps a seven-line current-track window and
+  wraps long lines inside a scrollable panel; login is split into channel
+  selection and a dedicated non-scrolling QR page with stable channel identity,
+  a centred code, an expired-code refresh overlay and retry for service
+  failures.  The App
   consumes `music_service` snapshots only and performs no network, JSON,
   image-decode or audio I/O; playback, login and queue state live in the
-  middleware service. `music_service` builds the queue from one playlist,
-  exposes queue snapshots and supports queue switch/remove; collected
-  playlists come from the account catalog. Seeking, buffered ranges and
-  downloads are still absent.
+  middleware service, while the player applies the product volume through
+  `audio_service`. `music_service` builds the queue from one playlist, exposes
+  queue snapshots and supports queue switch/remove; collected playlists come
+  from the account catalog. Seeking, buffered ranges and downloads are still
+  absent.
 - `flybirds_app/`: single-page tap-to-rise avoidance game with four states:
   ready, running, paused panel and result; `flybirds_game` is the pure logic
   rules, `flybirds_synth` synthesizes 8 bars of chiptune music and four sound

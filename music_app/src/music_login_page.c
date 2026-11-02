@@ -20,10 +20,10 @@ typedef struct music_login_state
     lv_obj_t *success_title;
     lv_obj_t *success_subtitle;
     lv_obj_t *qr_overlay;
+    lv_obj_t *retry_button;
     lv_obj_t *bottom_area;
     lv_obj_t *bottom_scrim;
     lv_obj_t *status_label;
-    lv_obj_t *instruction_label;
     music_image_t *qr_image;
     lv_image_dsc_t qr_descriptor;
     lv_timer_t *timer;
@@ -38,6 +38,7 @@ typedef struct music_login_state
     bool expired;
     bool auto_started;
     bool success;
+    bool routed_player;
 } music_login_state_t;
 
 _Static_assert(sizeof(music_login_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -50,12 +51,6 @@ static const char *_login_channel_title(music_login_type_t type)
 {
     return type == MUSIC_LOGIN_TYPE_WECHAT ? "微信扫码登录" :
            "QQ 扫码登录";
-}
-
-static const char *_login_channel_instruction(music_login_type_t type)
-{
-    return type == MUSIC_LOGIN_TYPE_WECHAT ? "打开微信扫一扫" :
-           "打开手机 QQ 扫一扫";
 }
 
 static void _login_release_qr(music_login_state_t *state)
@@ -106,13 +101,6 @@ static void _login_set_status(music_login_state_t *state, const char *text,
     lv_obj_set_hidden(state->status_label, text == NULL || text[0] == '\0');
 }
 
-static void _login_set_instruction(music_login_state_t *state,
-                                   const char *text)
-{
-    (void)state;
-    (void)text;
-}
-
 static void _login_set_bottom_visible(music_login_state_t *state, bool visible)
 {
     if (state->bottom_area != NULL)
@@ -121,11 +109,21 @@ static void _login_set_bottom_visible(music_login_state_t *state, bool visible)
     }
 }
 
+static void _login_set_retry(music_login_state_t *state, bool visible)
+{
+    if (state->retry_button != NULL)
+    {
+        lv_obj_set_hidden(state->retry_button, !visible);
+    }
+}
+
 static void _login_show_qr(music_login_state_t *state,
                            const music_service_status_t *status)
 {
     if (!_login_shows_qr(status->state) &&
             !(status->state == MUSIC_SERVICE_STATE_AUTH_REQUIRED &&
+              status->qr_available) &&
+            !(status->state == MUSIC_SERVICE_STATE_QR_EXPIRED &&
               status->qr_available))
     {
         return;
@@ -169,6 +167,7 @@ static void _login_show_success(music_login_state_t *state,
     state->success_ticks = 0U;
     state->request_pending = false;
     _login_set_overlay(state, false);
+    _login_set_retry(state, false);
     lv_obj_set_hidden(state->qr_frame, true);
     lv_obj_set_hidden(state->login_title, true);
     lv_obj_set_hidden(state->status_label, true);
@@ -191,8 +190,8 @@ static void _login_update(music_login_state_t *state)
     if (music_service_get_status(&status) != ESP_OK)
     {
         _login_set_status(state, "音乐服务暂不可用", APP_UI_STATUS_WARNING);
-        _login_set_instruction(state, "");
         _login_set_bottom_visible(state, false);
+        _login_set_retry(state, true);
         _login_release_qr(state);
         _login_set_overlay(state, false);
         return;
@@ -208,6 +207,7 @@ static void _login_update(music_login_state_t *state)
     {
         state->success = false;
         state->success_ticks = 0U;
+        state->routed_player = false;
         lv_obj_set_hidden(state->success_view, true);
     }
     if (ready)
@@ -226,21 +226,40 @@ static void _login_update(music_login_state_t *state)
     lv_obj_set_hidden(state->success_view, true);
     _login_set_bottom_visible(state, false);
     const bool shows_qr = _login_shows_qr(status.state);
-    if (shows_qr)
+    if (status.state == MUSIC_SERVICE_STATE_QR_EXPIRED)
+    {
+        lv_obj_set_hidden(state->qr_frame, false);
+        _login_show_qr(state, &status);
+        _login_set_overlay(state, true);
+        _login_set_retry(state, false);
+        _login_set_status(state,
+                          status.network_ready ? "二维码已过期" :
+                          "等待网络连接",
+                          status.network_ready ? APP_UI_STATUS_WARNING :
+                          APP_UI_STATUS_NEUTRAL);
+        state->request_pending = false;
+    }
+    else if (shows_qr)
     {
         lv_obj_set_hidden(state->qr_frame, false);
         _login_set_overlay(state, false);
+        _login_set_retry(state, false);
         if (status.state == MUSIC_SERVICE_STATE_QR_READY)
         {
             state->request_pending = false;
         }
         _login_show_qr(state, &status);
-        _login_set_instruction(state,
-                               status.state == MUSIC_SERVICE_STATE_QR_SCANNED ||
-                               status.state == MUSIC_SERVICE_STATE_AUTHENTICATING ?
-                               "" : _login_channel_instruction(
-                                   state->login_type));
-        if (status.state == MUSIC_SERVICE_STATE_QR_SCANNED)
+        if (!status.network_ready)
+        {
+            _login_set_status(state, "等待网络连接",
+                              APP_UI_STATUS_NEUTRAL);
+        }
+        else if (!status.time_ready)
+        {
+            _login_set_status(state, "等待时间同步",
+                              APP_UI_STATUS_NEUTRAL);
+        }
+        else if (status.state == MUSIC_SERVICE_STATE_QR_SCANNED)
         {
             _login_set_status(state, "已扫码，请确认", APP_UI_STATUS_SUCCESS);
         }
@@ -264,17 +283,21 @@ static void _login_update(music_login_state_t *state)
         _login_show_qr(state, &status);
         _login_set_overlay(state, true);
         _login_set_status(state, "二维码已过期", APP_UI_STATUS_WARNING);
-        _login_set_instruction(state, _login_channel_instruction(
-                                   state->login_type));
         state->request_pending = false;
     }
     else
     {
         lv_obj_set_hidden(state->qr_frame, true);
-        lv_obj_set_hidden(state->login_title, true);
+        lv_obj_set_hidden(state->login_title, false);
+        app_ui_label_set_text_if(state->login_title,
+                                 _login_channel_title(state->login_type));
         _login_set_bottom_visible(state, false);
         _login_set_overlay(state, false);
         _login_release_qr(state);
+        _login_set_retry(state,
+                         status.state == MUSIC_SERVICE_STATE_ERROR ||
+                         (status.state == MUSIC_SERVICE_STATE_AUTH_REQUIRED &&
+                          status.failure != MUSIC_SERVICE_FAILURE_NONE));
         if (status.state == MUSIC_SERVICE_STATE_WAITING_NETWORK)
         {
             _login_set_status(state, "等待网络连接", APP_UI_STATUS_NEUTRAL);
@@ -292,7 +315,6 @@ static void _login_update(music_login_state_t *state)
         {
             _login_set_status(state, "", APP_UI_STATUS_NEUTRAL);
         }
-        _login_set_instruction(state, "");
     }
     if (state->request_pending &&
             (status.generation != state->shown_generation ||
@@ -319,8 +341,9 @@ static void _login_timer_cb(lv_timer_t *timer)
         {
             ++state->success_ticks;
         }
-        else
+        else if (!state->routed_player)
         {
+            state->routed_player = true;
             (void)music_ui_enter_player();
         }
         return;
@@ -368,8 +391,8 @@ static void _login_start(music_login_state_t *state,
     lv_obj_set_hidden(state->login_title, false);
     lv_obj_set_hidden(state->success_view, true);
     _login_set_bottom_visible(state, false);
+    _login_set_retry(state, false);
     _login_set_status(state, "正在获取二维码…", APP_UI_STATUS_NEUTRAL);
-    _login_set_instruction(state, _login_channel_instruction(type));
     const esp_err_t result = music_service_login_begin(type);
     if (result != ESP_OK)
     {
@@ -390,11 +413,21 @@ static void _login_start(music_login_state_t *state,
 static void _login_refresh_clicked(lv_event_t *event)
 {
     music_login_state_t *state = lv_event_get_user_data(event);
-    if (state != NULL)
+    if (state == NULL)
+    {
+        return;
+    }
+    music_service_status_t service;
+    if (music_service_get_status(&service) != ESP_OK ||
+            service.state == MUSIC_SERVICE_STATE_ERROR)
     {
         state->request_pending = false;
-        _login_start(state, state->login_type);
+        (void)music_service_retry();
+        _login_update(state);
+        return;
     }
+    state->request_pending = false;
+    _login_start(state, state->login_type);
 }
 
 static void _login_close_clicked(lv_event_t *event)
@@ -462,9 +495,37 @@ static void _login_mount(const app_manager_page_context_t *context)
     lv_obj_set_width(top, LV_PCT(100));
     lv_obj_set_height(top, MUSIC_UI_CONTROL_SIZE);
     lv_obj_set_flex_flow(top, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(top, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(top, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     app_ui_make_passive(top, false);
+    lv_obj_t *brand = lv_obj_create(top);
+    if (brand != NULL)
+    {
+        lv_obj_remove_style_all(brand);
+        lv_obj_set_width(brand, LV_SIZE_CONTENT);
+        lv_obj_set_height(brand, LV_PCT(100));
+        lv_obj_set_flex_flow(brand, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(brand, LV_FLEX_ALIGN_START,
+                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(brand, 8, 0);
+        app_ui_make_passive(brand, false);
+        lv_obj_t *brand_icon = music_ui_image(brand, APP_IMAGE_MUSIC_ICON,
+                                              LV_SYMBOL_AUDIO, 28);
+        if (brand_icon != NULL)
+        {
+            app_ui_icon_set_color(brand_icon, APP_UI_COLOR_RAIN);
+        }
+        lv_obj_t *brand_title = lv_label_create(brand);
+        if (brand_title != NULL)
+        {
+            lv_obj_set_style_text_font(brand_title,
+                                       app_ui_font(APP_THEME_FONT_HEAD), 0);
+            lv_obj_set_style_text_color(brand_title,
+                                        lv_color_hex(APP_UI_COLOR_RAIN), 0);
+            lv_label_set_text(brand_title, "QQ 音乐");
+            app_ui_make_passive(brand_title, false);
+        }
+    }
     (void)music_ui_plain_icon_button(top, APP_IMAGE_UI_CLOSE,
                                      LV_SYMBOL_CLOSE, MUSIC_UI_CONTROL_SIZE,
                                      26, APP_UI_COLOR_MUTED,
@@ -548,6 +609,15 @@ static void _login_mount(const app_manager_page_context_t *context)
                                        APP_THEME_FONT_SMALL,
                                        APP_UI_COLOR_MUTED,
                                        LV_TEXT_ALIGN_CENTER, false);
+    state->retry_button = music_ui_plain_text_button(
+                              center, "重新获取", MUSIC_UI_CONTROL_SIZE,
+                              APP_THEME_FONT_BODY, APP_UI_COLOR_RAIN,
+                              _login_refresh_clicked, state);
+    if (state->retry_button != NULL)
+    {
+        lv_obj_set_width(state->retry_button, 160);
+        lv_obj_set_hidden(state->retry_button, true);
+    }
 
     state->success_view = lv_obj_create(center);
     lv_obj_remove_style_all(state->success_view);
@@ -623,6 +693,7 @@ static esp_err_t _login_pause(const app_manager_page_context_t *context)
     state->request_pending = false;
     state->auto_started = false;
     state->success = false;
+    state->routed_player = false;
     return cancel_result;
 }
 
@@ -636,8 +707,6 @@ static void _login_new_intent(const app_manager_page_context_t *context)
         _login_release_qr(state);
         app_ui_label_set_text_if(state->login_title,
                                  _login_channel_title(state->login_type));
-        _login_set_instruction(state,
-                               _login_channel_instruction(state->login_type));
         state->auto_started = false;
         state->request_pending = false;
         _login_start(state, state->login_type);

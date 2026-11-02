@@ -30,6 +30,17 @@ void music_lyrics_view_release(music_lyrics_view_t *view)
     }
 }
 
+void music_lyrics_view_retry(music_lyrics_view_t *view)
+{
+    if (view == NULL)
+    {
+        return;
+    }
+    view->failed = false;
+    view->loading = false;
+    view->wait_ticks = 0U;
+}
+
 bool music_lyrics_view_poll(music_lyrics_view_t *view,
                             const music_player_status_t *status)
 {
@@ -71,6 +82,7 @@ bool music_lyrics_view_poll(music_lyrics_view_t *view,
         else
         {
             view->loading = false;
+            view->failed = true;
             view->wait_ticks = 0U;
         }
         return false;

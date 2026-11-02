@@ -34,6 +34,8 @@ const char *music_ui_state_text(const music_service_status_t *status)
         return "请扫码登录";
     case MUSIC_SERVICE_STATE_QR_SCANNED:
         return "已扫码，请确认";
+    case MUSIC_SERVICE_STATE_QR_EXPIRED:
+        return "二维码已过期";
     case MUSIC_SERVICE_STATE_AUTHENTICATING:
         return "正在登录";
     case MUSIC_SERVICE_STATE_READY:
@@ -173,6 +175,54 @@ bool music_ui_can_step(const music_player_status_t *status, bool forward)
     }
     return forward ? status->queue_index + 1U < status->queue_count :
            status->queue_index > 0U;
+}
+
+bool music_ui_can_retry_playback(const music_player_status_t *status)
+{
+    if (status == NULL || status->title[0] == '\0' ||
+            status->state != MUSIC_PLAYBACK_ERROR ||
+            status->queue_count == 0U ||
+            status->queue_index >= status->queue_count)
+    {
+        return false;
+    }
+    return status->failure != MUSIC_SERVICE_FAILURE_NO_PERMISSION &&
+           status->failure != MUSIC_SERVICE_FAILURE_AUTH &&
+           status->failure != MUSIC_SERVICE_FAILURE_STORAGE;
+}
+
+bool music_ui_failure_is_retryable(music_service_failure_t failure)
+{
+    switch (failure)
+    {
+    case MUSIC_SERVICE_FAILURE_NETWORK:
+    case MUSIC_SERVICE_FAILURE_TIME:
+    case MUSIC_SERVICE_FAILURE_RATE_LIMIT:
+    case MUSIC_SERVICE_FAILURE_API:
+    case MUSIC_SERVICE_FAILURE_PARSE:
+    case MUSIC_SERVICE_FAILURE_AUDIO_BUSY:
+    case MUSIC_SERVICE_FAILURE_DECODE:
+    case MUSIC_SERVICE_FAILURE_INTERNAL:
+        return true;
+    default:
+        return false;
+    }
+}
+
+uint32_t music_ui_url_token(const char *url)
+{
+    uint32_t hash = 2166136261u;
+    if (url == NULL)
+    {
+        return hash;
+    }
+    for (const unsigned char *cursor = (const unsigned char *)url;
+            *cursor != '\0'; ++cursor)
+    {
+        hash ^= *cursor;
+        hash *= 16777619u;
+    }
+    return hash;
 }
 
 void music_ui_queue_text(const music_player_status_t *status, char *output,

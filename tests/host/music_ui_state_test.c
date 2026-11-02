@@ -36,6 +36,8 @@ static void test_service_and_player_copy(void)
     assert(strcmp(music_ui_state_text(&service), "未登录") == 0);
     service.state = MUSIC_SERVICE_STATE_QR_SCANNED;
     assert(strcmp(music_ui_state_text(&service), "已扫码，请确认") == 0);
+    service.state = MUSIC_SERVICE_STATE_QR_EXPIRED;
+    assert(strcmp(music_ui_state_text(&service), "二维码已过期") == 0);
     service.state = MUSIC_SERVICE_STATE_AUTH_REQUIRED;
     assert(strcmp(music_ui_state_text(&service), "登录已过期") == 0);
     assert(strcmp(music_ui_failure_text(MUSIC_SERVICE_FAILURE_AUDIO_BUSY),
@@ -136,6 +138,42 @@ static void test_repeat_one_prev_semantics(void)
     status.queue_index = 2U;
     assert(music_ui_can_step(&status, true));
     assert(!music_ui_can_step(&status, false));
+}
+
+static void test_retry_policy(void)
+{
+    music_player_status_t status = {0};
+    (void)strcpy(status.title, "track");
+    status.queue_count = 3U;
+    status.queue_index = 1U;
+    status.state = MUSIC_PLAYBACK_ERROR;
+    status.failure = MUSIC_SERVICE_FAILURE_DECODE;
+    assert(music_ui_can_retry_playback(&status));
+    status.failure = MUSIC_SERVICE_FAILURE_NO_PERMISSION;
+    assert(!music_ui_can_retry_playback(&status));
+    status.failure = MUSIC_SERVICE_FAILURE_AUTH;
+    assert(!music_ui_can_retry_playback(&status));
+    status.failure = MUSIC_SERVICE_FAILURE_STORAGE;
+    assert(!music_ui_can_retry_playback(&status));
+    status.failure = MUSIC_SERVICE_FAILURE_DECODE;
+    status.state = MUSIC_PLAYBACK_PAUSED;
+    assert(!music_ui_can_retry_playback(&status));
+    status.state = MUSIC_PLAYBACK_ERROR;
+    status.queue_count = 0U;
+    assert(!music_ui_can_retry_playback(&status));
+    assert(music_ui_failure_is_retryable(MUSIC_SERVICE_FAILURE_NETWORK));
+    assert(music_ui_failure_is_retryable(MUSIC_SERVICE_FAILURE_AUDIO_BUSY));
+    assert(!music_ui_failure_is_retryable(MUSIC_SERVICE_FAILURE_NO_PERMISSION));
+    assert(!music_ui_failure_is_retryable(MUSIC_SERVICE_FAILURE_AUTH));
+    assert(!music_ui_failure_is_retryable(MUSIC_SERVICE_FAILURE_NONE));
+}
+
+static void test_url_token(void)
+{
+    const uint32_t first = music_ui_url_token("https://example.test/a.jpg");
+    assert(first == music_ui_url_token("https://example.test/a.jpg"));
+    assert(first != music_ui_url_token("https://example.test/b.jpg"));
+    assert(first != music_ui_url_token(NULL));
 }
 
 static void test_queue_text(void)
@@ -255,6 +293,8 @@ int main(void)
     test_mode_quality_copy();
     test_control_availability();
     test_repeat_one_prev_semantics();
+    test_retry_policy();
+    test_url_token();
     test_queue_text();
     test_lyric_window();
     test_lyric_lookup();

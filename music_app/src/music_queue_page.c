@@ -10,19 +10,26 @@
 typedef struct music_queue_state
 {
     app_ui_page_t page;
+    lv_obj_t *summary_label;
     lv_obj_t *list;
     lv_obj_t *status_label;
+    lv_obj_t *retry_button;
+    lv_obj_t *confirm_sheet;
     lv_timer_t *timer;
     event_bus_sub_handle_t subscription;
     music_queue_snapshot_t *queue;
     uint64_t shown_generation;
     uint16_t shown_index;
+    uint16_t pending_remove_index;
     bool dirty;
     bool busy;
 } music_queue_state_t;
 
 _Static_assert(sizeof(music_queue_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Music queue state exceeds the page arena");
+
+static void _queue_refresh(music_queue_state_t *state);
+static void _queue_dismiss_sheet(music_queue_state_t *state);
 
 static void _queue_release(music_queue_state_t *state)
 {
@@ -104,10 +111,49 @@ static lv_obj_t *_queue_equalizer(lv_obj_t *parent, bool active)
     return bars;
 }
 
+static void _queue_delete_cancel(lv_event_t *event)
+{
+    music_queue_state_t *state = lv_event_get_user_data(event);
+    if (state != NULL && state->confirm_sheet != NULL)
+    {
+        app_ui_sheet_dismiss(state->confirm_sheet);
+        state->confirm_sheet = NULL;
+        state->pending_remove_index = UINT16_MAX;
+    }
+}
+
+static void _queue_delete_confirm(lv_event_t *event)
+{
+    music_queue_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
+    {
+        return;
+    }
+    if (state->confirm_sheet != NULL)
+    {
+        app_ui_sheet_dismiss(state->confirm_sheet);
+        state->confirm_sheet = NULL;
+    }
+    const uint16_t index = state->pending_remove_index;
+    state->pending_remove_index = UINT16_MAX;
+    if (state->queue == NULL || index >= state->queue->count)
+    {
+        return;
+    }
+    const esp_err_t result = music_service_queue_remove(index);
+    if (result != ESP_OK)
+    {
+        _queue_status(state, "移除失败，请重试", APP_UI_STATUS_WARNING);
+        return;
+    }
+    state->busy = true;
+    _queue_status(state, "正在移除…", APP_UI_STATUS_ACCENT);
+}
+
 static void _queue_delete_clicked(lv_event_t *event)
 {
     music_queue_state_t *state = lv_event_get_user_data(event);
-    if (state == NULL || state->busy)
+    if (state == NULL || state->busy || state->confirm_sheet != NULL)
     {
         return;
     }
@@ -118,15 +164,22 @@ static void _queue_delete_clicked(lv_event_t *event)
     {
         return;
     }
-    const esp_err_t result = music_service_queue_remove(
-                                 (uint16_t)(encoded - 1U));
-    if (result != ESP_OK)
+    const uint16_t index = (uint16_t)(encoded - 1U);
+    char title[160];
+    (void)snprintf(title, sizeof(title), "从播放列表移除《%s》？",
+                   state->queue->songs[index].title);
+    state->pending_remove_index = index;
+    state->confirm_sheet = app_ui_sheet_open(state->page.root, title,
+        "移除后不会恢复，是否继续？");
+    if (state->confirm_sheet == NULL)
     {
-        _queue_status(state, "移除失败，请重试", APP_UI_STATUS_WARNING);
+        state->pending_remove_index = UINT16_MAX;
         return;
     }
-    state->busy = true;
-    _queue_status(state, "正在移除…", APP_UI_STATUS_ACCENT);
+    (void)app_ui_sheet_add_action(state->confirm_sheet, "移除", true,
+                                  _queue_delete_confirm, state);
+    (void)app_ui_sheet_add_action(state->confirm_sheet, "取消", false,
+                                  _queue_delete_cancel, state);
 }
 
 static void _queue_play_clicked(lv_event_t *event)
@@ -142,8 +195,18 @@ static void _queue_play_clicked(lv_event_t *event)
     {
         return;
     }
-    const esp_err_t result = music_service_queue_play(
-                                 (uint16_t)(encoded - 1U));
+    const uint16_t index = (uint16_t)(encoded - 1U);
+    music_player_status_t player;
+    if (music_service_get_player_status(&player) == ESP_OK &&
+            player.queue_index == index &&
+            (player.state == MUSIC_PLAYBACK_PLAYING ||
+             player.state == MUSIC_PLAYBACK_PAUSED ||
+             player.state == MUSIC_PLAYBACK_BUFFERING))
+    {
+        _queue_status(state, "正在播放这首歌曲", APP_UI_STATUS_ACCENT);
+        return;
+    }
+    const esp_err_t result = music_service_queue_play(index);
     if (result != ESP_OK)
     {
         _queue_status(state, "切换歌曲失败，请重试", APP_UI_STATUS_WARNING);
@@ -152,12 +215,43 @@ static void _queue_play_clicked(lv_event_t *event)
     (void)music_ui_back_to_player();
 }
 
+static void _queue_update_summary(music_queue_state_t *state)
+{
+    if (state->summary_label == NULL)
+    {
+        return;
+    }
+    if (state->queue == NULL || state->queue->count == 0U)
+    {
+        app_ui_label_set_text_if(state->summary_label, "共 0 首");
+        return;
+    }
+    char summary[64];
+    music_player_status_t player;
+    if (music_service_get_player_status(&player) == ESP_OK &&
+            player.queue_count == state->queue->count &&
+            player.queue_index < player.queue_count)
+    {
+        (void)snprintf(summary, sizeof(summary), "共 %u 首 · 第 %u / %u 首",
+                       (unsigned)state->queue->count,
+                       (unsigned)(player.queue_index + 1U),
+                       (unsigned)player.queue_count);
+    }
+    else
+    {
+        (void)snprintf(summary, sizeof(summary), "共 %u 首",
+                       (unsigned)state->queue->count);
+    }
+    app_ui_label_set_text_if(state->summary_label, summary);
+}
+
 static void _queue_rebuild(music_queue_state_t *state)
 {
     if (state->list == NULL)
     {
         return;
     }
+    _queue_update_summary(state);
     lv_obj_clean(state->list);
     if (state->queue == NULL || state->queue->count == 0U)
     {
@@ -245,7 +339,7 @@ static void _queue_rebuild(music_queue_state_t *state)
         lv_obj_set_style_pad_row(text, 1, 0);
         app_ui_make_passive(text, false);
         _queue_label(text, song->title, APP_THEME_FONT_BODY,
-                     active ? APP_UI_COLOR_RAIN : APP_UI_COLOR_TEXT, true);
+                     active ? APP_UI_COLOR_RAIN : APP_UI_COLOR_TEXT, false);
         _queue_label(text, song->artist[0] == '\0' ? "未知歌手" :
                      song->artist, APP_THEME_FONT_SMALL,
                      APP_UI_COLOR_MUTED, true);
@@ -262,12 +356,29 @@ static void _queue_rebuild(music_queue_state_t *state)
     }
 }
 
+static void _queue_retry_clicked(lv_event_t *event)
+{
+    music_queue_state_t *state = lv_event_get_user_data(event);
+    if (state == NULL)
+    {
+        return;
+    }
+    _queue_release(state);
+    _queue_status(state, "", APP_UI_STATUS_NEUTRAL);
+    state->dirty = true;
+    _queue_refresh(state);
+}
+
 static void _queue_refresh(music_queue_state_t *state)
 {
     const music_queue_snapshot_t *current = NULL;
     const esp_err_t result = music_service_queue_acquire(&current);
     if (result == ESP_OK && current != NULL)
     {
+        if (state->retry_button != NULL)
+        {
+            lv_obj_set_hidden(state->retry_button, true);
+        }
         const bool changed = state->queue == NULL ||
                              current->generation != state->shown_generation ||
                              state->dirty;
@@ -286,6 +397,10 @@ static void _queue_refresh(music_queue_state_t *state)
     }
     if (result == ESP_ERR_NOT_FOUND)
     {
+        if (state->retry_button != NULL)
+        {
+            lv_obj_set_hidden(state->retry_button, true);
+        }
         if (state->queue != NULL || state->shown_generation != 0U)
         {
             _queue_release(state);
@@ -294,6 +409,10 @@ static void _queue_refresh(music_queue_state_t *state)
         return;
     }
     _queue_status(state, "队列加载失败", APP_UI_STATUS_WARNING);
+    if (state->retry_button != NULL)
+    {
+        lv_obj_set_hidden(state->retry_button, false);
+    }
 }
 
 static void _queue_timer_cb(lv_timer_t *timer)
@@ -325,6 +444,10 @@ static void _queue_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
     {
         return;
     }
+    if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_QUEUE)
+    {
+        _queue_dismiss_sheet(state);
+    }
     if (sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_QUEUE ||
             sub_type == MUSIC_SERVICE_MSG_SUB_TYPE_STATUS)
     {
@@ -341,16 +464,32 @@ static void _queue_mount(const app_manager_page_context_t *context)
     memset(state, 0, sizeof(*state));
     state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     state->shown_index = UINT16_MAX;
+    state->pending_remove_index = UINT16_MAX;
     state->dirty = true;
     app_ui_page_create(&state->page, "播放列表", true);
     music_ui_add_header_back(&state->page);
     lv_obj_set_style_pad_top(state->page.content, 12, 0);
     lv_obj_set_style_pad_row(state->page.content, 8, 0);
+    state->summary_label = app_ui_add_body_label(state->page.content,
+        "队列为空");
+    lv_obj_set_width(state->summary_label, LV_PCT(100));
+    lv_obj_set_style_text_font(state->summary_label,
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_obj_set_style_text_color(state->summary_label,
+                                lv_color_hex(APP_UI_COLOR_FAINT), 0);
     state->status_label = app_ui_add_body_label(state->page.content, "");
     lv_obj_set_width(state->status_label, LV_PCT(100));
     lv_obj_set_style_text_font(state->status_label,
                                app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_obj_set_hidden(state->status_label, true);
+    state->retry_button = app_ui_add_action(state->page.content,
+                                            LV_SYMBOL_REFRESH,
+                                            "重新加载队列", NULL,
+                                            _queue_retry_clicked, state);
+    if (state->retry_button != NULL)
+    {
+        lv_obj_set_hidden(state->retry_button, true);
+    }
     state->list = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(state->list);
     lv_obj_set_width(state->list, LV_PCT(100));
@@ -373,6 +512,16 @@ static void _queue_resume(const app_manager_page_context_t *context)
     _queue_refresh(state);
 }
 
+static void _queue_dismiss_sheet(music_queue_state_t *state)
+{
+    if (state->confirm_sheet != NULL)
+    {
+        app_ui_sheet_dismiss(state->confirm_sheet);
+        state->confirm_sheet = NULL;
+    }
+    state->pending_remove_index = UINT16_MAX;
+}
+
 static esp_err_t _queue_pause(const app_manager_page_context_t *context)
 {
     music_queue_state_t *state = context->state;
@@ -386,6 +535,7 @@ static esp_err_t _queue_pause(const app_manager_page_context_t *context)
         (void)event_bus_unsubscribe(state->subscription);
         state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     }
+    _queue_dismiss_sheet(state);
     _queue_release(state);
     state->busy = false;
     return ESP_OK;
@@ -394,6 +544,7 @@ static esp_err_t _queue_pause(const app_manager_page_context_t *context)
 static void _queue_unmount(const app_manager_page_context_t *context)
 {
     music_queue_state_t *state = context->state;
+    _queue_dismiss_sheet(state);
     _queue_release(state);
     app_ui_page_destroy(&state->page);
     memset(state, 0, sizeof(*state));

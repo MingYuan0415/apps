@@ -8,18 +8,20 @@ typedef struct music_login_method_state
 {
     app_ui_page_t page;
     lv_obj_t *status_label;
+    lv_obj_t *subtitle_label;
+    lv_obj_t *retry_button;
     lv_obj_t *qq_row;
     lv_obj_t *wechat_row;
     lv_timer_t *timer;
     event_bus_sub_handle_t subscription;
-    uint8_t last_state;
-    uint8_t last_failure;
     bool routed;
 } music_login_method_state_t;
 
 _Static_assert(sizeof(music_login_method_state_t) <=
                APP_MANAGER_PAGE_STATE_BYTES,
                "Music login method state exceeds the page arena");
+
+static void _method_update(music_login_method_state_t *state);
 
 static void _method_close_clicked(lv_event_t *event)
 {
@@ -35,6 +37,16 @@ static void _method_channel_clicked(lv_event_t *event)
                                     MUSIC_LOGIN_TYPE_WECHAT :
                                     MUSIC_LOGIN_TYPE_QQ;
     (void)music_ui_open_login_qr(type);
+}
+
+static void _method_retry_clicked(lv_event_t *event)
+{
+    music_login_method_state_t *state = lv_event_get_user_data(event);
+    if (state != NULL)
+    {
+        (void)music_service_retry();
+        _method_update(state);
+    }
 }
 
 static lv_obj_t *_method_well(lv_obj_t *parent, const char *text)
@@ -161,6 +173,18 @@ static void _method_set_enabled(music_login_method_state_t *state, bool enabled)
     }
 }
 
+static void _method_set_retry(music_login_method_state_t *state, bool visible)
+{
+    if (state->retry_button != NULL)
+    {
+        lv_obj_set_hidden(state->retry_button, !visible);
+    }
+    if (state->subtitle_label != NULL)
+    {
+        lv_obj_set_hidden(state->subtitle_label, visible);
+    }
+}
+
 static void _method_update(music_login_method_state_t *state)
 {
     music_service_status_t status;
@@ -169,6 +193,7 @@ static void _method_update(music_login_method_state_t *state)
         app_ui_set_status_text(state->status_label, "音乐服务暂不可用",
                                APP_UI_STATUS_WARNING);
         lv_obj_set_hidden(state->status_label, false);
+        _method_set_retry(state, true);
         _method_set_enabled(state, false);
         return;
     }
@@ -183,14 +208,20 @@ static void _method_update(music_login_method_state_t *state)
         return;
     }
 
-    const bool error = status.state == MUSIC_SERVICE_STATE_ERROR ||
-                       status.failure != MUSIC_SERVICE_FAILURE_NONE;
+    const bool service_error =
+        status.state == MUSIC_SERVICE_STATE_ERROR;
     const bool waiting = !status.network_ready || !status.time_ready;
-    if (error)
+    const bool retry = service_error ||
+                       (status.failure != MUSIC_SERVICE_FAILURE_NONE &&
+                        status.state != MUSIC_SERVICE_STATE_AUTH_REQUIRED);
+    _method_set_retry(state, retry);
+    if (retry)
     {
-        app_ui_set_status_text(state->status_label,
-                               music_ui_failure_text(status.failure),
-                               APP_UI_STATUS_WARNING);
+        app_ui_set_status_text(
+            state->status_label,
+            status.failure != MUSIC_SERVICE_FAILURE_NONE ?
+            music_ui_failure_text(status.failure) : "音乐服务暂不可用",
+            APP_UI_STATUS_WARNING);
         lv_obj_set_hidden(state->status_label, false);
     }
     else if (!status.network_ready)
@@ -215,9 +246,7 @@ static void _method_update(music_login_method_state_t *state)
     {
         lv_obj_set_hidden(state->status_label, true);
     }
-    _method_set_enabled(state, !error && !waiting);
-    state->last_state = status.state;
-    state->last_failure = status.failure;
+    _method_set_enabled(state, !waiting && !retry);
 }
 
 static void _method_timer_cb(lv_timer_t *timer)
@@ -291,12 +320,24 @@ static void _method_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_text_font(title, app_ui_font(APP_THEME_FONT_BIGL), 0);
     lv_obj_set_style_text_color(title, lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_t *subtitle = app_ui_add_body_label(hero, "登录后同步歌单与收藏");
-    lv_obj_set_width(subtitle, LV_PCT(100));
-    lv_obj_set_style_text_font(subtitle, app_ui_font(APP_THEME_FONT_SMALL), 0);
-    lv_obj_set_style_text_color(subtitle,
+    state->subtitle_label = app_ui_add_body_label(hero,
+        "登录后同步歌单与收藏");
+    lv_obj_set_width(state->subtitle_label, LV_PCT(100));
+    lv_obj_set_style_text_font(state->subtitle_label,
+                               app_ui_font(APP_THEME_FONT_SMALL), 0);
+    lv_obj_set_style_text_color(state->subtitle_label,
                                 lv_color_hex(APP_UI_COLOR_MUTED), 0);
-    lv_obj_set_style_text_align(subtitle, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_align(state->subtitle_label,
+                                LV_TEXT_ALIGN_CENTER, 0);
+    state->retry_button = music_ui_plain_text_button(
+                              hero, "重新检查", MUSIC_UI_CONTROL_SIZE,
+                              APP_THEME_FONT_BODY, APP_UI_COLOR_RAIN,
+                              _method_retry_clicked, state);
+    if (state->retry_button != NULL)
+    {
+        lv_obj_set_width(state->retry_button, 160);
+        lv_obj_set_hidden(state->retry_button, true);
+    }
 
     state->qq_row = _method_channel_row(state->page.content, "QQ",
                                         "QQ 扫码登录",
