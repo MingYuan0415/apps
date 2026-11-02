@@ -88,7 +88,8 @@ static lv_obj_t *_sidebar_card_label(lv_obj_t *parent, const char *text,
 static music_playlist_ref_t *_sidebar_store_ref(music_sidebar_state_t *state,
         const music_playlist_t *playlist)
 {
-    if (state == NULL || playlist == NULL || playlist->ref.id == 0U ||
+    if (state == NULL || playlist == NULL ||
+            !music_ui_playlist_ref_valid(&playlist->ref) ||
             state->refs.count >= MUSIC_SIDEBAR_MAX_REFS)
     {
         return NULL;
@@ -105,7 +106,7 @@ static void _sidebar_playlist_clicked(lv_event_t *event)
         return;
     }
     music_playlist_ref_t *ref = lv_event_get_user_data(event);
-    if (ref != NULL && ref->id != 0U)
+    if (music_ui_playlist_ref_valid(ref))
     {
         (void)music_ui_open_playlist(ref);
     }
@@ -116,7 +117,7 @@ static void _sidebar_radio_clicked(lv_event_t *event)
     music_sidebar_state_t *state = lv_event_get_user_data(event);
     music_playlist_ref_t *ref = lv_obj_get_user_data(
                                     lv_event_get_target_obj(event));
-    if (state == NULL || ref == NULL || ref->id == 0U)
+    if (state == NULL || !music_ui_playlist_ref_valid(ref))
     {
         return;
     }
@@ -146,7 +147,7 @@ static void _sidebar_shortcut_clicked(lv_event_t *event)
 {
     (void)event;
     music_playlist_ref_t *ref = lv_event_get_user_data(event);
-    if (ref != NULL && ref->id != 0U)
+    if (music_ui_playlist_ref_valid(ref))
     {
         (void)music_ui_open_playlist(ref);
     }

@@ -46,6 +46,19 @@ bool music_ui_failure_is_retryable(music_service_failure_t failure);
 /** @brief Stable token for an image URL, shared by cover requesters. */
 uint32_t music_ui_url_token(const char *url);
 
+/** @brief Whether a playlist reference can be opened or played. */
+bool music_ui_playlist_ref_valid(const music_playlist_ref_t *ref);
+
+/**
+ * @brief Number of pages remaining for the rows loaded so far.
+ *
+ * `loaded_pages` counts contiguous pages from the first page and `loaded_rows`
+ * is their actual row count. Using returned rows rather than the request size
+ * keeps later page numbers correct when the provider returns short pages.
+ */
+uint16_t music_ui_playlist_page_count(uint32_t total, uint32_t loaded_rows,
+                                      uint16_t loaded_pages);
+
 /** @brief Format the queue position without inventing unavailable data. */
 void music_ui_queue_text(const music_player_status_t *status, char *output,
                          size_t output_size);

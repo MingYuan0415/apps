@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #define MUSIC_LYRIC_WINDOW_LINES 7U
+#define MUSIC_UI_PLAYLIST_PAGE_SIZE 10U
 
 void music_ui_format_time(uint32_t milliseconds, char *output,
                           size_t output_size)
@@ -328,6 +329,48 @@ bool music_ui_lyric_triplet(const music_lyric_snapshot_t *lyric,
     }
     return true;
 }
+
+bool music_ui_playlist_ref_valid(const music_playlist_ref_t *ref)
+{
+    if (ref == NULL)
+    {
+        return false;
+    }
+    return ref->id != 0U ||
+           (ref->kind == MUSIC_PLAYLIST_KIND_MY_FAVORITE &&
+            ref->dirid == 201U);
+}
+
+uint16_t music_ui_playlist_page_count(uint32_t total, uint32_t loaded_rows,
+                                      uint16_t loaded_pages)
+{
+    if (loaded_pages == 0U)
+    {
+        if (total == 0U)
+        {
+            return 0U;
+        }
+        uint32_t pages = total / MUSIC_UI_PLAYLIST_PAGE_SIZE;
+        if (total % MUSIC_UI_PLAYLIST_PAGE_SIZE != 0U)
+        {
+            ++pages;
+        }
+        return pages > UINT16_MAX ? UINT16_MAX : (uint16_t)pages;
+    }
+    if (loaded_rows >= total)
+    {
+        return loaded_pages;
+    }
+    const uint32_t remaining = total - loaded_rows;
+    uint32_t pages = (uint32_t)loaded_pages +
+                     remaining / MUSIC_UI_PLAYLIST_PAGE_SIZE;
+    if (remaining % MUSIC_UI_PLAYLIST_PAGE_SIZE != 0U)
+    {
+        ++pages;
+    }
+    return pages > UINT16_MAX ? UINT16_MAX : (uint16_t)pages;
+}
+
 
 const music_playlist_t *music_ui_liked_playlist(
     const music_home_snapshot_t *home)

@@ -269,6 +269,32 @@ static void test_lyric_triplet(void)
     assert(previous == NULL && current == NULL && next == NULL);
 }
 
+static void test_playlist_identity_and_pages(void)
+{
+    music_playlist_ref_t ref = {0};
+    assert(!music_ui_playlist_ref_valid(NULL));
+    assert(!music_ui_playlist_ref_valid(&ref));
+    ref.kind = MUSIC_PLAYLIST_KIND_MY_FAVORITE;
+    ref.dirid = 201U;
+    assert(music_ui_playlist_ref_valid(&ref));
+    ref.kind = MUSIC_PLAYLIST_KIND_MY_CREATED;
+    assert(!music_ui_playlist_ref_valid(&ref));
+    ref.id = 42U;
+    assert(music_ui_playlist_ref_valid(&ref));
+
+    assert(music_ui_playlist_page_count(0U, 0U, 0U) == 0U);
+    assert(music_ui_playlist_page_count(1U, 0U, 0U) == 1U);
+    assert(music_ui_playlist_page_count(10U, 10U, 1U) == 1U);
+    assert(music_ui_playlist_page_count(11U, 10U, 1U) == 2U);
+    assert(music_ui_playlist_page_count(137U, 10U, 1U) == 14U);
+    assert(music_ui_playlist_page_count(137U, 2U, 1U) == 15U);
+    assert(music_ui_playlist_page_count(137U, 12U, 2U) == 15U);
+    assert(music_ui_playlist_page_count(12U, 2U, 1U) == 2U);
+    assert(music_ui_playlist_page_count(0U, 0U, 1U) == 1U);
+    assert(music_ui_playlist_page_count(12U, 12U, 2U) == 2U);
+
+}
+
 static void test_home_shortcuts(void)
 {
     music_home_snapshot_t home = {0};
@@ -299,6 +325,7 @@ int main(void)
     test_lyric_window();
     test_lyric_lookup();
     test_lyric_triplet();
+    test_playlist_identity_and_pages();
     test_home_shortcuts();
     (void)printf("music_ui_state_test: ok\n");
     return 0;
