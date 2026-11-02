@@ -28,9 +28,9 @@ void music_lyrics_view_retry(music_lyrics_view_t *view);
 /**
  * @brief Poll the service for the current track's lyric snapshot.
  *
- * Returns true when a new snapshot was acquired. Missing data is retried with
- * bounded wait ticks; a terminal failure leaves failed set until the song
- * changes.
+ * Returns true when a new snapshot was acquired. While the service request is
+ * pending the view re-checks each tick; a completed empty result sets failed
+ * until the song changes or the caller retries.
  */
 bool music_lyrics_view_poll(music_lyrics_view_t *view,
                             const music_player_status_t *status);

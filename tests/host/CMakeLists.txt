@@ -263,6 +263,22 @@ target_link_libraries(music_ui_state_test PRIVATE Threads::Threads)
 
 add_apps_host_test(music_ui_state_test music_ui_state_test)
 
+add_executable(music_lyrics_view_test
+    music_lyrics_view_test.c
+    ../../music_app/src/music_lyrics_view.c
+)
+
+target_include_directories(music_lyrics_view_test PRIVATE
+    include
+    ../../music_app/src
+    ../../../middleware/components/music_service/include
+    ../../../middleware/components/event_bus/include
+)
+
+configure_apps_host_target(music_lyrics_view_test)
+
+add_apps_host_test(music_lyrics_view_test music_lyrics_view_test)
+
 add_executable(calculator_math_test
     calculator_math_test.c
     ../../calculator_app/src/calculator_math.c

@@ -6,6 +6,7 @@
 #define MUSIC_UI_COVER_RADIUS       APP_UI_RADIUS_CONTROL
 #define MUSIC_UI_ROW_PAD            8
 #define MUSIC_UI_ORDINAL_WIDTH      30
+#define MUSIC_UI_BUSY_USER_DATA     ((void *)(uintptr_t)UINTPTR_MAX)
 
 static lv_obj_t *_music_ui_passive_box(lv_obj_t *parent);
 static lv_obj_t *_music_ui_row_label(lv_obj_t *parent, const char *text,
@@ -185,6 +186,21 @@ lv_obj_t *music_ui_plain_icon_button(lv_obj_t *parent, uint32_t image_id,
     return button;
 }
 
+static lv_obj_t *_music_ui_icon_child(lv_obj_t *button)
+{
+    const uint32_t child_count = lv_obj_get_child_count(button);
+    for (uint32_t index = 0U; index < child_count; ++index)
+    {
+        lv_obj_t *child = lv_obj_get_child(button, (int32_t)index);
+        if (child != NULL &&
+                lv_obj_get_user_data(child) != MUSIC_UI_BUSY_USER_DATA)
+        {
+            return child;
+        }
+    }
+    return NULL;
+}
+
 void music_ui_set_plain_icon_button(lv_obj_t *button, uint32_t image_id,
                                     const char *fallback_symbol,
                                     int32_t glyph_size, uint32_t color)
@@ -193,9 +209,11 @@ void music_ui_set_plain_icon_button(lv_obj_t *button, uint32_t image_id,
     {
         return;
     }
-    lv_obj_t *old_icon = lv_obj_get_child(button, 0);
+    const int32_t target_glyph = glyph_size > 0 ? glyph_size : 28;
+    lv_obj_t *old_icon = _music_ui_icon_child(button);
     if (old_icon != NULL &&
-            (uint32_t)(uintptr_t)lv_obj_get_user_data(old_icon) == image_id)
+            (uint32_t)(uintptr_t)lv_obj_get_user_data(old_icon) == image_id &&
+            lv_obj_get_width(old_icon) == target_glyph)
     {
         app_ui_icon_set_color(old_icon, color);
         return;
@@ -205,12 +223,67 @@ void music_ui_set_plain_icon_button(lv_obj_t *button, uint32_t image_id,
         lv_obj_delete(old_icon);
     }
     lv_obj_t *icon = music_ui_image(button, image_id, fallback_symbol,
-                                    glyph_size > 0 ? glyph_size : 28);
+                                    target_glyph);
     if (icon != NULL)
     {
         lv_obj_set_user_data(icon, (void *)(uintptr_t)image_id);
         app_ui_icon_set_color(icon, color);
         lv_obj_center(icon);
+    }
+}
+
+void music_ui_set_button_busy(lv_obj_t *button, bool busy)
+{
+    if (button == NULL)
+    {
+        return;
+    }
+    lv_obj_t *spinner = NULL;
+    const uint32_t child_count = lv_obj_get_child_count(button);
+    for (uint32_t index = 0U; index < child_count; ++index)
+    {
+        lv_obj_t *child = lv_obj_get_child(button, (int32_t)index);
+        if (child != NULL &&
+                lv_obj_get_user_data(child) == MUSIC_UI_BUSY_USER_DATA)
+        {
+            spinner = child;
+            break;
+        }
+    }
+    lv_obj_t *icon = _music_ui_icon_child(button);
+    if (!busy)
+    {
+        if (spinner != NULL)
+        {
+            lv_obj_delete(spinner);
+        }
+        if (icon != NULL)
+        {
+            lv_obj_set_hidden(icon, false);
+        }
+        return;
+    }
+    if (spinner == NULL)
+    {
+        spinner = lv_spinner_create(button);
+        if (spinner == NULL)
+        {
+            return;
+        }
+        lv_obj_set_user_data(spinner, MUSIC_UI_BUSY_USER_DATA);
+        lv_obj_set_size(spinner, 32, 32);
+        lv_obj_set_style_arc_width(spinner, 4, LV_PART_MAIN);
+        lv_obj_set_style_arc_color(spinner, lv_color_hex(APP_UI_COLOR_TRACK),
+                                   LV_PART_MAIN);
+        lv_obj_set_style_arc_width(spinner, 4, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_color(spinner,
+                                   lv_color_hex(APP_UI_COLOR_RAIN),
+                                   LV_PART_INDICATOR);
+        lv_obj_center(spinner);
+    }
+    if (icon != NULL)
+    {
+        lv_obj_set_hidden(icon, true);
     }
 }
 
@@ -221,7 +294,7 @@ void music_ui_set_icon_button(lv_obj_t *button, uint32_t image_id,
     {
         return;
     }
-    lv_obj_t *old_icon = lv_obj_get_child(button, 0);
+    lv_obj_t *old_icon = _music_ui_icon_child(button);
     if (old_icon != NULL &&
             (uint32_t)(uintptr_t)lv_obj_get_user_data(old_icon) == image_id)
     {

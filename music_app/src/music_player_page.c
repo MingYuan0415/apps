@@ -9,7 +9,7 @@
 
 #define MUSIC_PLAYER_LYRIC_HEIGHT 84
 #define MUSIC_PLAYER_COVER_SIZE 64
-#define MUSIC_PLAYER_COVER_TIMEOUT_TICKS 8U
+#define MUSIC_PLAYER_COVER_TIMEOUT_MS 12000U
 #define MUSIC_PLAYER_COVER_MAX_ATTEMPTS 2U
 #define MUSIC_PLAYER_NOTICE_MS 1500U
 
@@ -38,7 +38,6 @@ typedef struct music_player_state
     lv_obj_t *next_button;
     lv_obj_t *mode_button;
     lv_obj_t *volume_button;
-    lv_obj_t *lyrics_button;
     lv_obj_t *stop_button;
     lv_obj_t *stop_sheet;
     lv_obj_t *volume_sheet;
@@ -57,7 +56,7 @@ typedef struct music_player_state
     uint8_t shown_mode;
     int16_t shown_percent;
     uint8_t cover_attempts;
-    uint8_t cover_wait_ticks;
+    uint32_t cover_requested_ms;
     bool play_state_valid;
     bool mode_valid;
     bool shown_retry;
@@ -66,6 +65,7 @@ typedef struct music_player_state
     bool cover_failed;
     bool service_retry;
     bool routed_login;
+    uint32_t routed_login_ms;
 } music_player_state_t;
 
 _Static_assert(sizeof(music_player_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
@@ -233,7 +233,7 @@ static void _player_update_cover(music_player_state_t *state,
         state->cover_token = 0U;
         state->cover_requested = false;
         state->cover_attempts = 0U;
-        state->cover_wait_ticks = 0U;
+        state->cover_requested_ms = 0U;
         state->cover_failed = false;
         return;
     }
@@ -244,7 +244,7 @@ static void _player_update_cover(music_player_state_t *state,
         state->cover_token = token;
         state->cover_requested = false;
         state->cover_attempts = 0U;
-        state->cover_wait_ticks = 0U;
+        state->cover_requested_ms = 0U;
         state->cover_failed = false;
     }
     if (state->cover.image != NULL || state->cover_failed)
@@ -253,11 +253,8 @@ static void _player_update_cover(music_player_state_t *state,
     }
     if (state->cover_requested)
     {
-        if (state->cover_wait_ticks < UINT8_MAX)
-        {
-            ++state->cover_wait_ticks;
-        }
-        if (state->cover_wait_ticks <= MUSIC_PLAYER_COVER_TIMEOUT_TICKS)
+        if ((uint32_t)(lv_tick_get() - state->cover_requested_ms) <
+                MUSIC_PLAYER_COVER_TIMEOUT_MS)
         {
             return;
         }
@@ -270,7 +267,7 @@ static void _player_update_cover(music_player_state_t *state,
     }
     const music_image_t *image = NULL;
     state->cover_requested = true;
-    state->cover_wait_ticks = 0U;
+    state->cover_requested_ms = lv_tick_get();
     ++state->cover_attempts;
     const esp_err_t result = music_service_image_acquire(
                                  status->cover_url, MUSIC_PLAYER_COVER_SIZE,
@@ -317,6 +314,8 @@ static void _player_update_play_button(music_player_state_t *state,
         state->retry_state_valid = true;
     }
     music_ui_set_button_enabled(state->play_button, enabled);
+    music_ui_set_button_busy(state->play_button,
+                             status->state == MUSIC_PLAYBACK_BUFFERING);
     uint32_t border = APP_UI_COLOR_FAINT;
     if (enabled)
     {
@@ -329,6 +328,12 @@ static void _player_update_play_button(music_player_state_t *state,
 
 static void _player_update(music_player_state_t *state)
 {
+    if (state->routed_login &&
+            (uint32_t)(lv_tick_get() - state->routed_login_ms) >= 2000U &&
+            app_page_is_actived(APP_MANAGER_ID_MUSIC, MUSIC_PAGE_PLAYER))
+    {
+        state->routed_login = false;
+    }
     music_service_status_t account;
     if (music_service_get_status(&account) == ESP_OK &&
             !account.logged_in &&
@@ -337,6 +342,7 @@ static void _player_update(music_player_state_t *state)
             !state->routed_login)
     {
         state->routed_login = true;
+        state->routed_login_ms = lv_tick_get();
         (void)music_ui_reset_to_login();
         return;
     }
@@ -356,6 +362,7 @@ static void _player_update(music_player_state_t *state)
         music_ui_set_plain_icon_button(
             state->play_button, APP_IMAGE_UI_REFRESH, LV_SYMBOL_REFRESH,
             34, APP_UI_COLOR_TEXT);
+        music_ui_set_button_busy(state->play_button, false);
         music_ui_set_button_enabled(state->play_button, true);
         lv_obj_set_style_border_color(state->play_button,
                                       lv_color_hex(APP_UI_COLOR_SUN), 0);
@@ -363,7 +370,6 @@ static void _player_update(music_player_state_t *state)
         music_ui_set_button_enabled(state->previous_button, false);
         music_ui_set_button_enabled(state->next_button, false);
         music_ui_set_button_enabled(state->stop_button, false);
-        music_ui_set_button_enabled(state->lyrics_button, false);
         music_ui_set_button_enabled(state->mode_button, false);
         state->play_state_valid = false;
         state->retry_state_valid = false;
@@ -436,8 +442,6 @@ static void _player_update(music_player_state_t *state)
     music_ui_set_button_enabled(state->next_button,
                                 music_ui_can_step(&status, true));
     music_ui_set_button_enabled(state->stop_button, has_track);
-    music_ui_set_button_enabled(state->lyrics_button,
-                                has_track && status.songmid[0] != '\0');
     music_ui_set_button_enabled(state->mode_button, has_track);
 
     uint32_t meta_color = APP_UI_COLOR_FAINT;
@@ -485,7 +489,7 @@ static void _player_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
             return;
         }
         state->cover_requested = false;
-        state->cover_wait_ticks = 0U;
+        state->cover_requested_ms = 0U;
         if (event->failure != MUSIC_SERVICE_FAILURE_NONE)
         {
             state->cover_failed = state->cover_attempts >=
@@ -914,8 +918,6 @@ static void _player_lyrics_clicked(lv_event_t *event)
     if (state != NULL && state->lyrics.failed)
     {
         music_lyrics_view_reset(&state->lyrics);
-        _player_update(state);
-        return;
     }
     (void)music_ui_open_lyrics();
 }
@@ -1185,10 +1187,6 @@ static void _player_mount(const app_manager_page_context_t *context)
                                LV_SYMBOL_VOLUME_MAX, MUSIC_UI_CONTROL_SIZE,
                                30, APP_UI_COLOR_TEXT,
                                _player_volume_clicked, state);
-    state->lyrics_button = music_ui_plain_text_button(
-                               secondary, "歌词", MUSIC_UI_CONTROL_SIZE,
-                               APP_THEME_FONT_BODY, APP_UI_COLOR_TEXT,
-                               _player_lyrics_clicked, state);
     state->stop_button = music_ui_plain_icon_button(
                              secondary, APP_IMAGE_MUSIC_STOP,
                              LV_SYMBOL_STOP, MUSIC_UI_CONTROL_SIZE, 32,
@@ -1244,10 +1242,11 @@ static esp_err_t _player_pause(const app_manager_page_context_t *context)
     }
     _player_dismiss_sheets(state);
     music_ui_cover_release(&state->cover);
+    music_ui_set_button_busy(state->play_button, false);
     state->cover_token = 0U;
     state->cover_requested = false;
     state->cover_attempts = 0U;
-    state->cover_wait_ticks = 0U;
+    state->cover_requested_ms = 0U;
     state->cover_failed = false;
     music_lyrics_view_reset(&state->lyrics);
     return ESP_OK;

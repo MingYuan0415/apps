@@ -14,6 +14,7 @@ typedef struct music_login_method_state
     lv_obj_t *wechat_row;
     lv_timer_t *timer;
     event_bus_sub_handle_t subscription;
+    uint32_t routed_ms;
     bool routed;
 } music_login_method_state_t;
 
@@ -197,12 +198,19 @@ static void _method_update(music_login_method_state_t *state)
         _method_set_enabled(state, false);
         return;
     }
+    if (state->routed &&
+            (uint32_t)(lv_tick_get() - state->routed_ms) >= 2000U &&
+            app_page_is_actived(APP_MANAGER_ID_MUSIC, MUSIC_PAGE_LOGIN_METHOD))
+    {
+        state->routed = false;
+    }
 
     if (status.state == MUSIC_SERVICE_STATE_READY && status.logged_in)
     {
         if (!state->routed)
         {
             state->routed = true;
+            state->routed_ms = lv_tick_get();
             (void)music_ui_enter_player();
         }
         return;
@@ -284,7 +292,9 @@ static void _method_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_pad_left(state->page.content, 24, 0);
     lv_obj_set_style_pad_right(state->page.content, 24, 0);
     lv_obj_set_style_pad_row(state->page.content, 8, 0);
-    lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
+    app_ui_make_passive(state->page.content, true);
+    lv_obj_set_scroll_dir(state->page.content, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(state->page.content, LV_SCROLLBAR_MODE_AUTO);
 
     lv_obj_t *top = lv_obj_create(state->page.content);
     lv_obj_remove_style_all(top);

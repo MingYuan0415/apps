@@ -109,6 +109,15 @@ static void _lyrics_show_window(music_lyrics_state_t *state, bool force)
                       active ? APP_THEME_FONT_HEAD :
                       APP_THEME_FONT_SMALL);
     }
+    const size_t active_slot = current - start;
+    if (active_slot < MUSIC_UI_LYRIC_LINES &&
+            state->lines[active_slot] != NULL)
+    {
+        const int32_t target = lv_obj_get_y(state->lines[active_slot]) -
+                               lv_obj_get_height(state->lyric_panel) / 2 +
+                               lv_obj_get_height(state->lines[active_slot]) / 2;
+        lv_obj_scroll_to_y(state->lyric_panel, target, LV_ANIM_OFF);
+    }
 }
 
 static void _lyrics_set_status(music_lyrics_state_t *state, const char *text,
@@ -151,6 +160,7 @@ static void _lyrics_poll(music_lyrics_state_t *state)
     {
         _lyrics_set_status(state, "播放服务不可用", APP_UI_STATUS_ERROR);
         music_ui_set_button_enabled(state->play_button, false);
+        music_ui_set_button_busy(state->play_button, false);
         _lyrics_clear_window(state);
         _lyrics_set_retry(state, true);
         return;
@@ -175,6 +185,8 @@ static void _lyrics_poll(music_lyrics_state_t *state)
     }
     music_ui_set_button_enabled(state->play_button,
                                 music_ui_can_toggle_playback(&status));
+    music_ui_set_button_busy(state->play_button,
+                             status.state == MUSIC_PLAYBACK_BUFFERING);
     lv_obj_set_style_border_color(
         state->play_button,
         lv_color_hex(music_ui_can_toggle_playback(&status) ?
@@ -307,13 +319,13 @@ static void _lyrics_mount(const app_manager_page_context_t *context)
     lv_obj_set_height(state->lyric_panel, 0);
     lv_obj_set_flex_grow(state->lyric_panel, 1);
     lv_obj_set_flex_flow(state->lyric_panel, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(state->lyric_panel, LV_FLEX_ALIGN_CENTER,
+    lv_obj_set_flex_align(state->lyric_panel, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(state->lyric_panel, 6, 0);
     lv_obj_set_scroll_dir(state->lyric_panel, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(state->lyric_panel, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_set_hidden(state->lyric_panel, true);
-    app_ui_make_passive(state->lyric_panel, false);
+    app_ui_make_passive(state->lyric_panel, true);
     for (size_t slot = 0U; slot < MUSIC_UI_LYRIC_LINES; ++slot)
     {
         state->lines[slot] = app_ui_add_body_label(state->lyric_panel, "");
@@ -370,6 +382,7 @@ static esp_err_t _lyrics_pause(const app_manager_page_context_t *context)
         (void)event_bus_unsubscribe(state->subscription);
         state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
     }
+    music_ui_set_button_busy(state->play_button, false);
     music_lyrics_view_reset(&state->view);
     return ESP_OK;
 }

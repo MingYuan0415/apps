@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#define MUSIC_LYRIC_WAIT_TICKS 20U
+#define MUSIC_LYRIC_WAIT_TICKS 60U
 
 void music_lyrics_view_reset(music_lyrics_view_t *view)
 {
@@ -10,6 +10,7 @@ void music_lyrics_view_reset(music_lyrics_view_t *view)
     {
         return;
     }
+    music_service_lyric_retry(view->songmid);
     music_lyrics_view_release(view);
     view->songmid[0] = '\0';
     view->wait_ticks = 0U;
@@ -36,6 +37,7 @@ void music_lyrics_view_retry(music_lyrics_view_t *view)
     {
         return;
     }
+    music_service_lyric_retry(view->songmid);
     view->failed = false;
     view->loading = false;
     view->wait_ticks = 0U;
@@ -69,22 +71,11 @@ bool music_lyrics_view_poll(music_lyrics_view_t *view,
     {
         return false;
     }
-    if (view->failed)
+    if (music_service_lyric_failed(view->songmid))
     {
-        return false;
-    }
-    if (view->loading)
-    {
-        if (view->wait_ticks < MUSIC_LYRIC_WAIT_TICKS)
-        {
-            ++view->wait_ticks;
-        }
-        else
-        {
-            view->loading = false;
-            view->failed = true;
-            view->wait_ticks = 0U;
-        }
+        view->loading = false;
+        view->failed = true;
+        view->wait_ticks = 0U;
         return false;
     }
     const music_lyric_snapshot_t *snapshot = NULL;
@@ -100,12 +91,29 @@ bool music_lyrics_view_poll(music_lyrics_view_t *view,
     }
     if (result == ESP_ERR_NOT_FOUND)
     {
-        view->loading = true;
-        view->wait_ticks = 0U;
+        if (view->failed)
+        {
+            return false;
+        }
+        if (!view->loading)
+        {
+            view->loading = true;
+            view->wait_ticks = 0U;
+        }
+        else if (view->wait_ticks < MUSIC_LYRIC_WAIT_TICKS)
+        {
+            ++view->wait_ticks;
+        }
+        if (view->wait_ticks >= MUSIC_LYRIC_WAIT_TICKS)
+        {
+            view->loading = false;
+            view->failed = true;
+            view->wait_ticks = 0U;
+        }
+        return false;
     }
-    else
-    {
-        view->failed = true;
-    }
+    view->loading = false;
+    view->failed = true;
+    view->wait_ticks = 0U;
     return false;
 }

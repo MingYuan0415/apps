@@ -140,9 +140,10 @@ drivers directly.
   playlist, queue, lyrics, login-method selection and QR login. The start page
   checks service/login state and enters the player or login-method page; it is
   removed after routing and can be closed while waiting. The player shows a
-  current-track thumbnail, wrapped title/artist, a three-line lyric window,
-  progress, transport controls, a mode/volume/lyrics/stop tool row, idle
-  selection guidance and playback-error retry. The sidebar is a long scrolling
+  current-track thumbnail, title/artist, a three-line lyric window
+  that opens the lyrics page when tapped, progress, transport controls, a
+  mode/volume/stop tool row, idle selection guidance and playback-error retry.
+  The sidebar is a long scrolling
   page with personal radio, daily recommendation, liked playlist, self-created
   and available collected playlists, and confirmed logout. Playlist uses
   10-track pages with previous/next controls at the list ends, prefetches the

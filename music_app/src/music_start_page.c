@@ -4,6 +4,8 @@
 
 #include <string.h>
 
+#define MUSIC_START_MIN_DWELL_MS 1000U
+
 typedef struct music_start_state
 {
     app_ui_page_t page;
@@ -11,6 +13,8 @@ typedef struct music_start_state
     lv_obj_t *retry_button;
     lv_timer_t *timer;
     event_bus_sub_handle_t subscription;
+    uint32_t started_ms;
+    uint32_t routed_ms;
     bool routed;
 } music_start_state_t;
 
@@ -45,12 +49,24 @@ static void _start_check(music_start_state_t *state)
         _start_set_retry(state, true);
         return;
     }
+    if (state->routed &&
+            (uint32_t)(lv_tick_get() - state->routed_ms) >= 2000U &&
+            app_page_is_actived(APP_MANAGER_ID_MUSIC, MUSIC_PAGE_START))
+    {
+        state->routed = false;
+    }
 
     if (status.state == MUSIC_SERVICE_STATE_READY && status.logged_in)
     {
+        if ((uint32_t)(lv_tick_get() - state->started_ms) <
+                MUSIC_START_MIN_DWELL_MS)
+        {
+            return;
+        }
         if (!state->routed)
         {
             state->routed = true;
+            state->routed_ms = lv_tick_get();
             (void)music_ui_enter_player();
         }
         return;
@@ -61,9 +77,15 @@ static void _start_check(music_start_state_t *state)
             status.state == MUSIC_SERVICE_STATE_QR_EXPIRED ||
             status.state == MUSIC_SERVICE_STATE_AUTHENTICATING)
     {
+        if ((uint32_t)(lv_tick_get() - state->started_ms) <
+                MUSIC_START_MIN_DWELL_MS)
+        {
+            return;
+        }
         if (!state->routed)
         {
             state->routed = true;
+            state->routed_ms = lv_tick_get();
             (void)music_ui_enter_login_qr(status.login_type);
         }
         return;
@@ -72,9 +94,15 @@ static void _start_check(music_start_state_t *state)
     if (status.state == MUSIC_SERVICE_STATE_LOGGED_OUT ||
             status.state == MUSIC_SERVICE_STATE_AUTH_REQUIRED)
     {
+        if ((uint32_t)(lv_tick_get() - state->started_ms) <
+                MUSIC_START_MIN_DWELL_MS)
+        {
+            return;
+        }
         if (!state->routed)
         {
             state->routed = true;
+            state->routed_ms = lv_tick_get();
             (void)music_ui_reset_to_login();
         }
         return;
@@ -211,6 +239,7 @@ static void _start_resume(const app_manager_page_context_t *context)
 {
     music_start_state_t *state = context->state;
     state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+    state->started_ms = lv_tick_get();
     (void)event_bus_subscribe(MUSIC_SERVICE_MSG, EVENT_BUS_SUB_TYPE_ANY,
                               _start_event_cb, state, EVENT_BUS_DISPATCH_UI,
                               &state->subscription);

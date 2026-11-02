@@ -124,6 +124,9 @@ void music_ui_set_plain_icon_button(lv_obj_t *button, uint32_t image_id,
                                     const char *fallback_symbol,
                                     int32_t glyph_size, uint32_t color);
 
+/** @brief Show or clear a spinner over one icon button. */
+void music_ui_set_button_busy(lv_obj_t *button, bool busy);
+
 /** @brief Enable or disable one icon button. */
 void music_ui_set_button_enabled(lv_obj_t *button, bool enabled);
 

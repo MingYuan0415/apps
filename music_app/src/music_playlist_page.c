@@ -12,7 +12,7 @@
 #define MUSIC_PLAYLIST_PAGE_CACHE (MUSIC_PLAYLIST_PAGE_RADIUS * 2U + 1U)
 #define MUSIC_PLAYLIST_PAGE_REQUEST_SIZE 10U
 #define MUSIC_PLAYLIST_COVER_SIZE MUSIC_UI_HERO_COVER
-#define MUSIC_PLAYLIST_COVER_TIMEOUT_TICKS 40U
+#define MUSIC_PLAYLIST_COVER_TIMEOUT_MS 12000U
 #define MUSIC_PLAYLIST_COVER_MAX_ATTEMPTS 2U
 
 typedef struct music_playlist_state
@@ -40,7 +40,7 @@ typedef struct music_playlist_state
     uint32_t loaded_rows;
     uint32_t total;
     music_ui_cover_t cover;
-    uint16_t cover_wait_ticks;
+    uint32_t cover_requested_ms;
     uint32_t cover_token;
     uint32_t loading_since_ms;
     uint8_t cover_attempts;
@@ -72,11 +72,8 @@ static void _playlist_update_cover(music_playlist_state_t *state)
     }
     if (state->cover_requested)
     {
-        if (state->cover_wait_ticks < UINT16_MAX)
-        {
-            ++state->cover_wait_ticks;
-        }
-        if (state->cover_wait_ticks <= MUSIC_PLAYLIST_COVER_TIMEOUT_TICKS)
+        if ((uint32_t)(lv_tick_get() - state->cover_requested_ms) <
+                MUSIC_PLAYLIST_COVER_TIMEOUT_MS)
         {
             return;
         }
@@ -90,7 +87,7 @@ static void _playlist_update_cover(music_playlist_state_t *state)
     const music_image_t *image = NULL;
     state->cover_token = music_ui_url_token(url);
     state->cover_requested = true;
-    state->cover_wait_ticks = 0U;
+    state->cover_requested_ms = lv_tick_get();
     ++state->cover_attempts;
     const esp_err_t result = music_service_image_acquire(
                                  url, MUSIC_PLAYLIST_COVER_SIZE,
@@ -303,7 +300,7 @@ static void _playlist_build_hero(music_playlist_state_t *state)
         music_ui_cover_release(&state->cover);
         state->cover_token = token;
         state->cover_attempts = 0U;
-        state->cover_wait_ticks = 0U;
+        state->cover_requested_ms = 0U;
         state->cover_requested = false;
         state->cover_failed = false;
     }
@@ -353,6 +350,12 @@ static uint16_t _playlist_page_offset(const music_playlist_state_t *state,
     {
         return state->loaded_rows > UINT16_MAX ? UINT16_MAX :
                (uint16_t)state->loaded_rows;
+    }
+    if (state->loaded_pages == 0U)
+    {
+        const uint32_t offset = (uint32_t)page *
+                                MUSIC_PLAYLIST_PAGE_REQUEST_SIZE;
+        return offset > UINT16_MAX ? UINT16_MAX : (uint16_t)offset;
     }
     return _playlist_loaded_rows_before(state, page);
 }
@@ -678,6 +681,7 @@ static void _playlist_schedule(music_playlist_state_t *state)
 static void _playlist_timer_cb(lv_timer_t *timer)
 {
     music_playlist_state_t *state = lv_timer_get_user_data(timer);
+    _playlist_collect_pending(state);
     if (state->request_pending &&
             lv_tick_get() - state->loading_since_ms >= 10000U)
     {
@@ -711,7 +715,7 @@ static void _playlist_event_cb(event_bus_msg_id_t msg_id, uint32_t sub_type,
         if (event->token == state->cover_token)
         {
             state->cover_requested = false;
-            state->cover_wait_ticks = 0U;
+            state->cover_requested_ms = 0U;
             if (event->failure == MUSIC_SERVICE_FAILURE_NONE)
             {
                 state->cover_failed = false;
@@ -943,17 +947,13 @@ static esp_err_t _playlist_pause(const app_manager_page_context_t *context)
     }
     music_ui_cover_release(&state->cover);
     _playlist_release_all_pages(state);
-    state->current_page = 0U;
-    state->page_count = 0U;
-    state->total = 0U;
-    memset(&state->info, 0, sizeof(state->info));
     state->failed = false;
     state->loading = false;
     state->loading_since_ms = 0U;
     state->request_pending = false;
     state->pending_page = UINT16_MAX;
     state->cover_requested = false;
-    state->cover_wait_ticks = 0U;
+    state->cover_requested_ms = 0U;
     state->cover_attempts = 0U;
     return ESP_OK;
 }

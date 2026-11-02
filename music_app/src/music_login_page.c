@@ -33,6 +33,7 @@ typedef struct music_login_state
     uint8_t last_state;
     uint8_t last_failure;
     uint8_t success_ticks;
+    uint32_t routed_ms;
     bool qr_loading;
     bool request_pending;
     bool expired;
@@ -337,6 +338,12 @@ static void _login_timer_cb(lv_timer_t *timer)
     }
     if (state->success)
     {
+        if (state->routed_player &&
+                (uint32_t)(lv_tick_get() - state->routed_ms) >= 2000U &&
+                app_page_is_actived(APP_MANAGER_ID_MUSIC, MUSIC_PAGE_LOGIN))
+        {
+            state->routed_player = false;
+        }
         if (state->success_ticks < MUSIC_LOGIN_SUCCESS_TICKS)
         {
             ++state->success_ticks;
@@ -344,6 +351,7 @@ static void _login_timer_cb(lv_timer_t *timer)
         else if (!state->routed_player)
         {
             state->routed_player = true;
+            state->routed_ms = lv_tick_get();
             (void)music_ui_enter_player();
         }
         return;
