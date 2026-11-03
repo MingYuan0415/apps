@@ -182,6 +182,19 @@ configure_apps_host_target(setup_wifi_adapter_test)
 
 add_apps_host_test(setup_wifi_adapter_test setup_wifi_adapter_test)
 
+add_executable(settings_wifi_settle_test
+    settings_wifi_settle_test.c
+    ../../settings_app/src/settings_wifi_settle.c
+)
+
+target_include_directories(settings_wifi_settle_test PRIVATE
+    ../../settings_app/src
+)
+
+configure_apps_host_target(settings_wifi_settle_test)
+
+add_apps_host_test(settings_wifi_settle_test settings_wifi_settle_test)
+
 add_executable(weather_icon_test
     weather_icon_test.c
     ../../common/src/app_weather_ui.c

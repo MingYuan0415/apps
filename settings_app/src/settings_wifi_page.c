@@ -7,6 +7,7 @@
 #include "mt_log.h"
 
 #include "settings_app_internal.h"
+#include "settings_wifi_settle.h"
 
 typedef struct settings_wifi_state
 {
@@ -33,7 +34,6 @@ typedef struct settings_wifi_state
     size_t confirm_removal;
     bool confirm_removal_valid;
     bool online_pending;
-    bool online_desired;
     connectivity_manager_operation_id_t online_operation;
     uint32_t online_started;
     uint32_t online_deadline;
@@ -346,54 +346,78 @@ static void _wifi_render_scan(settings_wifi_state_t *state)
     }
 }
 
+static const char *_wifi_failure_text(
+    connectivity_manager_failure_t failure)
+{
+    switch (failure)
+    {
+    case CONNECTIVITY_MANAGER_FAILURE_AUTHENTICATION:
+        return "密码错误";
+    case CONNECTIVITY_MANAGER_FAILURE_AP_NOT_FOUND:
+        return "未找到网络";
+    case CONNECTIVITY_MANAGER_FAILURE_ASSOCIATION_TIMEOUT:
+    case CONNECTIVITY_MANAGER_FAILURE_DHCP_TIMEOUT:
+        return "连接超时";
+    case CONNECTIVITY_MANAGER_FAILURE_LINK_LOST:
+        return "连接中断";
+    case CONNECTIVITY_MANAGER_FAILURE_RADIO_UNAVAILABLE:
+        return "Wi-Fi 不可用";
+    case CONNECTIVITY_MANAGER_FAILURE_STORAGE:
+        return "保存失败";
+    case CONNECTIVITY_MANAGER_FAILURE_NONE:
+    case CONNECTIVITY_MANAGER_FAILURE_CONFLICT:
+    case CONNECTIVITY_MANAGER_FAILURE_INTERNAL:
+    default:
+        return "连接失败";
+    }
+}
+
 static void _wifi_settle_pending(settings_wifi_state_t *state,
                                  const connectivity_manager_status_snapshot_t
                                  *status)
 {
-    if (state->online_pending)
+    const bool terminal_matches = state->online_pending &&
+                                  state->online_operation != 0U &&
+                                  status->operation_id ==
+                                  state->online_operation &&
+                                  status->operation_complete;
+    const bool deadline_reached =
+        (int32_t)(lv_tick_get() - state->online_deadline) >= 0;
+    const settings_wifi_settle_result_t result = settings_wifi_settle_result(
+            state->online_pending, terminal_matches,
+            status->last_error == ESP_OK, deadline_reached);
+
+    switch (result)
     {
-        const bool exact_operation = state->online_operation != 0U &&
-                                     status->operation_id ==
-                                     state->online_operation;
-        if (exact_operation && status->operation_complete)
+    case SETTINGS_WIFI_SETTLE_APPLIED:
+        state->online_pending = false;
+        break;
+    case SETTINGS_WIFI_SETTLE_FAILED:
+        state->online_pending = false;
         {
-            state->online_pending = false;
-            if (state->online_desired &&
-                    status->state != CONNECTIVITY_MANAGER_STATE_IP_READY)
-            {
-                lv_obj_set_hidden(state->forget_status, false);
-                app_ui_set_status_text(state->forget_status,
-                                       "连接失败，Wi-Fi 已关闭",
-                                       APP_UI_STATUS_ERROR);
-            }
-        }
-        else if (exact_operation &&
-                 (status->state == CONNECTIVITY_MANAGER_STATE_SCANNING ||
-                  status->state == CONNECTIVITY_MANAGER_STATE_CONNECTING ||
-                  status->state == CONNECTIVITY_MANAGER_STATE_WAITING_IP ||
-                  status->state == CONNECTIVITY_MANAGER_STATE_RETRY_WAIT))
-        {
-            /* Long scan/connect cycles are legitimate; wait for their exact
-             * terminal instead of treating the 3 s UI deadline as failure. */
-        }
-        else if (state->online_desired && status->manual_hold &&
-                 !status->wifi_enabled &&
-                 (uint32_t)(lv_tick_get() - state->online_started) >= 300U)
-        {
-            state->online_pending = false;
+            char detail[64];
+            const bool radio_off =
+                !status->wifi_enabled &&
+                status->failure != CONNECTIVITY_MANAGER_FAILURE_RADIO_UNAVAILABLE;
+            (void)snprintf(detail, sizeof(detail), "%s%s",
+                           _wifi_failure_text(status->failure),
+                           radio_off ? "，Wi-Fi 已关闭" : "");
             lv_obj_set_hidden(state->forget_status, false);
-            app_ui_set_status_text(state->forget_status,
-                                   "连接失败，Wi-Fi 已关闭",
+            app_ui_set_status_text(state->forget_status, detail,
                                    APP_UI_STATUS_ERROR);
         }
-        else if ((int32_t)(lv_tick_get() - state->online_deadline) >= 0)
-        {
-            state->online_pending = false;
-            lv_obj_set_hidden(state->forget_status, false);
-            app_ui_set_status_text(state->forget_status,
-                                   "Wi-Fi 开关设置未生效",
-                                   APP_UI_STATUS_ERROR);
-        }
+        break;
+    case SETTINGS_WIFI_SETTLE_TIMEOUT:
+        state->online_pending = false;
+        lv_obj_set_hidden(state->forget_status, false);
+        app_ui_set_status_text(state->forget_status,
+                               "Wi-Fi 开关设置未生效",
+                               APP_UI_STATUS_ERROR);
+        break;
+    case SETTINGS_WIFI_SETTLE_WAIT:
+    case SETTINGS_WIFI_SETTLE_NONE:
+    default:
+        break;
     }
 }
 
@@ -415,6 +439,15 @@ static void _wifi_refresh(settings_wifi_state_t *state)
     {
         _wifi_settle_pending(state, &status);
         _wifi_render_status(state, &status);
+        if (settings_wifi_idle_timeout_notice(status.radio_idle_timeout,
+                                              status.wifi_enabled,
+                                              state->online_pending))
+        {
+            lv_obj_set_hidden(state->forget_status, false);
+            app_ui_set_status_text(state->forget_status,
+                                   "长时间未连接，Wi-Fi 已自动关闭",
+                                   APP_UI_STATUS_WARNING);
+        }
     }
     else
     {
@@ -466,7 +499,17 @@ static void _wifi_online_event(lv_event_t *event)
     esp_err_t result;
     if (on)
     {
-        result = connectivity_manager_request_wifi_enable(&op);
+        result = connectivity_manager_request_wifi_power_on(&op);
+        connectivity_manager_status_snapshot_t status;
+        /* With no saved network the switch only powers the radio; scan right
+         * away so the user can pick a network without pressing refresh. */
+        if (result == ESP_OK &&
+                connectivity_manager_get_status(&status) == ESP_OK &&
+                !status.saved_profile)
+        {
+            connectivity_manager_operation_id_t scan_op = 0U;
+            (void)connectivity_manager_request_scan(&scan_op);
+        }
     }
     else
     {
@@ -475,7 +518,6 @@ static void _wifi_online_event(lv_event_t *event)
     if (result == ESP_OK)
     {
         state->online_pending = true;
-        state->online_desired = on;
         state->online_operation = op;
         state->online_started = lv_tick_get();
         state->online_deadline = state->online_started +
@@ -586,6 +628,17 @@ static void _wifi_forget_confirm(lv_event_t *event)
 
 static void _wifi_request_rescan(settings_wifi_state_t *state)
 {
+    connectivity_manager_status_snapshot_t status;
+    /* Scanning powers the radio, so refuse it while the switch is off instead
+     * of leaving the page claiming "Wi-Fi off" with a live scan underneath. */
+    if (connectivity_manager_get_status(&status) == ESP_OK &&
+            !status.wifi_enabled)
+    {
+        app_ui_set_status_text(state->scan_hint, "请先打开 Wi-Fi 开关",
+                               APP_UI_STATUS_NEUTRAL);
+        app_ui_pull_refresh_set_refreshing(&s_wifi_page_pull, false);
+        return;
+    }
     connectivity_manager_operation_id_t op = 0U;
     if (connectivity_manager_request_scan(&op) == ESP_OK)
     {

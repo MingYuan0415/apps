@@ -63,6 +63,7 @@ set(APP_SRCS
     "settings_app/src/settings_app.c"
     "settings_app/src/settings_display_page.c"
     "settings_app/src/settings_wifi_page.c"
+    "settings_app/src/settings_wifi_settle.c"
     "settings_app/src/settings_bluetooth_page.c"
     "settings_app/src/settings_device_page.c"
     "settings_app/src/settings_factory_reset_page.c"
