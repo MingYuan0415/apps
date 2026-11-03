@@ -30,6 +30,8 @@ static bool _setup_wifi_adapter_status_bools_valid(const void *payload)
            bytes[offsetof(connectivity_manager_status_snapshot_t,
                           manual_hold)] <= 1U &&
            bytes[offsetof(connectivity_manager_status_snapshot_t,
+                          radio_idle_timeout)] <= 1U &&
+           bytes[offsetof(connectivity_manager_status_snapshot_t,
                           operation_complete)] <= 1U;
 }
 
