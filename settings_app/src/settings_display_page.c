@@ -60,9 +60,11 @@ static void _display_sync(settings_display_state_t *state)
      * getter, which still returns the previous one. */
     const int32_t screen = state->pending_screen_ms != SETTINGS_PM_PENDING_NONE ?
                            state->pending_screen_ms : app_manager_pm_get_timeout_ms();
-    const int32_t standby =
-        state->pending_standby_ms != SETTINGS_PM_PENDING_NONE ?
-        state->pending_standby_ms : app_manager_pm_get_standby_delay_ms();
+    const bool standby_supported = app_manager_pm_is_standby_supported();
+    const int32_t standby = !standby_supported ? -1 :
+                            (state->pending_standby_ms != SETTINGS_PM_PENDING_NONE ?
+                             state->pending_standby_ms :
+                             app_manager_pm_get_standby_delay_ms());
     for (size_t index = 0U; index < SETTINGS_SCREEN_CHIP_COUNT; ++index)
     {
         app_ui_chip_set_selected(state->screen_chips[index],
@@ -70,6 +72,10 @@ static void _display_sync(settings_display_state_t *state)
     }
     for (size_t index = 0U; index < SETTINGS_STANDBY_CHIP_COUNT; ++index)
     {
+        if (state->standby_chips[index] == NULL)
+        {
+            continue;
+        }
         app_ui_chip_set_selected(state->standby_chips[index],
                                  standby == k_standby_ms[index]);
     }
@@ -283,14 +289,17 @@ static void _display_mount(const app_manager_page_context_t *context)
     _display_add_chips(state, screen_row, state->screen_chips, k_screen_text,
                        k_screen_ms, SETTINGS_SCREEN_CHIP_COUNT, 0U, false);
 
-    lv_obj_t *standby_section = app_ui_add_section(state->page.content,
-        "熄屏后待机");
-    lv_obj_set_style_pad_top(standby_section, 4, 0);
-    lv_obj_t *standby_row = app_ui_chip_row_create(state->page.content);
-    _display_add_chips(state, standby_row, state->standby_chips,
-                       k_standby_text, k_standby_ms,
-                       SETTINGS_STANDBY_CHIP_COUNT,
-                       SETTINGS_SCREEN_CHIP_COUNT, true);
+    if (app_manager_pm_is_standby_supported())
+    {
+        lv_obj_t *standby_section = app_ui_add_section(state->page.content,
+            "熄屏后待机");
+        lv_obj_set_style_pad_top(standby_section, 4, 0);
+        lv_obj_t *standby_row = app_ui_chip_row_create(state->page.content);
+        _display_add_chips(state, standby_row, state->standby_chips,
+                           k_standby_text, k_standby_ms,
+                           SETTINGS_STANDBY_CHIP_COUNT,
+                           SETTINGS_SCREEN_CHIP_COUNT, true);
+    }
 
     state->pm_status_label = app_ui_add_body_label(state->page.content, " ");
     lv_obj_set_width(state->pm_status_label, LV_PCT(100));
