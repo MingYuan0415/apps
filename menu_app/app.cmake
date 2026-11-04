@@ -1,6 +1,6 @@
 set(MT_APP_ID menu)
 set(MT_APP_REQUIRED TRUE)
-set(MT_APP_HIDDEN TRUE)
+set(MT_APP_HIDDEN FALSE)
 set(MT_APP_SOURCES src/menu_app.c)
 set(MT_APP_INCLUDE_DIRS "")
 set(MT_APP_PRIVATE_REQUIRES app_core app_theme freertos lvgl__lvgl mt_log)

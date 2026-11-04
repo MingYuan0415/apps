@@ -224,6 +224,8 @@ static void _test_oversized_preferences_use_defaults(void)
 static void _test_storage_errors_propagate(void)
 {
     _test_reset();
+    s_entries[0].present = true;
+    s_entries[1].present = true;
     float roll_offset = 0.0F;
     float pitch_offset = 0.0F;
     s_next_get_result = ESP_FAIL;
@@ -239,6 +241,8 @@ static void _test_storage_errors_propagate(void)
 
     s_next_erase_result = ESP_FAIL;
     assert(apps_factory_reset_persisted_state() == ESP_FAIL);
+    assert(_find_entry("level_cal")->present);
+    assert(!_find_entry("flybirds_pref")->present);
 }
 
 int main(void)

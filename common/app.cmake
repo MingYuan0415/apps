@@ -20,4 +20,4 @@ set(MT_APP_PRIVATE_REQUIRES
 )
 set(MT_APP_CAPABILITIES "")
 set(MT_APP_RESOURCE_MANIFEST resource_manifest.cmake)
-set(MT_APP_RESET_HOOK apps_factory_reset_persisted_state)
+set(MT_APP_RESET_HOOK "")
