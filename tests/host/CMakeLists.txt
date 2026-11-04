@@ -163,6 +163,10 @@ target_include_directories(apps_persistence_test PRIVATE
 
 target_link_libraries(apps_persistence_test PRIVATE m)
 configure_apps_host_target(apps_persistence_test)
+target_compile_definitions(apps_persistence_test PRIVATE
+    MT_PRODUCT_HAS_LEVEL_APP=1
+    MT_PRODUCT_HAS_FLYBIRDS_APP=1
+)
 
 add_apps_host_test(apps_persistence_test apps_persistence_test)
 

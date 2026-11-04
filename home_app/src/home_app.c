@@ -435,8 +435,14 @@ static void _home_refresh(home_page_state_t *state)
     _home_render_power(state);
     _home_render_wifi(state);
     _home_render_bluetooth(state);
-    _home_render_weather(state);
-    _home_render_clock_card(state);
+    if (state->weather_value != NULL)
+    {
+        _home_render_weather(state);
+    }
+    if (state->clock_ring != NULL)
+    {
+        _home_render_clock_card(state);
+    }
 }
 
 static void _home_refresh_timer(lv_timer_t *timer)
@@ -667,41 +673,56 @@ static void _home_build_cards(home_page_state_t *state, lv_obj_t *content)
     lv_obj_set_style_pad_row(grid, APP_UI_GAP, 0);
     app_ui_make_passive(grid, false);
 
-    lv_obj_t *row = _home_card(grid, APP_MANAGER_ID_WEATHER, "天气",
-                               &state->weather_city, &state->weather_value,
-                               &state->weather_condition);
-    state->weather_image = lv_image_create(row);
-    lv_obj_set_size(state->weather_image, 40, 40);
-    app_ui_make_passive(state->weather_image, false);
-    state->weather_fallback = _home_symbol_label(row, LV_SYMBOL_IMAGE);
-    _home_set_color(state->weather_fallback, APP_UI_COLOR_MUTED);
+    lv_obj_t *row = NULL;
+    if (app_manager_builtin_has_app(APP_MANAGER_ID_WEATHER))
+    {
+        row = _home_card(grid, APP_MANAGER_ID_WEATHER, "天气",
+                         &state->weather_city, &state->weather_value,
+                         &state->weather_condition);
+        state->weather_image = lv_image_create(row);
+        lv_obj_set_size(state->weather_image, 40, 40);
+        app_ui_make_passive(state->weather_image, false);
+        state->weather_fallback = _home_symbol_label(row, LV_SYMBOL_IMAGE);
+        _home_set_color(state->weather_fallback, APP_UI_COLOR_MUTED);
+    }
 
-    row = _home_card(grid, APP_MANAGER_ID_CLOCK, "时钟", &state->clock_title,
-                     &state->clock_value, &state->clock_caption);
-    state->clock_ring = _home_ring_arc(row, HOME_CLOCK_RING, 4,
-                                       APP_UI_COLOR_TRACK, true);
-    lv_arc_set_rotation(state->clock_ring, 270);
-    lv_obj_set_style_arc_rounded(state->clock_ring, true, LV_PART_INDICATOR);
-    _home_ring_glyph(state->clock_ring, APP_IMAGE_HOME_RING_CLOCK,
-                     LV_SYMBOL_BELL);
+    if (app_manager_builtin_has_app(APP_MANAGER_ID_CLOCK))
+    {
+        row = _home_card(grid, APP_MANAGER_ID_CLOCK, "时钟",
+                         &state->clock_title,
+                         &state->clock_value, &state->clock_caption);
+        state->clock_ring = _home_ring_arc(row, HOME_CLOCK_RING, 4,
+                                           APP_UI_COLOR_TRACK, true);
+        lv_arc_set_rotation(state->clock_ring, 270);
+        lv_obj_set_style_arc_rounded(state->clock_ring, true,
+                                     LV_PART_INDICATOR);
+        _home_ring_glyph(state->clock_ring, APP_IMAGE_HOME_RING_CLOCK,
+                         LV_SYMBOL_BELL);
+    }
 
-    lv_obj_t *calculator_value = NULL;
-    lv_obj_t *calculator_caption = NULL;
-    row = _home_card(grid, APP_MANAGER_ID_CALCULATOR, "计算器", NULL,
-                     &calculator_value, &calculator_caption);
-    lv_label_set_text(calculator_value, "计算");
-    _home_set_color(calculator_value, APP_UI_COLOR_MUTED);
-    lv_label_set_text(calculator_caption, "四则运算");
-    _home_card_glyph(row, APP_IMAGE_HOME_CALCULATOR, LV_SYMBOL_EDIT);
+    if (app_manager_builtin_has_app(APP_MANAGER_ID_CALCULATOR))
+    {
+        lv_obj_t *calculator_value = NULL;
+        lv_obj_t *calculator_caption = NULL;
+        row = _home_card(grid, APP_MANAGER_ID_CALCULATOR, "计算器", NULL,
+                         &calculator_value, &calculator_caption);
+        lv_label_set_text(calculator_value, "计算");
+        _home_set_color(calculator_value, APP_UI_COLOR_MUTED);
+        lv_label_set_text(calculator_caption, "四则运算");
+        _home_card_glyph(row, APP_IMAGE_HOME_CALCULATOR, LV_SYMBOL_EDIT);
+    }
 
-    lv_obj_t *calendar_value = NULL;
-    lv_obj_t *calendar_caption = NULL;
-    row = _home_card(grid, APP_MANAGER_ID_CALENDAR, "日历", NULL,
-                     &calendar_value, &calendar_caption);
-    lv_label_set_text(calendar_value, "今日");
-    _home_set_color(calendar_value, APP_UI_COLOR_MUTED);
-    lv_label_set_text(calendar_caption, "查看月历");
-    _home_card_glyph(row, APP_IMAGE_HOME_CALENDAR, LV_SYMBOL_LIST);
+    if (app_manager_builtin_has_app(APP_MANAGER_ID_CALENDAR))
+    {
+        lv_obj_t *calendar_value = NULL;
+        lv_obj_t *calendar_caption = NULL;
+        row = _home_card(grid, APP_MANAGER_ID_CALENDAR, "日历", NULL,
+                         &calendar_value, &calendar_caption);
+        lv_label_set_text(calendar_value, "今日");
+        _home_set_color(calendar_value, APP_UI_COLOR_MUTED);
+        lv_label_set_text(calendar_caption, "查看月历");
+        _home_card_glyph(row, APP_IMAGE_HOME_CALENDAR, LV_SYMBOL_LIST);
+    }
 }
 
 static void _home_page_build(home_page_state_t *state)

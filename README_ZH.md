@@ -75,7 +75,7 @@ Setup 页的 Wi-Fi 卡片、绑定/断开/忘记/取消/完成/稍后等行图�
 `weather_service_request_refresh()`，设置 Wi-Fi 页复用扫描请求；拖动起点落在可点击行上时
 交给行/滚动，不触发下拉。控制中心顶部 40 px 下拉仍归控制中心。
 
-每个应用以普通 `const` Page definition 描述 typed ops 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。App descriptor（`APP_MANAGER_APP_EXPORT` 及其 `APP_MANAGER_APP_EXPORT_META` 变体）进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。新增应用时应在独立目录中实现生命周期 ops，并把源文件加入本层的 `app_sources.cmake`（固件组件、sim 与 `tests/integration` 共用这一份清单，不在各处重复声明），同时提供图标 manifest，不要使用递归 glob；`tests/docs/test_app_registration.py` 会校验每条源文件都在清单内、消费方没有各自复制清单。
+每个应用以普通 `const` Page definition 描述 typed ops 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。App descriptor（`APP_MANAGER_APP_EXPORT` 及其 `APP_MANAGER_APP_EXPORT_META` 变体）进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。新增应用时应在独立目录中实现生命周期 ops，在 `app_catalog.cmake` 增加一项，并在该 App 的 `app.cmake` 中声明源文件、include、依赖服务与硬件 capability；当前产品清单决定该 App 是否参与编译、链接和资源打包。不要使用递归 glob；`tests/docs/test_app_registration.py` 会校验每条源文件都在 catalog 中，且消费方使用统一的产品展开。
 
 页面只声明实际需要的生命周期阶段，无需为未使用阶段编写空回调。例如静态页面只需
 `.mount` 和 `.unmount`；需要前台刷新时再增加 `.resume` 和 `.pause`；需要跨挂载周期保留

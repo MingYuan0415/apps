@@ -1,38 +1,29 @@
-# MicroTech built-in applications. The source list lives in app_sources.cmake,
-# shared with the simulator and the cross-layer integration suite, so a new App
-# is one edit there and never a copy in each consumer.
-include("${CMAKE_CURRENT_LIST_DIR}/app_sources.cmake")
+# MicroTech built-in applications. `MT_PRODUCT_APP_SOURCES` is expanded from
+# the selected product manifest by products/products.cmake and is shared with
+# the simulator and cross-layer tests. An App not selected by the product is
+# neither compiled nor linked.
+if(EXISTS "${CMAKE_BINARY_DIR}/mt_product_expansion.cmake")
+    include("${CMAKE_BINARY_DIR}/mt_product_expansion.cmake")
+endif()
+if(NOT DEFINED MT_PRODUCT_APP_SOURCES)
+    message(FATAL_ERROR
+        "MT_PRODUCT_APP_SOURCES is unavailable; resolve the product before the apps component")
+endif()
 
 idf_component_register(
-    SRCS ${APP_SRCS}
+    SRCS ${MT_PRODUCT_APP_SOURCES}
     INCLUDE_DIRS
         "."
         "common/include"
-        "setup_app/src"
     PRIV_INCLUDE_DIRS
-        ${APP_SRC_INCLUDE_DIRS}
+        ${MT_PRODUCT_APP_INCLUDE_DIRS}
     WHOLE_ARCHIVE
     REQUIRES
         esp_common
     PRIV_REQUIRES
+        ${MT_PRODUCT_APP_REQUIRES}
         app_core
         app_theme
-        audio_service
-        chore_service
-        event_bus
-        imu_service
-        sd_storage_service
-        file_service
-        connectivity_manager
-        device_link_service
-        factory_reset_service
-        time_service
-        timer_service
-        recorder_service
-        onboarding_service
-        weather_service
-        music_service
-        power_service
         esp_app_format
         esp_hw_support
         fatfs
@@ -42,3 +33,10 @@ idf_component_register(
         mt_log
         nv_storage
 )
+
+if(NOT DEFINED MT_PRODUCT_HEADER OR NOT EXISTS "${MT_PRODUCT_HEADER}")
+    message(FATAL_ERROR
+        "MT_PRODUCT_HEADER is unavailable; resolve the product before the apps component")
+endif()
+target_compile_options(${COMPONENT_LIB} PRIVATE
+    "SHELL:-include ${MT_PRODUCT_HEADER}")

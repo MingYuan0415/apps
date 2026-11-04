@@ -2,13 +2,33 @@
 #include "mt_log.h"
 
 #include "apps_persistence.h"
-#include "flybirds_app_persistence.h"
-#include "level_app_persistence.h"
+
+#if defined(MT_PRODUCT_HAS_LEVEL_APP)
+    #include "level_app_persistence.h"
+#endif
+#if defined(MT_PRODUCT_HAS_FLYBIRDS_APP)
+    #include "flybirds_app_persistence.h"
+#endif
 
 esp_err_t apps_factory_reset_persisted_state(void)
 {
-    const esp_err_t level_result = level_app_persistence_reset();
-    const esp_err_t flybirds_result = flybirds_app_persistence_reset();
+    esp_err_t result = ESP_OK;
 
-    return level_result != ESP_OK ? level_result : flybirds_result;
+#if defined(MT_PRODUCT_HAS_LEVEL_APP)
+    result = level_app_persistence_reset();
+    if (result != ESP_OK)
+    {
+        return result;
+    }
+#endif
+
+#if defined(MT_PRODUCT_HAS_FLYBIRDS_APP)
+    result = flybirds_app_persistence_reset();
+    if (result != ESP_OK)
+    {
+        return result;
+    }
+#endif
+
+    return result;
 }

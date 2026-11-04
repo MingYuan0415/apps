@@ -1,17 +1,11 @@
-# Explicit application resource records. Keep this list non-recursive.
+# Explicit application resource records for the current product. The product
+# resolver supplies one manifest per selected App; common resources are always
+# available because shared UI helpers depend on them.
 set(MICROTECH_APP_RESOURCE_RECORDS "")
 include("${CMAKE_CURRENT_LIST_DIR}/common/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/home_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/menu_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/settings_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/setup_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/clock_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/recorder_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/files_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/level_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/calendar_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/calculator_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/flybirds_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/diagnostics_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/weather_app/resource_manifest.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/music_app/resource_manifest.cmake")
+foreach(app_manifest IN LISTS MT_PRODUCT_APP_RESOURCE_MANIFESTS)
+    if(NOT app_manifest STREQUAL
+            "${CMAKE_CURRENT_LIST_DIR}/common/resource_manifest.cmake")
+        include("${app_manifest}")
+    endif()
+endforeach()

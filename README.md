@@ -247,11 +247,11 @@ Page definition, and explicitly binds `page_id`, the definition and the route
 into the `.app_manager_apps` link section; the `apps` component uses
 `WHOLE_ARCHIVE`, and the App Manager linker script keeps and discovers that
 section. When adding an app, implement the lifecycle ops in a separate
-directory, add its source files to this layer's `app_sources.cmake` (the
-firmware component, the sim and `tests/integration` share this one list and do
-not declare it in several places), and provide an icon manifest; do not use
-recursive globs. `tests/docs/test_app_registration.py` verifies that every
-source file is in the list and that consumers do not each copy the list.
+directory, add one entry to `app_catalog.cmake` and declare its sources,
+includes, services and capabilities in that App's `app.cmake`; the active
+product manifest decides whether the App is compiled, linked and packaged.
+Do not use recursive globs. `tests/docs/test_app_registration.py` verifies
+that every source is catalogued and that consumers use the product expansion.
 
 Pages declare only the lifecycle phases they actually need; there is no need to
 write empty callbacks for unused phases. For example, a static page needs only

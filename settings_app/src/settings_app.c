@@ -193,8 +193,11 @@ static void _settings_root_mount(const app_manager_page_context_t *context)
                                  &state->bluetooth_summary,
                                  _settings_open_page_event,
                                  (void *)SETTINGS_PAGE_BLUETOOTH);
-    (void)app_ui_group_add_nav(group, NULL, "连接向导", NULL,
-                               _settings_open_setup_event, NULL);
+    if (app_manager_builtin_has_app(APP_MANAGER_ID_SETUP))
+    {
+        (void)app_ui_group_add_nav(group, NULL, "连接向导", NULL,
+                                   _settings_open_setup_event, NULL);
+    }
     (void)app_ui_group_add_entry(group, "设备状态",
                                  &state->device_summary,
                                  _settings_open_page_event,
@@ -339,7 +342,10 @@ static void _settings_about_tap_event(lv_event_t *event)
     if (state->tap_count >= 5U)
     {
         state->tap_count = 0U;
-        app_ui_request_run(APP_MANAGER_ID_DIAGNOSTICS);
+        if (app_manager_builtin_has_app(APP_MANAGER_ID_DIAGNOSTICS))
+        {
+            app_ui_request_run(APP_MANAGER_ID_DIAGNOSTICS);
+        }
     }
 }
 

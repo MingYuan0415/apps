@@ -51,5 +51,7 @@ const lv_font_t *app_manager_get_font(app_theme_font_id_t id);
 /** @brief Return an image descriptor for a semantic resource id. */
 esp_err_t app_manager_get_image(uint32_t semantic_id,
                                 const lv_image_dsc_t **image);
+/** @brief Report whether a fixture App is registered. */
+bool app_manager_builtin_has_app(const char *app_id);
 
 #endif /* __APPS_HOST_APP_MANAGER_H__ */

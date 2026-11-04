@@ -833,6 +833,11 @@ esp_err_t app_manager_get_image(uint32_t semantic_id,
     return ESP_OK;
 }
 
+bool app_manager_builtin_has_app(const char *app_id)
+{
+    return app_id != NULL && strcmp(app_id, APP_MANAGER_ID_FILES) == 0;
+}
+
 typedef struct fake_nav
 {
     unsigned calls;

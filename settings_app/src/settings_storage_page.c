@@ -402,10 +402,13 @@ static void _storage_mount(const app_manager_page_context_t *context)
                                  &state->operation_value);
 
     lv_obj_t *action_group = app_ui_group_create(state->page.content);
-    (void)app_ui_group_add_nav_image(action_group, APP_IMAGE_UI_FOLDER,
-                                     LV_SYMBOL_IMAGE, "文件管理",
-                                     "浏览存储卡内容",
-                                     _storage_open_files_event, NULL);
+    if (app_manager_builtin_has_app(APP_MANAGER_ID_FILES))
+    {
+        (void)app_ui_group_add_nav_image(action_group, APP_IMAGE_UI_FOLDER,
+                                         LV_SYMBOL_IMAGE, "文件管理",
+                                         "浏览存储卡内容",
+                                         _storage_open_files_event, NULL);
+    }
     state->mount_button = app_ui_group_add_command(action_group,
         LV_SYMBOL_REFRESH, "重新挂载",
         "不会格式化", _storage_mount_event,
