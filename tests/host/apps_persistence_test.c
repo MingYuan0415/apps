@@ -6,13 +6,15 @@
 
 #include "apps_persistence.h"
 #include "flybirds_app_persistence.h"
+#include "home_app_persistence.h"
+#include "home_shortcuts.h"
 #include "level_app_persistence.h"
 #include "nv_storage.h"
 #include "nvs.h"
 
 #define TEST_KEY_CAPACITY   16U
-#define TEST_BLOB_CAPACITY  32U
-#define TEST_ENTRY_CAPACITY 2U
+#define TEST_BLOB_CAPACITY  128U
+#define TEST_ENTRY_CAPACITY 3U
 
 typedef struct test_entry
 {
@@ -99,8 +101,9 @@ esp_err_t nv_storage_erase_key(const char *key)
 static void _test_reset(void)
 {
     memset(s_entries, 0, sizeof(s_entries));
-    memcpy(s_entries[0].key, "level_cal", sizeof("level_cal"));
-    memcpy(s_entries[1].key, "flybirds_pref", sizeof("flybirds_pref"));
+    memcpy(s_entries[0].key, "home_shortcut", sizeof("home_shortcut"));
+    memcpy(s_entries[1].key, "level_cal", sizeof("level_cal"));
+    memcpy(s_entries[2].key, "flybirds_pref", sizeof("flybirds_pref"));
     s_next_get_result = ESP_OK;
     s_next_erase_result = ESP_OK;
 }
@@ -113,6 +116,12 @@ static void _test_absent_values_use_defaults(void)
     assert(level_app_persistence_load(&roll_offset, &pitch_offset) == ESP_OK);
     assert(roll_offset == 0.0F);
     assert(pitch_offset == 0.0F);
+
+    home_shortcut_prefs_t shortcuts;
+    memset(&shortcuts, 0xAA, sizeof(shortcuts));
+    assert(home_app_persistence_load(&shortcuts) == ESP_OK);
+    assert(!shortcuts.configured);
+    assert(shortcuts.count == 0U);
 
     flybirds_preferences_t preferences;
     memset(&preferences, 0xAA, sizeof(preferences));
@@ -146,9 +155,27 @@ static void _test_save_load_and_factory_reset(void)
     assert(!preferences.music);
     assert(preferences.sfx);
 
+    home_shortcut_prefs_t shortcuts;
+    memset(&shortcuts, 0, sizeof(shortcuts));
+    shortcuts.configured = true;
+    shortcuts.count = 2U;
+    memcpy(shortcuts.app_ids[0], "calculator", sizeof("calculator"));
+    memcpy(shortcuts.app_ids[1], "clock", sizeof("clock"));
+    assert(home_app_persistence_save(&shortcuts) == ESP_OK);
+    memset(&shortcuts, 0, sizeof(shortcuts));
+    assert(home_app_persistence_load(&shortcuts) == ESP_OK);
+    assert(shortcuts.configured);
+    assert(shortcuts.count == 2U);
+    assert(strcmp(shortcuts.app_ids[0], "calculator") == 0);
+    assert(strcmp(shortcuts.app_ids[1], "clock") == 0);
+
     assert(apps_factory_reset_persisted_state() == ESP_OK);
+    assert(!_find_entry("home_shortcut")->present);
     assert(!_find_entry("level_cal")->present);
     assert(!_find_entry("flybirds_pref")->present);
+    assert(home_app_persistence_load(&shortcuts) == ESP_OK);
+    assert(!shortcuts.configured);
+    assert(shortcuts.count == 0U);
     assert(flybirds_app_persistence_load(&preferences) == ESP_OK);
     assert(preferences.best_score == 0U);
     assert(preferences.music);
@@ -241,7 +268,8 @@ static void _test_storage_errors_propagate(void)
 
     s_next_erase_result = ESP_FAIL;
     assert(apps_factory_reset_persisted_state() == ESP_FAIL);
-    assert(_find_entry("level_cal")->present);
+    assert(_find_entry("home_shortcut")->present);
+    assert(!_find_entry("level_cal")->present);
     assert(!_find_entry("flybirds_pref")->present);
 }
 

@@ -149,6 +149,7 @@ add_apps_host_test(files_pages_test files_pages_test)
 add_executable(apps_persistence_test
     apps_persistence_test.c
     ../../common/src/apps_persistence.c
+    ../../home_app/src/home_app_persistence.c
     ../../level_app/src/level_app_persistence.c
     ../../flybirds_app/src/flybirds_app_persistence.c
 )
@@ -156,19 +157,43 @@ add_executable(apps_persistence_test
 target_include_directories(apps_persistence_test PRIVATE
     include
     ../../common/include
+    ../../home_app/src
     ../../level_app/src
     ../../flybirds_app/src
+    ../../../app_manager/app_core/include
     ../../../middleware/components/nv_storage/include
 )
 
 target_link_libraries(apps_persistence_test PRIVATE m)
 configure_apps_host_target(apps_persistence_test)
 target_compile_definitions(apps_persistence_test PRIVATE
+    MT_PRODUCT_HAS_HOME_APP=1
     MT_PRODUCT_HAS_LEVEL_APP=1
     MT_PRODUCT_HAS_FLYBIRDS_APP=1
 )
 
 add_apps_host_test(apps_persistence_test apps_persistence_test)
+
+add_executable(home_shortcuts_test
+    home_shortcuts_test.c
+    ../../home_app/src/home_app_persistence.c
+    ../../home_app/src/home_shortcuts.c
+)
+
+target_include_directories(home_shortcuts_test PRIVATE
+    include
+    ../../home_app/src
+    ../../../app_manager/app_core/include
+    ../../../middleware/components/chore_service/include
+    ../../../middleware/components/nv_storage/include
+)
+
+configure_apps_host_target(home_shortcuts_test)
+target_compile_definitions(home_shortcuts_test PRIVATE
+    HOME_SHORTCUTS_TESTING=1
+)
+
+add_apps_host_test(home_shortcuts_test home_shortcuts_test)
 
 add_executable(setup_wifi_adapter_test
     setup_wifi_adapter_test.c

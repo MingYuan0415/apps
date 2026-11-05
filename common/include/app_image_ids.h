@@ -64,14 +64,8 @@
 #define APP_IMAGE_FLYBIRDS_ICON               0x576BU
 #define APP_IMAGE_MUSIC_ICON                   0x576CU
 
-/* Home complication glyphs: 0x5770-0x577F reserved for home_app-owned
- * assets (0x5770/0x5771 retired with the recorder and level cards,
- * 0x5772/0x5773 retired with the dock). */
-/* 28 px ring glyph: the home clock card draws it at 28, so it has its own
- * record instead of the 40 px card glyphs. */
-#define APP_IMAGE_HOME_RING_CLOCK             0x5774U
-#define APP_IMAGE_HOME_CALCULATOR             0x5775U
-#define APP_IMAGE_HOME_CALENDAR               0x5776U
+/* Home App owns the 0x5770-0x577F segment. The former 40 px card glyphs and
+ * the 28 px clock-ring glyph are retired; the dock uses the shared app icons. */
 
 /* Shared app_ui glyph set: 0x5780-0x57BF reserved for common-owned assets.
  * Baked in the neutral INK color and recolored at runtime. */

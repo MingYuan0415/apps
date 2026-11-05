@@ -21,11 +21,17 @@ drivers directly.
   the `image_id` variants of rows / actions /
   group rows). Size and spacing constants (4 px grid, 12/20/full radii, touch
   height) live in `app_ui_theme.h`.
-- `home_app/`: watch-face home page: a top Wi-Fi/Bluetooth/battery status bar,
-  a 96 px digital clock, the date and the time-source quality dots, and a
-  2 x 2 information card grid (weather, clock timer progress ring, calculator,
-  calendar); tapping a card enters the corresponding app; the app catalog is
-  entered with the HOME key.
+- `home_app/`: watch-face home page: a top status strip with textual Wi-Fi and
+  Bluetooth state plus battery, a 96 px digital clock, the date and the
+  time-source quality pill, a weather live band, an active countdown/focus
+  band, and a three-slot shortcut dock generated from the App registry. The
+  dock defaults to the first three eligible Apps in `launcher_order` (Weather
+  has its own live band and does not occupy a dock slot); long-press any dock
+  icon or the fixed "应用" tile to open the card-based "主页快捷方式" picker.
+  Selected cards are highlighted, and once three Apps are selected the
+  remaining cards are disabled until one is deselected. The fixed "应用" tile
+  enters the complete App directory; the HOME key enters that directory from
+  the root page and returns to the root from a Home sub-page.
 - `menu_app/`: three-column app icon grid (72 px circular icon base), showing
   the icon and name per `launcher_order`.
 - `clock_app/`: the clock hub page has a second-resolution digital clock at
@@ -206,13 +212,13 @@ the `N-fill.svg` vendor sources of QWeather Icons (MIT), shipped with
 `weather_app/assets/qweather-icons-LICENSE.txt`.
 
 A plain `lv_image` draws at its original size, center-crops inside the object
-box and does not scale, so **the icon's artwork must fall inside the window the
-consumer actually draws**: App icons are drawn in a 64-unit design box and
-exported at 72 px, the launcher icon base gives 72 px and the task switcher
-56 px, and all artwork must fall inside `x,y = 13..50` centered in the design
-box; the home information card glyphs only appear in a 40 px window, so they
-are exported at 40; the small ring glyph of the home clock card only appears at
-28 px and is recorded separately with `APP_IMAGE_HOME_RING_CLOCK`.
+box and does not scale unless the caller applies `lv_image_set_scale`, so
+**the icon's artwork must fall inside the window the consumer actually
+draws**: App icons are drawn in a 64-unit design box and exported at 72 px,
+the launcher icon base gives 72 px, the task switcher gives 56 px, and the Home
+shortcut dock scales the same record into a 56 px window; all artwork must
+fall inside `x,y = 13..50` centered in the design box. The former 40 px Home
+card glyphs and 28 px clock-ring glyph are retired.
 `tests/resources/test_icon_fit.py` records every drawing window by semantic ID
 and validates the ink box; adding or changing an icon must keep it passing.
 

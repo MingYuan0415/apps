@@ -53,5 +53,10 @@ esp_err_t app_manager_get_image(uint32_t semantic_id,
                                 const lv_image_dsc_t **image);
 /** @brief Report whether a fixture App is registered. */
 bool app_manager_builtin_has_app(const char *app_id);
+/** @brief Open the fake builtin descriptor list. */
+const app_manager_app_desc_t *app_manager_builtin_list_open(void);
+/** @brief Return the descriptor after prev in the fake list. */
+const app_manager_app_desc_t *app_manager_builtin_list_get_next(
+    const app_manager_app_desc_t *prev);
 
 #endif /* __APPS_HOST_APP_MANAGER_H__ */

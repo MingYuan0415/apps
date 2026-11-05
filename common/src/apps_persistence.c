@@ -3,6 +3,9 @@
 
 #include "apps_persistence.h"
 
+#if defined(MT_PRODUCT_HAS_HOME_APP)
+    #include "home_app_persistence.h"
+#endif
 #if defined(MT_PRODUCT_HAS_LEVEL_APP)
     #include "level_app_persistence.h"
 #endif
@@ -28,6 +31,14 @@ esp_err_t apps_factory_reset_persisted_state(void)
     MT_PRODUCT_RESET_HOOKS(MT_PRODUCT_CALL_RESET_HOOK)
 #undef MT_PRODUCT_CALL_RESET_HOOK
 #else
+#if defined(MT_PRODUCT_HAS_HOME_APP)
+    const esp_err_t home_result = home_app_persistence_reset();
+    if (result == ESP_OK && home_result != ESP_OK)
+    {
+        result = home_result;
+    }
+#endif
+
 #if defined(MT_PRODUCT_HAS_LEVEL_APP)
     const esp_err_t level_result = level_app_persistence_reset();
     if (result == ESP_OK && level_result != ESP_OK)

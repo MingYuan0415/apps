@@ -7,7 +7,7 @@
 ## 目录结构与应用
 
 - `common/`：面向 368 x 448 S3 AMOLED 与 320 x 480 P4 IPS 两个目标的共享页面骨架（64 px 标题栏，36 px 标题）、圆形图标底的导航/命令行、值行和语义状态，保留异步导航 API；分组列表（`app_ui_group_*`，行间 1 px 分隔）、胶囊按钮（`app_ui_button_set_kind` 主要/次要/危险）、分段控件（`app_ui_chip_*`）、状态胶囊（`app_ui_add_pill`）、页内模态底部面板（`app_ui_sheet_*`）与共享 SVG 图标集（`assets/ui_*.svg`，经 `app_ui_image`/`app_ui_icon_set_color` 及行/动作/分组行的 `image_id` 变体使用）。尺寸与间距常量（4 px 网格、圆角 12/20/全圆、触控高度）位于 `app_ui_theme.h`。
-- `home_app/`：表盘式主页：顶部 Wi-Fi/蓝牙/电池状态条、96 px 数字时钟、日期与时间源质量点，以及 2 x 2 信息卡（天气、时钟计时进度环、计算器、日历），点击卡片进入对应应用；应用目录经 HOME 键进入。
+- `home_app/`：表盘式主页：顶部状态条以文字显示 Wi-Fi/蓝牙状态并带电池，96 px 数字时钟、日期与时间源质量胶囊，天气实时带、运行中的倒计时/专注实时带，以及由 App 注册表生成的三槽快捷坞。快捷坞默认取 `launcher_order` 中前三个可上坞 App（天气已有实时带，不占坞位）；长按任一坞图标或固定的「应用」图标进入卡片式「主页快捷方式」选择页，选中卡片高亮，选满 3 个后其余卡片置灰不可选，取消一个后恢复。固定「应用」图标进入完整应用目录；HOME 键在根页进入应用目录，在 Home 子页返回根页。
 - `menu_app/`：三列应用图标网格（72 px 圆形图标底），按 `launcher_order` 展示图标与名称。
 - `clock_app/`：时钟枢纽页顶部为秒级数字时钟（日期与时间来源），下方分组列表含倒计时、
 秒表、专注三行（带进度环摘要），时长选择从倒计时页的「自定义」进入；子页共享 App-scope
@@ -54,11 +54,11 @@ symbol；新增资源需要同时更新 manifest、语义 ID 和 `tests/resource
 后执行 `idf.py reconfigure`。天气状况图标为 QWeather Icons（MIT）的 `N-fill.svg`
 vendor 源，随附 `weather_app/assets/qweather-icons-LICENSE.txt`。
 
-普通 `lv_image` 按原尺寸绘制、在对象框内居中裁剪且不缩放，因此**图标的图形必须落在
-消费者实际绘制的窗口内**：App 图标以 64 单位设计框绘制、按 72 px 导出，启动器图标底
-给 72 px、任务切换器给 56 px，全部图形须落在设计框居中的 `x,y = 13..50`；主页信息卡
-字形只出现在 40 px 窗口，故按 40 导出；主页时钟卡的小环字形只出现在 28 px，单独用 `APP_IMAGE_HOME_RING_CLOCK`
-记录。`tests/resources/test_icon_fit.py` 按语义 ID 记录每个绘制窗口并校验墨迹框，
+普通 `lv_image` 按原尺寸绘制、在对象框内居中裁剪；未调用 `lv_image_set_scale` 时不缩放，
+因此**图标的图形必须落在消费者实际绘制的窗口内**：App 图标以 64 单位设计框绘制、按 72 px
+导出，启动器图标底给 72 px、任务切换器给 56 px，主页快捷坞将同一记录缩放到 56 px 窗口；
+全部图形须落在设计框居中的 `x,y = 13..50`。原 40 px 主页信息卡字形和 28 px 时钟环字形已退役。
+`tests/resources/test_icon_fit.py` 按语义 ID 记录每个绘制窗口并校验墨迹框，
 新增或改动图标必须让它保持通过。
 
 共享 UI 图标集位于 `common/assets/`，由 `common/resource_manifest.cmake` 登记到
