@@ -84,6 +84,28 @@ target_link_options(app_ui_navigation_test PRIVATE
 
 add_apps_host_test(app_ui_navigation_test app_ui_navigation_test)
 
+add_executable(menu_app_test
+    menu_app_test.c
+    ../../common/src/app_ui.c
+    ../../menu_app/src/menu_app.c
+)
+
+target_include_directories(menu_app_test PRIVATE
+    include
+    ../../common/include
+    ../../menu_app/src
+    ../../../app_manager/app_core/include
+    ../../../app_manager/app_theme/include
+)
+
+target_compile_definitions(menu_app_test PRIVATE
+    _GNU_SOURCE
+    APPS_HOST_RECORD_IMAGE_RECOLOR=1
+    MENU_APP_TESTING=1
+)
+configure_apps_host_target(menu_app_test)
+add_apps_host_test(menu_app_test menu_app_test)
+
 add_executable(settings_factory_reset_page_test
     settings_factory_reset_page_test.c
     lvgl_image_fake.c

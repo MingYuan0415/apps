@@ -23,6 +23,10 @@
 /* Row glyph art is authored at 28 px; the circular well frames it. */
 #define APP_UI_ROW_GLYPH 28
 #define APP_UI_ROW_WELL  40
+#define APP_UI_ROW_ICON_WELL  60
+#define APP_UI_ROW_ICON_WINDOW 56
+#define APP_UI_ROW_ICON_DISPLAY 42
+#define APP_UI_APP_ICON_ARTWORK 72
 
 /* Launcher icon well; the 64 px record is drawn 1:1 inside it. */
 #define APP_UI_TILE_WELL  72
@@ -600,20 +604,55 @@ void app_ui_icon_set_color(lv_obj_t *icon, uint32_t color)
 
 /* Circular tinted well framing one 28 px row glyph. */
 static lv_obj_t *_app_ui_row_well(lv_obj_t *parent, uint32_t image_id,
-                                  const char *symbol, bool danger)
+                                  const char *symbol, bool danger,
+                                  int32_t well_size, int32_t image_size,
+                                  bool scale_app_artwork)
 {
     lv_obj_t *well = lv_obj_create(parent);
     lv_obj_remove_style_all(well);
-    lv_obj_set_size(well, APP_UI_ROW_WELL, APP_UI_ROW_WELL);
+    lv_obj_set_size(well, well_size, well_size);
     lv_obj_add_style(well, &s_row_well, 0);
     if (danger)
     {
         lv_obj_add_style(well, &s_row_well_danger, 0);
     }
     app_ui_make_passive(well, false);
-    lv_obj_t *icon = app_ui_image(well, image_id,
+
+    const lv_image_dsc_t *descriptor = NULL;
+    if (image_id != 0U &&
+            app_manager_get_image(image_id, &descriptor) == ESP_OK &&
+            descriptor != NULL)
+    {
+        lv_obj_t *image = lv_image_create(well);
+        if (image != NULL)
+        {
+            lv_obj_set_size(image, scale_app_artwork ?
+                            APP_UI_ROW_ICON_WINDOW : image_size,
+                            scale_app_artwork ? APP_UI_ROW_ICON_WINDOW :
+                            image_size);
+            lv_image_set_src(image, descriptor);
+            if (scale_app_artwork)
+            {
+                lv_image_set_scale(image,
+                                   (uint32_t)APP_UI_ROW_ICON_DISPLAY * 256U /
+                                   APP_UI_APP_ICON_ARTWORK);
+            }
+            else
+            {
+                app_ui_icon_set_color(image,
+                                      danger ? APP_UI_COLOR_WARNING :
+                                      APP_UI_COLOR_RAIN);
+            }
+            app_ui_make_passive(image, false);
+            lv_obj_center(image);
+            return well;
+        }
+    }
+
+    lv_obj_t *icon = app_ui_image(well, 0U,
                                   symbol != NULL ? symbol : LV_SYMBOL_RIGHT,
-                                  APP_UI_ROW_GLYPH);
+                                  scale_app_artwork ? APP_UI_ROW_ICON_DISPLAY :
+                                  image_size);
     if (icon != NULL)
     {
         app_ui_icon_set_color(icon, danger ? APP_UI_COLOR_WARNING :
@@ -703,7 +742,8 @@ static lv_obj_t *_app_ui_add_action(lv_obj_t *parent, uint32_t image_id,
     lv_obj_set_flex_align(button, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    (void)_app_ui_row_well(button, image_id, symbol, danger);
+    (void)_app_ui_row_well(button, image_id, symbol, danger,
+                           APP_UI_ROW_WELL, APP_UI_ROW_GLYPH, false);
     (void)_app_ui_row_text(button, title, subtitle,
                            danger ? APP_UI_COLOR_WARNING : COLOR_TEXT, true,
                            NULL, NULL);
@@ -1103,6 +1143,7 @@ static lv_obj_t *_app_ui_group_nav(lv_obj_t *group, uint32_t image_id,
                                    const char *symbol,
                                    const char *title, const char *subtitle,
                                    bool danger, bool navigation,
+                                   bool app_artwork,
                                    lv_event_cb_t callback, void *user_data)
 {
     lv_obj_t *row = _app_ui_group_row(group, subtitle != NULL ?
@@ -1114,7 +1155,12 @@ static lv_obj_t *_app_ui_group_nav(lv_obj_t *group, uint32_t image_id,
     }
     if (image_id != 0U || symbol != NULL)
     {
-        (void)_app_ui_row_well(row, image_id, symbol, danger);
+        (void)_app_ui_row_well(row, image_id, symbol, danger,
+                               app_artwork ? APP_UI_ROW_ICON_WELL :
+                               APP_UI_ROW_WELL,
+                               app_artwork ? APP_UI_ROW_ICON_WINDOW :
+                               APP_UI_ROW_GLYPH,
+                               app_artwork);
     }
     (void)_app_ui_row_text(row, title, subtitle,
                            danger ? APP_UI_COLOR_WARNING : COLOR_TEXT, false,
@@ -1135,7 +1181,7 @@ lv_obj_t *app_ui_group_add_nav(lv_obj_t *group, const char *symbol,
                                lv_event_cb_t callback, void *user_data)
 {
     return _app_ui_group_nav(group, 0U, symbol, title, subtitle, false,
-                             true, callback, user_data);
+                             true, false, callback, user_data);
 }
 
 lv_obj_t *app_ui_group_add_nav_image(lv_obj_t *group, uint32_t image_id,
@@ -1144,7 +1190,16 @@ lv_obj_t *app_ui_group_add_nav_image(lv_obj_t *group, uint32_t image_id,
                                      lv_event_cb_t callback, void *user_data)
 {
     return _app_ui_group_nav(group, image_id, fallback_symbol, title, subtitle,
-                             false, true, callback, user_data);
+                             false, true, false, callback, user_data);
+}
+
+lv_obj_t *app_ui_group_add_app_image(lv_obj_t *group, uint32_t image_id,
+                                     const char *fallback_symbol,
+                                     const char *title, const char *subtitle,
+                                     lv_event_cb_t callback, void *user_data)
+{
+    return _app_ui_group_nav(group, image_id, fallback_symbol, title, subtitle,
+                             false, true, true, callback, user_data);
 }
 
 lv_obj_t *app_ui_group_add_command(lv_obj_t *group, const char *symbol,
@@ -1152,7 +1207,7 @@ lv_obj_t *app_ui_group_add_command(lv_obj_t *group, const char *symbol,
                                    lv_event_cb_t callback, void *user_data)
 {
     return _app_ui_group_nav(group, 0U, symbol, title, subtitle, false,
-                             false, callback, user_data);
+                             false, false, callback, user_data);
 }
 
 lv_obj_t *app_ui_group_add_command_image(lv_obj_t *group, uint32_t image_id,
@@ -1163,7 +1218,7 @@ lv_obj_t *app_ui_group_add_command_image(lv_obj_t *group, uint32_t image_id,
         void *user_data)
 {
     return _app_ui_group_nav(group, image_id, fallback_symbol, title, subtitle,
-                             false, false, callback, user_data);
+                             false, false, false, callback, user_data);
 }
 
 lv_obj_t *app_ui_group_add_danger(lv_obj_t *group, const char *symbol,
@@ -1171,7 +1226,7 @@ lv_obj_t *app_ui_group_add_danger(lv_obj_t *group, const char *symbol,
                                   lv_event_cb_t callback, void *user_data)
 {
     return _app_ui_group_nav(group, 0U, symbol, title, subtitle, true, true,
-                             callback, user_data);
+                             false, callback, user_data);
 }
 
 lv_obj_t *app_ui_group_add_danger_image(lv_obj_t *group, uint32_t image_id,
@@ -1181,7 +1236,7 @@ lv_obj_t *app_ui_group_add_danger_image(lv_obj_t *group, uint32_t image_id,
                                         void *user_data)
 {
     return _app_ui_group_nav(group, image_id, fallback_symbol, title, subtitle,
-                             true, true, callback, user_data);
+                             true, true, false, callback, user_data);
 }
 
 /* Single-line entry: title on the left, the live summary right-aligned as the

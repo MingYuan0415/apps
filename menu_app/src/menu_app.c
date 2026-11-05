@@ -4,23 +4,22 @@
 #include "app_manager.h"
 #include "app_image_ids.h"
 #include "app_ui.h"
-#include "app_ui_theme.h"
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 
-/* Three fixed columns, start-aligned so a short last row keeps the grid; a
- * 4-character launcher name ("系统设置") must stay on one line at the SMALL
- * role, so the cell is sized to its worst case. */
-#define MENU_TILE_WIDTH 104
-#define MENU_TILE_GAP   12
+/* Every launcher entry uses the same two-line row. The list remains a single
+ * registry-driven flow, so adding an App only adds a row. */
+#define MENU_FALLBACK_SUBTITLE "打开应用"
 
 typedef struct menu_page_state
 {
     app_ui_page_t page;
+    lv_obj_t *list;
     size_t entry_count;
 } menu_page_state_t;
 
@@ -53,19 +52,17 @@ static void _menu_open_app(lv_event_t *event)
     }
 }
 
-static void _menu_add_tile(menu_page_state_t *state,
-                           const app_manager_app_desc_t *app)
+static bool _menu_add_entry(menu_page_state_t *state,
+                            const app_manager_app_desc_t *app)
 {
     const char *name = app->display_name != NULL ? app->display_name :
                        app->name;
-    lv_obj_t *tile = app_ui_add_icon_tile(state->page.content, app->icon_id,
-                                          LV_SYMBOL_IMAGE, name,
-                                          _menu_open_app, (void *)app->id);
-    if (tile == NULL)
-    {
-        return;
-    }
-    lv_obj_set_width(tile, MENU_TILE_WIDTH);
+    const char *subtitle =
+        app->launcher_subtitle != NULL && app->launcher_subtitle[0] != '\0' ?
+        app->launcher_subtitle : MENU_FALLBACK_SUBTITLE;
+    return app_ui_group_add_app_image(state->list, app->icon_id,
+                                      LV_SYMBOL_IMAGE, name, subtitle,
+                                      _menu_open_app, (void *)app->id) != NULL;
 }
 
 static void _menu_page_build(menu_page_state_t *state)
@@ -73,16 +70,8 @@ static void _menu_page_build(menu_page_state_t *state)
     app_ui_page_create(&state->page, "应用", false);
 
     lv_obj_t *content = state->page.content;
-    lv_obj_set_style_pad_top(content, 12, 0);
+    lv_obj_set_style_pad_top(content, 8, 0);
     lv_obj_set_style_pad_bottom(content, 16, 0);
-    lv_obj_set_flex_flow(content, LV_FLEX_FLOW_ROW_WRAP);
-    lv_obj_set_flex_align(content, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
-                          LV_FLEX_ALIGN_START);
-    lv_obj_set_style_pad_column(content, MENU_TILE_GAP, 0);
-    lv_obj_set_style_pad_row(content, 4, 0);
-    /* Keep every launcher app reachable instead of rendering below a dead
-     * edge when the registry grows past the viewport. */
-    lv_obj_set_scrollable(content, true);
     lv_obj_set_scroll_dir(content, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(content, LV_SCROLLBAR_MODE_AUTO);
 
@@ -130,12 +119,37 @@ static void _menu_page_build(menu_page_state_t *state)
         free(ordered);
         return;
     }
+    state->list = app_ui_group_create(content);
+    if (state->list == NULL)
+    {
+        (void)app_ui_add_empty_state(content, "应用目录内存不足", NULL);
+        LOG_W("application menu group creation failed");
+        free(ordered);
+        return;
+    }
+    size_t rendered = 0U;
     for (size_t index = 0U; index < count; ++index)
     {
-        _menu_add_tile(state, ordered[index]);
+        if (_menu_add_entry(state, ordered[index]))
+        {
+            ++rendered;
+        }
     }
-    state->entry_count = count;
     free(ordered);
+    if (rendered == 0U)
+    {
+        lv_obj_delete(state->list);
+        state->list = NULL;
+        (void)app_ui_add_empty_state(content, "应用目录加载失败", NULL);
+        LOG_W("application menu row creation failed: count=%u",
+              (unsigned)count);
+        return;
+    }
+    char count_text[16];
+    (void)snprintf(count_text, sizeof(count_text), "共 %u 个",
+                   (unsigned)rendered);
+    app_ui_page_set_subtitle(&state->page, count_text);
+    state->entry_count = rendered;
 }
 
 static void _menu_mount(const app_manager_page_context_t *context)
@@ -147,6 +161,8 @@ static void _menu_unmount(const app_manager_page_context_t *context)
 {
     menu_page_state_t *state = context->state;
     app_ui_page_destroy(&state->page);
+    state->list = NULL;
+    state->entry_count = 0U;
 }
 
 static const app_manager_page_ops_t s_menu_root_ops =
@@ -174,3 +190,10 @@ APP_MANAGER_APP_EXPORT_META(menu, APP_IMAGE_MENU_ICON, "应用",
                             APP_MANAGER_ID_MENU, "root",
                             APP_MANAGER_APP_FLAG_NONE, s_menu_routes, 5U,
                             "全部功能");
+
+#ifdef MENU_APP_TESTING
+const app_manager_page_definition_t *menu_app_test_root_definition(void)
+{
+    return &s_menu_root_definition;
+}
+#endif

@@ -351,8 +351,15 @@ APPS_HOST_LV_NOOP_3(lv_obj_set_style_clip_corner, lv_obj_t *, bool, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_align, lv_obj_t *, int, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_color, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_opa, lv_obj_t *, int, int)
+#ifdef APPS_HOST_RECORD_IMAGE_RECOLOR
+void lv_obj_set_style_image_recolor(lv_obj_t *object, lv_color_t color,
+                                    int selector);
+void lv_obj_set_style_image_recolor_opa(lv_obj_t *object, int opacity,
+                                        int selector);
+#else
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_image_recolor, lv_obj_t *, lv_color_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_image_recolor_opa, lv_obj_t *, int, int)
+#endif
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_text_line_space, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_min_height, lv_obj_t *, int32_t, int)
 APPS_HOST_LV_NOOP_3(lv_obj_set_style_arc_rounded, lv_obj_t *, bool, int)

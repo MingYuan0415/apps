@@ -372,6 +372,16 @@ lv_obj_t *app_ui_group_add_nav_image(lv_obj_t *group, uint32_t image_id,
                                      const char *fallback_symbol,
                                      const char *title, const char *subtitle,
                                      lv_event_cb_t callback, void *user_data);
+/**
+ * @brief Append a navigation row carrying a 72 px App icon.
+ *
+ * App artwork uses a larger well and is scaled to fit; callers should use this
+ * variant instead of shrinking the source record into a 28 px row glyph.
+ */
+lv_obj_t *app_ui_group_add_app_image(lv_obj_t *group, uint32_t image_id,
+                                     const char *fallback_symbol,
+                                     const char *title, const char *subtitle,
+                                     lv_event_cb_t callback, void *user_data);
 /** @brief app_ui_group_add_command with a shared SVG glyph. */
 lv_obj_t *app_ui_group_add_command_image(lv_obj_t *group, uint32_t image_id,
         const char *fallback_symbol,

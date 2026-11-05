@@ -32,8 +32,10 @@ drivers directly.
   remaining cards are disabled until one is deselected. The fixed "应用" tile
   enters the complete App directory; the HOME key enters that directory from
   the root page and returns to the root from a Home sub-page.
-- `menu_app/`: three-column app icon grid (72 px circular icon base), showing
-  the icon and name per `launcher_order`.
+- `menu_app/`: registry-driven application index ordered by `launcher_order`.
+  Every visible App uses the same two-line navigation row with its icon, name,
+  launcher summary and a chevron; adding an App extends the scrollable list
+  without introducing fixed feature slots or per-App layout branches.
 - `clock_app/`: the clock hub page has a second-resolution digital clock at
   the top (date and time source) and a grouped list below with the countdown,
   stopwatch and focus rows (with progress-ring summaries); duration selection

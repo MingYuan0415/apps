@@ -514,6 +514,12 @@ void lv_image_set_src(lv_obj_t *object, const lv_image_dsc_t *source)
     (void)source;
 }
 
+void lv_image_set_scale(lv_obj_t *object, uint32_t scale)
+{
+    (void)object;
+    (void)scale;
+}
+
 void lv_arc_set_bg_angles(lv_obj_t *object, int32_t start, int32_t end)
 {
     (void)object;
