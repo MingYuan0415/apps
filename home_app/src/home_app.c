@@ -25,11 +25,6 @@
 #define HOME_TIMER_RING          36
 #define HOME_SHORTCUT_WELL       64
 #define HOME_SHORTCUT_IMAGE      56
-#define HOME_SHORTCUT_MENU_TILE    42
-#define HOME_SHORTCUT_MENU_WIDTH   42
-#define HOME_SHORTCUT_MENU_WELL_W  42
-#define HOME_SHORTCUT_MENU_WELL_H  64
-#define HOME_SHORTCUT_MENU_IMAGE   40
 
 typedef struct home_page_state home_page_state_t;
 
@@ -665,7 +660,7 @@ static void _home_build_weather(home_page_state_t *state, lv_obj_t *content)
                               LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(band, LV_OPA_COVER, LV_STATE_PRESSED);
     lv_obj_set_style_pad_all(band, 4, 0);
-    lv_obj_set_style_pad_column(band, 8, 0);
+    lv_obj_set_style_pad_column(band, 4, 0);
     lv_obj_set_flex_flow(band, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(band, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
@@ -673,21 +668,53 @@ static void _home_build_weather(home_page_state_t *state, lv_obj_t *content)
                         (void *)APP_MANAGER_ID_WEATHER);
     state->weather_band = band;
 
-    state->weather_image = lv_image_create(band);
+    /* Identity stays together on the left; readings stay together on the
+     * right. The identity group absorbs spare width, so no single label owns
+     * an arbitrary gap. */
+    lv_obj_t *identity = lv_obj_create(band);
+    lv_obj_remove_style_all(identity);
+    lv_obj_set_width(identity, 0);
+    lv_obj_set_height(identity, LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(identity, 1);
+    lv_obj_set_flex_flow(identity, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(identity, LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(identity, 4, 0);
+    app_ui_make_passive(identity, false);
+
+    state->weather_image = lv_image_create(identity);
     lv_obj_set_size(state->weather_image, 40, 40);
     app_ui_make_passive(state->weather_image, false);
-    state->weather_fallback = _home_symbol_label(band, LV_SYMBOL_IMAGE);
+    state->weather_fallback = _home_symbol_label(identity, LV_SYMBOL_IMAGE);
     _home_set_color(state->weather_fallback, APP_UI_COLOR_MUTED);
 
-    state->weather_city = _home_inline_label(band, "",
+    state->weather_city = _home_inline_label(identity, "",
         APP_THEME_FONT_SMALL, APP_UI_COLOR_FAINT);
-    lv_obj_set_width(state->weather_city, LV_PCT(25));
+    lv_obj_set_width(state->weather_city, 0);
+    lv_obj_set_flex_grow(state->weather_city, 1);
+    lv_obj_set_height(state->weather_city,
+                      lv_font_get_line_height(
+                          app_ui_font(APP_THEME_FONT_SMALL)));
     lv_label_set_long_mode(state->weather_city, LV_LABEL_LONG_DOT);
-    state->weather_condition = _home_inline_label(band, "天气",
+
+    lv_obj_t *reading = lv_obj_create(band);
+    lv_obj_remove_style_all(reading);
+    lv_obj_set_size(reading, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(reading, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(reading, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(reading, 8, 0);
+    app_ui_make_passive(reading, false);
+
+    state->weather_condition = _home_inline_label(reading, "天气",
         APP_THEME_FONT_SMALL, APP_UI_COLOR_MUTED);
-    lv_obj_set_width(state->weather_condition, LV_PCT(25));
+    lv_obj_set_width(state->weather_condition, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_width(state->weather_condition, 60, 0);
+    lv_obj_set_height(state->weather_condition,
+                      lv_font_get_line_height(
+                          app_ui_font(APP_THEME_FONT_SMALL)));
     lv_label_set_long_mode(state->weather_condition, LV_LABEL_LONG_DOT);
-    state->weather_value = _home_inline_label(band, "--",
+    state->weather_value = _home_inline_label(reading, "--",
         APP_THEME_FONT_HEAD, APP_UI_COLOR_SUN);
 }
 
@@ -781,28 +808,21 @@ static void _home_shortcut_clicked(lv_event_t *event)
 static lv_obj_t *_home_shortcut_tile(lv_obj_t *parent, uint32_t image_id,
                                      const char *fallback_symbol,
                                      const char *label,
-                                     bool compact,
                                      home_shortcut_view_ctx_t *ctx)
 {
     lv_obj_t *tile = lv_button_create(parent);
     lv_obj_remove_style_all(tile);
     app_ui_click_only(tile);
-    if (compact)
-    {
-        lv_obj_set_width(tile, HOME_SHORTCUT_MENU_TILE);
-    }
-    else
-    {
-        lv_obj_set_width(tile, 0);
-        lv_obj_set_flex_grow(tile, 1);
-    }
+    /* Every dock slot owns an equal share so the four icons read as one row. */
+    lv_obj_set_width(tile, 0);
+    lv_obj_set_flex_grow(tile, 1);
     lv_obj_set_height(tile, LV_SIZE_CONTENT);
     lv_obj_set_style_radius(tile, APP_UI_RADIUS_CARD, 0);
     lv_obj_set_style_bg_opa(tile, LV_OPA_TRANSP, 0);
     lv_obj_set_style_bg_color(tile, lv_color_hex(APP_UI_COLOR_SURFACE),
                               LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, LV_STATE_PRESSED);
-    lv_obj_set_style_pad_all(tile, compact ? 2 : 0, 0);
+    lv_obj_set_style_pad_all(tile, 0, 0);
     lv_obj_set_style_pad_row(tile, 4, 0);
     lv_obj_set_flex_flow(tile, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(tile, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
@@ -814,17 +834,10 @@ static lv_obj_t *_home_shortcut_tile(lv_obj_t *parent, uint32_t image_id,
                         LV_EVENT_LONG_PRESSED, ctx);
     lv_obj_add_event_cb(tile, _home_shortcut_clicked, LV_EVENT_CLICKED, ctx);
 
-    const int32_t well_width = compact ? HOME_SHORTCUT_MENU_WELL_W :
-                               HOME_SHORTCUT_WELL;
-    const int32_t well_height = compact ? HOME_SHORTCUT_MENU_WELL_H :
-                                HOME_SHORTCUT_WELL;
-    const int32_t image_size = compact ? HOME_SHORTCUT_MENU_IMAGE :
-                               HOME_SHORTCUT_IMAGE;
     lv_obj_t *well = lv_obj_create(tile);
     lv_obj_remove_style_all(well);
-    lv_obj_set_size(well, well_width, well_height);
-    lv_obj_set_style_radius(well, compact ? APP_UI_RADIUS_CARD :
-                            LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_size(well, HOME_SHORTCUT_WELL, HOME_SHORTCUT_WELL);
+    lv_obj_set_style_radius(well, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(well, lv_color_hex(APP_UI_COLOR_SURFACE), 0);
     lv_obj_set_style_bg_opa(well, LV_OPA_COVER, 0);
     app_ui_make_passive(well, false);
@@ -835,9 +848,10 @@ static lv_obj_t *_home_shortcut_tile(lv_obj_t *parent, uint32_t image_id,
             descriptor != NULL)
     {
         lv_obj_t *image = lv_image_create(well);
-        lv_obj_set_size(image, image_size, image_size);
+        lv_obj_set_size(image, HOME_SHORTCUT_IMAGE, HOME_SHORTCUT_IMAGE);
         lv_image_set_src(image, descriptor);
-        lv_image_set_scale(image, (uint32_t)image_size * 256U / 72U);
+        lv_image_set_scale(image,
+                           (uint32_t)HOME_SHORTCUT_IMAGE * 256U / 72U);
         app_ui_make_passive(image, false);
         lv_obj_center(image);
     }
@@ -853,12 +867,14 @@ static lv_obj_t *_home_shortcut_tile(lv_obj_t *parent, uint32_t image_id,
     }
 
     lv_obj_t *caption = lv_label_create(tile);
-    lv_obj_set_width(caption, compact ? HOME_SHORTCUT_MENU_WIDTH :
-                     LV_PCT(100));
+    lv_obj_set_width(caption, LV_PCT(100));
     lv_obj_set_height(caption, LV_SIZE_CONTENT);
     lv_obj_set_style_text_font(caption, app_ui_font(APP_THEME_FONT_SMALL), 0);
     lv_obj_set_style_text_color(caption, lv_color_hex(APP_UI_COLOR_TEXT), 0);
     lv_obj_set_style_text_align(caption, LV_TEXT_ALIGN_CENTER, 0);
+    /* Four equal 72 px slots on the 320 px panel leave 80 px labels tight;
+     * a small negative tracking keeps the longest built-in name on one line. */
+    lv_obj_set_style_text_letter_space(caption, -3, 0);
     lv_label_set_long_mode(caption, LV_LABEL_LONG_WRAP);
     lv_label_set_text(caption, label != NULL ? label : "");
     app_ui_make_passive(caption, false);
@@ -889,13 +905,13 @@ static void _home_rebuild_shortcuts(home_page_state_t *state)
         (void)_home_shortcut_tile(state->shortcut_dock, app->icon_id,
                                   LV_SYMBOL_IMAGE,
                                   app->display_name != NULL ?
-                                  app->display_name : app->name, false,
+                                  app->display_name : app->name,
                                   &state->shortcut_ctx[index]);
     }
     state->app_ctx.state = state;
     state->app_ctx.app_id = NULL;
     (void)_home_shortcut_tile(state->shortcut_dock, APP_IMAGE_MENU_ICON,
-                              LV_SYMBOL_LIST, "应用", true, &state->app_ctx);
+                              LV_SYMBOL_LIST, "应用", &state->app_ctx);
     state->shortcut_generation = home_shortcuts_generation();
 }
 
