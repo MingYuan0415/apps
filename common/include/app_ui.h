@@ -476,6 +476,22 @@ lv_obj_t *app_ui_sheet_add_action(lv_obj_t *sheet, const char *text,
 void app_ui_sheet_dismiss(lv_obj_t *sheet);
 
 /**
+ * @brief Show a transient toast over a page.
+ *
+ * The toast is a bottom-anchored, non-modal overlay excluded from the page's
+ * flex layout. It never moves page controls and ignores touch, so it cannot
+ * block the controls underneath. A second call on the same page replaces the
+ * current caption and restarts the dwell timer; only one toast exists per
+ * page. It dismisses itself after about 2.5 seconds with a short exit
+ * animation.
+ *
+ * @param parent is the page root (`page->root`), not the scrollable content.
+ * @param text is the message; NULL or an empty string is ignored.
+ * @return Toast object, or NULL when ignored or on allocation failure.
+ */
+lv_obj_t *app_ui_toast_show(lv_obj_t *parent, const char *text);
+
+/**
  * @brief Create a passive full-circle progress ring starting at 12 o'clock.
  * @param parent is the LVGL parent object.
  * @param size is the ring diameter in pixels.

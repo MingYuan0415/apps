@@ -16,7 +16,8 @@ drivers directly.
   navigation API; grouped lists (`app_ui_group_*`, 1 px separators between
   rows), capsule buttons (`app_ui_button_set_kind` primary/secondary/danger),
   segmented control (`app_ui_chip_*`), status pill (`app_ui_add_pill`), in-page
-  modal bottom sheet (`app_ui_sheet_*`) and the shared SVG icon set
+  modal bottom sheet (`app_ui_sheet_*`), auto-dismissing transient toast
+  (`app_ui_toast_show`) and the shared SVG icon set
   (`assets/ui_*.svg`, used through `app_ui_image` / `app_ui_icon_set_color` and
   the `image_id` variants of rows / actions /
   group rows). Size and spacing constants (4 px grid, 12/20/full radii, touch
@@ -36,12 +37,18 @@ drivers directly.
   Every visible App uses the same two-line navigation row with its icon, name,
   launcher summary and a chevron; adding an App extends the scrollable list
   without introducing fixed feature slots or per-App layout branches.
-- `clock_app/`: the clock hub page has a second-resolution digital clock at
-  the top (date and time source) and a grouped list below with the countdown,
-  stopwatch and focus rows (with progress-ring summaries); duration selection
-  is entered from the countdown page's "自定义" (custom); sub-pages share the
-  App-scope selected duration and the running session; focus supports cycle
-  mode.
+- `clock_app/`: the clock hub is a full-height time dashboard with a
+  second-resolution digital clock, weekday and source pill, a day-progress
+  rail, and countdown, stopwatch and focus rows with live ring summaries.
+  Countdown shows the state inside its ring, the expected end time, preset or
+  custom duration, and start/pause/reset actions. Stopwatch uses a stable
+  digit display plus a minute rail and records the latest and fastest lap.
+  Focus shows work/break phase and cycle progress and supports the three
+  work/break presets. Custom duration combines hour and minute rollers with
+  four common presets. Every timer-state transition uses one bounded 120 ms
+  opacity pulse rather than an ambient or looping animation; transient
+  conflicts such as changing a running session's preset use the shared
+  auto-dismissing toast instead of moving page controls.
 - `recorder_app/`: three pages: dual-channel recording home, playback library
   and recording detail. The home page puts the "开始/停止" (start/stop) round
   button and "暂停/继续" (pause/resume) in the same fixed-height control band

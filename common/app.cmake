@@ -5,6 +5,7 @@ set(MT_APP_SOURCES
     src/app_ui.c
     src/app_ui_text.c
     src/app_ui_pull_refresh.c
+    src/app_ui_toast.c
     src/apps_persistence.c
     src/app_weather_ui.c
 )

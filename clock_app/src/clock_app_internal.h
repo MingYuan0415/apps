@@ -19,6 +19,7 @@
 #define CLOCK_PAGE_DURATION     "duration"
 
 #define CLOCK_ARGUMENT_MINUTES  1U
+#define CLOCK_UI_PULSE_MS       120U
 
 typedef struct clock_duration_arguments
 {
@@ -77,5 +78,29 @@ void clock_ui_format_mmss(uint32_t milliseconds, char *output,
  */
 void clock_ui_ring_update(lv_obj_t *ring, bool active, uint32_t remaining_ms,
                           uint32_t total_ms, uint32_t color);
+
+/**
+ * @brief Pulse one clock object once as acknowledgement of a state change.
+ * @param object receives a short opacity breath; NULL is ignored.
+ */
+void clock_ui_pulse(lv_obj_t *object);
+
+/**
+ * @brief Create a tonal clock card with the shared radius and inset.
+ * @param parent is the page content.
+ * @return Created passive card.
+ */
+lv_obj_t *clock_ui_card_create(lv_obj_t *parent);
+
+/**
+ * @brief Create a centered wrapping clock label.
+ * @param parent is the card or row owning the label.
+ * @param text is the initial caption.
+ * @param font selects the theme role.
+ * @param color is the semantic RGB color.
+ * @return Created passive label.
+ */
+lv_obj_t *clock_ui_label_create(lv_obj_t *parent, const char *text,
+                                app_theme_font_id_t font, uint32_t color);
 
 #endif /* __CLOCK_APP_INTERNAL_H__ */
