@@ -145,7 +145,7 @@ static void _menu_page_build(menu_page_state_t *state)
               (unsigned)count);
         return;
     }
-    char count_text[16];
+    char count_text[24];
     (void)snprintf(count_text, sizeof(count_text), "共 %u 个",
                    (unsigned)rendered);
     app_ui_page_set_subtitle(&state->page, count_text);

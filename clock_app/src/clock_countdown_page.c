@@ -27,7 +27,7 @@ typedef struct clock_countdown_state
     uint32_t last_span;
     uint32_t last_color;
     uint32_t last_value_font;
-    char last_value[12];
+    char last_value[32];
     char last_phase[16];
     char last_detail[32];
     timer_service_state_t last_state;
