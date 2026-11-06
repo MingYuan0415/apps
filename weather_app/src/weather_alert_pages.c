@@ -39,6 +39,30 @@ _Static_assert(sizeof(weather_alert_detail_state_t) <=
                APP_MANAGER_PAGE_STATE_BYTES,
                "Weather alert detail state exceeds the lifecycle arena slot");
 
+static void _weather_alert_format_period(const weather_service_time_t *starts_at,
+        const weather_service_time_t *ends_at, char *output,
+        size_t output_size)
+{
+    char start[24];
+    char end[24];
+    weather_ui_format_time(starts_at, "%m-%d %H:%M", start, sizeof(start));
+    weather_ui_format_time(ends_at, "%m-%d %H:%M", end, sizeof(end));
+    if (start[0] == '\0' || end[0] == '\0')
+    {
+        (void)snprintf(output, output_size, "%s - %s",
+                       start[0] != '\0' ? start : "未提供",
+                       end[0] != '\0' ? end : "未提供");
+    }
+    else if (strncmp(start, end, 5) == 0)
+    {
+        (void)snprintf(output, output_size, "%s - %s", start, end + 6);
+    }
+    else
+    {
+        (void)snprintf(output, output_size, "%s - %s", start, end);
+    }
+}
+
 static const weather_service_alert_t *_weather_alert_find_selected(
     const weather_service_snapshot_t *snapshot, uint64_t selected_alert_key)
 {
@@ -149,17 +173,14 @@ static lv_obj_t *_weather_alert_add_action(weather_alerts_state_t *state,
     lv_obj_set_style_text_color(title, lv_color_hex(WEATHER_COLOR_TEXT), 0);
     app_ui_make_passive(title, false);
     lv_label_set_text(title, alert->title);
-    char start[24];
-    char end[24];
+    char period[64];
     char text[128];
-    weather_ui_format_time(&alert->starts_at, "%m-%d %H:%M", start,
-                           sizeof(start));
-    weather_ui_format_time(&alert->ends_at, "%m-%d %H:%M", end, sizeof(end));
-    (void)snprintf(text, sizeof(text), "%s · %s\n%s - %s",
+    _weather_alert_format_period(&alert->starts_at, &alert->ends_at, period,
+                                 sizeof(period));
+    (void)snprintf(text, sizeof(text), "%s · %s\n%s",
                    alert->severity[0] != '\0' ? alert->severity : "级别未知",
                    alert->status[0] != '\0' ? alert->status : "状态未知",
-                   start[0] != '\0' ? start : "未提供",
-                   end[0] != '\0' ? end : "未提供");
+                   period);
     lv_obj_t *subtitle = weather_ui_text_label(content,
         APP_THEME_FONT_SMALL);
     lv_obj_set_width(subtitle, LV_PCT(100));
@@ -351,11 +372,13 @@ static void _weather_alert_detail_render(weather_alert_detail_state_t *state)
         lv_obj_set_hidden(state->truncated_label, true);
         return;
     }
+    const bool stale = state->snapshot->alerts.meta.stale ||
+                       state->snapshot->alerts.meta.expired;
     app_ui_set_status_text(
         state->status_label,
         state->snapshot->alerts.meta.expired ? "预警数据已过期" :
-        (state->snapshot->alerts.meta.stale ? "预警来自缓存" : "预警详情"),
-        APP_UI_STATUS_WARNING);
+        (state->snapshot->alerts.meta.stale ? "预警来自缓存" : "生效中"),
+        stale ? APP_UI_STATUS_WARNING : APP_UI_STATUS_NEUTRAL);
     lv_label_set_text(state->title_label, alert->title);
     lv_label_set_text(state->type_value,
                       alert->type_name[0] != '\0' ? alert->type_name : "--");
@@ -363,15 +386,9 @@ static void _weather_alert_detail_render(weather_alert_detail_state_t *state)
                       alert->severity[0] != '\0' ? alert->severity : "--");
     lv_label_set_text(state->state_value,
                       alert->status[0] != '\0' ? alert->status : "--");
-    char start[24];
-    char end[24];
     char period[64];
-    weather_ui_format_time(&alert->starts_at, "%m-%d %H:%M", start,
-                           sizeof(start));
-    weather_ui_format_time(&alert->ends_at, "%m-%d %H:%M", end, sizeof(end));
-    (void)snprintf(period, sizeof(period), "%s - %s",
-                   start[0] != '\0' ? start : "未提供",
-                   end[0] != '\0' ? end : "未提供");
+    _weather_alert_format_period(&alert->starts_at, &alert->ends_at, period,
+                                 sizeof(period));
     lv_label_set_text(state->period_value, period);
     /* Both bodies are free prose: let the wrapper place the line breaks so no
      * line opens with a closing mark. */

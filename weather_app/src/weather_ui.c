@@ -5,6 +5,53 @@
 #include <stdio.h>
 #include <time.h>
 
+weather_mood_t weather_ui_mood(uint16_t condition_code)
+{
+    /* The condition code is the only colour-carrying signal on the page. Keep
+     * it to two data colours: warm for sun/heat, cool for night/rain/snow. */
+    if (condition_code == 100U || condition_code == 102U ||
+            condition_code == 103U || condition_code == 900U)
+    {
+        return WEATHER_MOOD_WARM;
+    }
+    if (condition_code == 150U || condition_code == 151U ||
+            condition_code == 152U || condition_code == 153U ||
+            (condition_code >= 300U && condition_code <= 318U) ||
+            condition_code == 350U || condition_code == 351U ||
+            (condition_code >= 400U && condition_code <= 406U) ||
+            condition_code == 901U)
+    {
+        return WEATHER_MOOD_COOL;
+    }
+    return WEATHER_MOOD_NEUTRAL;
+}
+
+uint32_t weather_ui_mood_tint(weather_mood_t mood)
+{
+    if (mood == WEATHER_MOOD_WARM)
+    {
+        return APP_UI_COLOR_SUN_TINT;
+    }
+    if (mood == WEATHER_MOOD_COOL)
+    {
+        return APP_UI_COLOR_RAIN_TINT;
+    }
+    return WEATHER_COLOR_SURFACE;
+}
+
+uint32_t weather_ui_mood_accent(weather_mood_t mood)
+{
+    if (mood == WEATHER_MOOD_WARM)
+    {
+        return APP_UI_COLOR_SUN;
+    }
+    if (mood == WEATHER_MOOD_COOL)
+    {
+        return APP_UI_COLOR_RAIN;
+    }
+    return APP_UI_COLOR_MUTED;
+}
+
 lv_obj_t *weather_ui_text_label(lv_obj_t *parent,
                                 app_theme_font_id_t font_id)
 {

@@ -26,6 +26,13 @@
 #define WEATHER_COLOR_RAIN       APP_UI_COLOR_RAIN
 #define WEATHER_COLOR_WARNING    APP_UI_COLOR_WARNING
 
+typedef enum weather_mood
+{
+    WEATHER_MOOD_NEUTRAL = 0,
+    WEATHER_MOOD_WARM,
+    WEATHER_MOOD_COOL,
+} weather_mood_t;
+
 typedef struct weather_alert_arguments
 {
     uint64_t alert_key;
@@ -40,6 +47,9 @@ extern const app_manager_page_definition_t weather_forecast_page_definition;
 extern const app_manager_page_definition_t weather_alerts_page_definition;
 extern const app_manager_page_definition_t weather_alert_detail_page_definition;
 
+weather_mood_t weather_ui_mood(uint16_t condition_code);
+uint32_t weather_ui_mood_tint(weather_mood_t mood);
+uint32_t weather_ui_mood_accent(weather_mood_t mood);
 lv_obj_t *weather_ui_text_label(lv_obj_t *parent,
                                 app_theme_font_id_t font_id);
 lv_obj_t *weather_ui_symbol_label(lv_obj_t *parent);
