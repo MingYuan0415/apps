@@ -14,7 +14,7 @@
 #define WEATHER_FORECAST_SOURCE "和风天气"
 #define WEATHER_FORECAST_TILE_COUNT 3U
 #define WEATHER_FORECAST_CHART_HEIGHT 108
-#define WEATHER_FORECAST_METRIC_HEIGHT 34
+#define WEATHER_FORECAST_METRIC_HEIGHT 30
 
 typedef enum weather_forecast_segment
 {
@@ -29,7 +29,10 @@ typedef struct weather_forecast_state
     app_ui_page_t page;
     lv_obj_t *segment_buttons[WEATHER_FORECAST_SEGMENT_COUNT];
     lv_obj_t *tileview;
+    lv_obj_t *service_status_box;
+    lv_obj_t *service_status;
     lv_obj_t *tiles[WEATHER_FORECAST_TILE_COUNT];
+    lv_obj_t *scroll_owners[WEATHER_FORECAST_TILE_COUNT];
     const weather_service_snapshot_t *snapshot;
     event_bus_sub_handle_t subscription;
     weather_forecast_segment_t segment;
@@ -41,23 +44,63 @@ _Static_assert(sizeof(weather_forecast_state_t) <=
 
 static void _weather_forecast_render(weather_forecast_state_t *state);
 
-static void _weather_forecast_add_service_status(lv_obj_t *parent)
+static void _weather_forecast_update_service_status(
+    weather_forecast_state_t *state)
 {
+    if (state->service_status_box == NULL || state->service_status == NULL)
+    {
+        return;
+    }
     weather_service_status_snapshot_t status = {0};
     if (weather_service_get_status(&status) != ESP_OK ||
             status.state == WEATHER_SERVICE_STATE_READY)
     {
+        lv_obj_set_hidden(state->service_status_box, true);
         return;
     }
-    char text[96];
-    (void)snprintf(text, sizeof(text), "服务状态：%s",
-                   weather_ui_state_text(status.state));
-    lv_obj_t *service = weather_ui_text_label(parent, APP_THEME_FONT_SMALL);
-    lv_obj_set_width(service, LV_PCT(100));
-    lv_label_set_long_mode(service, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_color(service,
-                                lv_color_hex(WEATHER_COLOR_WARNING), 0);
-    lv_label_set_text(service, text);
+
+    const char *short_text = weather_ui_state_short_text(status.state);
+    const bool retained =
+        (status.available_mask & (WEATHER_SERVICE_DATA_CURRENT |
+                                  WEATHER_SERVICE_DATA_ALERTS |
+                                  WEATHER_SERVICE_DATA_HOURLY |
+                                  WEATHER_SERVICE_DATA_DAILY)) != 0U;
+    char text[64];
+    if (retained && (status.state == WEATHER_SERVICE_STATE_DEGRADED ||
+                     status.state == WEATHER_SERVICE_STATE_AUTH_ERROR ||
+                     status.state == WEATHER_SERVICE_STATE_RATE_LIMITED))
+    {
+        (void)snprintf(text, sizeof(text), "%s，显示已有数据", short_text);
+    }
+    else
+    {
+        (void)snprintf(text, sizeof(text), "%s", short_text);
+    }
+    lv_label_set_text(state->service_status, text);
+
+    const app_ui_status_t semantic = weather_ui_state_color(status.state);
+    uint32_t text_color = WEATHER_COLOR_MUTED;
+    uint32_t tint = WEATHER_COLOR_SURFACE;
+    if (semantic == APP_UI_STATUS_WARNING)
+    {
+        text_color = APP_UI_COLOR_SUN;
+        tint = APP_UI_COLOR_SUN_TINT;
+    }
+    else if (semantic == APP_UI_STATUS_ERROR)
+    {
+        text_color = APP_UI_COLOR_WARNING;
+        tint = APP_UI_COLOR_WARNING_TINT;
+    }
+    else if (semantic == APP_UI_STATUS_ACCENT)
+    {
+        text_color = WEATHER_COLOR_RAIN;
+        tint = APP_UI_COLOR_RAIN_TINT;
+    }
+    lv_obj_set_style_bg_color(state->service_status_box,
+                              lv_color_hex(tint), 0);
+    lv_obj_set_style_text_color(state->service_status,
+                                lv_color_hex(text_color), 0);
+    lv_obj_set_hidden(state->service_status_box, false);
 }
 
 static void _weather_forecast_empty(lv_obj_t *parent, const char *text)
@@ -67,7 +110,6 @@ static void _weather_forecast_empty(lv_obj_t *parent, const char *text)
     lv_label_set_long_mode(empty, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(empty, lv_color_hex(WEATHER_COLOR_MUTED), 0);
     lv_label_set_text(empty, text);
-    _weather_forecast_add_service_status(parent);
 }
 
 static lv_obj_t *_weather_forecast_metric(lv_obj_t *grid, const char *name,
@@ -112,11 +154,11 @@ static lv_obj_t *_weather_forecast_temperature_scale(lv_obj_t *parent,
         --minimum;
         ++maximum;
     }
-    lv_obj_t *scale_box = weather_ui_container(parent, 38,
+    lv_obj_t *scale_box = weather_ui_container(parent, 34,
         LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_hor(scale_box, 10, 0);
     lv_obj_t *scale = lv_scale_create(scale_box);
-    lv_obj_set_size(scale, LV_PCT(100), 38);
+    lv_obj_set_size(scale, LV_PCT(100), 34);
     lv_scale_set_mode(scale, LV_SCALE_MODE_HORIZONTAL_BOTTOM);
     lv_scale_set_total_tick_count(scale, 5);
     lv_scale_set_major_tick_every(scale, 2);
@@ -176,6 +218,7 @@ static void _weather_forecast_wind_card(lv_obj_t *parent,
 static void _weather_forecast_render_now(weather_forecast_state_t *state,
         lv_obj_t *tile)
 {
+    state->scroll_owners[WEATHER_FORECAST_CURRENT] = tile;
     if (state->snapshot == NULL || !state->snapshot->current.meta.available)
     {
         _weather_forecast_empty(tile, "暂无实况数据");
@@ -258,7 +301,6 @@ static void _weather_forecast_render_now(weather_forecast_state_t *state,
     (void)snprintf(value, sizeof(value), "%.1f°C",
                    current->feels_like_tenths_c / 10.0);
     (void)_weather_forecast_metric(grid, "体感", value);
-    _weather_forecast_add_service_status(tile);
 }
 
 static void _weather_forecast_render_chart(weather_forecast_state_t *state,
@@ -403,6 +445,7 @@ static void _weather_forecast_hour_row(lv_obj_t *list,
 static void _weather_forecast_render_hourly(weather_forecast_state_t *state,
         lv_obj_t *tile)
 {
+    state->scroll_owners[WEATHER_FORECAST_HOURLY] = tile;
     if (state->snapshot == NULL || !state->snapshot->hourly.meta.available ||
             state->snapshot->hourly.count == 0U)
     {
@@ -430,7 +473,7 @@ static void _weather_forecast_render_hourly(weather_forecast_state_t *state,
         _weather_forecast_hour_row(list, &state->snapshot->hourly.items[index],
                                    index == 0U);
     }
-    _weather_forecast_add_service_status(tile);
+    state->scroll_owners[WEATHER_FORECAST_HOURLY] = list;
 }
 
 static unsigned _weather_forecast_weekday(const char *date)
@@ -542,6 +585,7 @@ static void _weather_forecast_day_row(lv_obj_t *list,
 static void _weather_forecast_render_daily(weather_forecast_state_t *state,
         lv_obj_t *tile)
 {
+    state->scroll_owners[WEATHER_FORECAST_DAILY] = tile;
     if (state->snapshot == NULL || !state->snapshot->daily.meta.available ||
             state->snapshot->daily.count == 0U)
     {
@@ -587,7 +631,7 @@ static void _weather_forecast_render_daily(weather_forecast_state_t *state,
         _weather_forecast_day_row(list, &daily->items[index], full_minimum,
                                   full_maximum);
     }
-    _weather_forecast_add_service_status(tile);
+    state->scroll_owners[WEATHER_FORECAST_DAILY] = list;
 }
 
 static void _weather_forecast_render(weather_forecast_state_t *state)
@@ -596,17 +640,40 @@ static void _weather_forecast_render(weather_forecast_state_t *state)
     {
         (void)weather_service_snapshot_acquire(&state->snapshot);
     }
+    int32_t restore_y[WEATHER_FORECAST_TILE_COUNT] = {0};
     for (size_t index = 0U; index < WEATHER_FORECAST_TILE_COUNT; ++index)
     {
-        if (state->tiles[index] == NULL)
+        if (state->scroll_owners[index] == NULL)
         {
             continue;
         }
-        lv_obj_clean(state->tiles[index]);
+        restore_y[index] = lv_obj_get_scroll_y(state->scroll_owners[index]);
+    }
+    for (size_t index = 0U; index < WEATHER_FORECAST_TILE_COUNT; ++index)
+    {
+        state->scroll_owners[index] = NULL;
+        if (state->tiles[index] != NULL)
+        {
+            lv_obj_clean(state->tiles[index]);
+        }
     }
     _weather_forecast_render_now(state, state->tiles[0]);
     _weather_forecast_render_hourly(state, state->tiles[1]);
     _weather_forecast_render_daily(state, state->tiles[2]);
+    for (size_t index = 0U; index < WEATHER_FORECAST_TILE_COUNT; ++index)
+    {
+        lv_obj_t *owner = state->scroll_owners[index];
+        if (owner == NULL)
+        {
+            continue;
+        }
+        lv_obj_update_layout(owner);
+        if (restore_y[index] > 0)
+        {
+            lv_obj_scroll_to_y(owner, restore_y[index], LV_ANIM_OFF);
+        }
+    }
+    _weather_forecast_update_service_status(state);
 
     char subtitle[64] = "和风天气";
     if (state->snapshot != NULL && state->snapshot->current.meta.available)
@@ -715,9 +782,11 @@ static void _weather_forecast_build(weather_forecast_state_t *state)
 {
     app_ui_page_create(&state->page, "详细预报", true);
     lv_obj_set_scroll_dir(state->page.content, LV_DIR_NONE);
+    lv_obj_set_style_pad_top(state->page.content, 4, 0);
     lv_obj_set_style_pad_bottom(state->page.content, 4, 0);
+    lv_obj_set_style_pad_row(state->page.content, APP_UI_GAP_TIGHT, 0);
     lv_obj_t *segments = weather_ui_container(
-                             state->page.content, 60,
+                             state->page.content, APP_UI_CHIP_HEIGHT,
                              LV_FLEX_FLOW_ROW);
     lv_obj_set_style_bg_color(segments, lv_color_hex(WEATHER_COLOR_SURFACE), 0);
     lv_obj_set_style_bg_opa(segments, LV_OPA_COVER, 0);
@@ -792,6 +861,28 @@ static void _weather_forecast_build(weather_forecast_state_t *state)
         lv_obj_set_scrollbar_mode(tile, LV_SCROLLBAR_MODE_OFF);
         state->tiles[index] = tile;
     }
+
+    state->service_status_box = weather_ui_container(
+                                    state->page.content, 34,
+                                    LV_FLEX_FLOW_ROW);
+    lv_obj_set_width(state->service_status_box, LV_PCT(100));
+    lv_obj_set_style_radius(state->service_status_box,
+                            APP_UI_RADIUS_CONTROL, 0);
+    lv_obj_set_style_bg_opa(state->service_status_box, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_hor(state->service_status_box, 10, 0);
+    lv_obj_set_style_pad_ver(state->service_status_box, 0, 0);
+    lv_obj_set_flex_align(state->service_status_box, LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *status_glyph = weather_ui_symbol_label(state->service_status_box);
+    lv_obj_set_style_text_color(status_glyph,
+                                lv_color_hex(WEATHER_COLOR_WARNING), 0);
+    lv_label_set_text(status_glyph, LV_SYMBOL_WARNING);
+    state->service_status = weather_ui_text_label(state->service_status_box,
+        APP_THEME_FONT_SMALL);
+    lv_obj_set_width(state->service_status, 0);
+    lv_obj_set_flex_grow(state->service_status, 1);
+    lv_label_set_long_mode(state->service_status, LV_LABEL_LONG_WRAP);
+    lv_obj_set_hidden(state->service_status_box, true);
     _weather_forecast_select_segment(state, (uintptr_t)state->segment);
     _weather_forecast_render(state);
 }
@@ -852,8 +943,11 @@ static void _weather_forecast_unmount(
     for (size_t index = 0U; index < WEATHER_FORECAST_TILE_COUNT; ++index)
     {
         state->tiles[index] = NULL;
+        state->scroll_owners[index] = NULL;
     }
     state->tileview = NULL;
+    state->service_status_box = NULL;
+    state->service_status = NULL;
 }
 
 static const app_manager_page_ops_t s_weather_forecast_ops =
