@@ -12,6 +12,21 @@ static lv_obj_t *_music_ui_passive_box(lv_obj_t *parent);
 static lv_obj_t *_music_ui_row_label(lv_obj_t *parent, const char *text,
                                      app_theme_font_id_t font,
                                      uint32_t color, bool one_line);
+#define MUSIC_SESSION_CLEANUP_RETRY_MS 250U
+#define MUSIC_SESSION_CLEANUP_TARGET_COUNT 6U
+
+typedef enum
+{
+    MUSIC_SESSION_CLEANUP_IDLE = 0,
+    MUSIC_SESSION_CLEANUP_OPENING_LOGIN,
+    MUSIC_SESSION_CLEANUP_REMOVING,
+    MUSIC_SESSION_CLEANUP_WAIT_RETRY,
+} music_session_cleanup_phase_t;
+
+static music_session_cleanup_phase_t s_session_cleanup_phase;
+static uint8_t s_session_cleanup_target;
+static uint32_t s_session_cleanup_retry_ms;
+static lv_timer_t *s_session_cleanup_timer;
 
 static void _music_ui_back_clicked(lv_event_t *event)
 {
@@ -19,7 +34,22 @@ static void _music_ui_back_clicked(lv_event_t *event)
     app_ui_request_back();
 }
 
-static void _music_ui_remove_page(const char *page_id);
+static esp_err_t _music_ui_remove_page(
+    const char *page_id,
+    app_manager_nav_completion_cb_t completion, void *context);
+static void _music_session_cleanup_step(void);
+static void _music_session_cleanup_driver_start(void);
+
+static const char *const s_session_cleanup_pages[
+    MUSIC_SESSION_CLEANUP_TARGET_COUNT] =
+{
+    MUSIC_PAGE_SIDEBAR,
+    MUSIC_PAGE_PLAYER,
+    MUSIC_PAGE_START,
+    MUSIC_PAGE_PLAYLIST,
+    MUSIC_PAGE_QUEUE,
+    MUSIC_PAGE_LYRICS,
+};
 
 lv_obj_t *music_ui_image(lv_obj_t *parent, uint32_t image_id,
                          const char *fallback_symbol, int32_t size)
@@ -815,7 +845,8 @@ static void _music_enter_login_qr_done(esp_err_t result, void *context)
     (void)context;
     if (result == ESP_OK)
     {
-        _music_ui_remove_page(MUSIC_PAGE_START);
+        (void)_music_ui_remove_page(MUSIC_PAGE_START,
+                                    _music_navigation_complete, NULL);
     }
 }
 
@@ -844,7 +875,9 @@ esp_err_t music_ui_enter_login_qr(music_login_type_t type)
                                       NULL);
 }
 
-static void _music_ui_remove_page(const char *page_id)
+static esp_err_t _music_ui_remove_page(
+    const char *page_id,
+    app_manager_nav_completion_cb_t completion, void *context)
 {
     const app_manager_nav_request_t request =
     {
@@ -854,8 +887,7 @@ static void _music_ui_remove_page(const char *page_id)
         .has_arguments = false,
         .transition = { .effect = APP_MANAGER_TRANSITION_NONE },
     };
-    (void)app_manager_navigate_async(&request, _music_navigation_complete,
-                                     NULL);
+    return app_manager_navigate_async(&request, completion, context);
 }
 
 static void _music_enter_player_done(esp_err_t result, void *context)
@@ -865,9 +897,12 @@ static void _music_enter_player_done(esp_err_t result, void *context)
     {
         return;
     }
-    _music_ui_remove_page(MUSIC_PAGE_LOGIN);
-    _music_ui_remove_page(MUSIC_PAGE_LOGIN_METHOD);
-    _music_ui_remove_page(MUSIC_PAGE_START);
+    (void)_music_ui_remove_page(MUSIC_PAGE_LOGIN,
+                                _music_navigation_complete, NULL);
+    (void)_music_ui_remove_page(MUSIC_PAGE_LOGIN_METHOD,
+                                _music_navigation_complete, NULL);
+    (void)_music_ui_remove_page(MUSIC_PAGE_START,
+                                _music_navigation_complete, NULL);
 }
 
 esp_err_t music_ui_enter_player(void)
@@ -888,19 +923,39 @@ esp_err_t music_ui_enter_player(void)
                                       NULL);
 }
 
-static void _music_reset_to_login_done(esp_err_t result, void *context)
+static void _music_session_cleanup_complete(esp_err_t result, void *context)
 {
     (void)context;
-    if (result != ESP_OK)
+    if (result == ESP_OK)
     {
-        return;
+        ++s_session_cleanup_target;
+        s_session_cleanup_phase = MUSIC_SESSION_CLEANUP_REMOVING;
     }
-    _music_ui_remove_page(MUSIC_PAGE_SIDEBAR);
-    _music_ui_remove_page(MUSIC_PAGE_PLAYER);
-    _music_ui_remove_page(MUSIC_PAGE_START);
+    else
+    {
+        s_session_cleanup_phase = MUSIC_SESSION_CLEANUP_WAIT_RETRY;
+        s_session_cleanup_retry_ms = lv_tick_get();
+    }
+    _music_session_cleanup_step();
 }
 
-esp_err_t music_ui_reset_to_login(void)
+static void _music_session_cleanup_open_done(esp_err_t result, void *context)
+{
+    (void)context;
+    if (result == ESP_OK)
+    {
+        s_session_cleanup_target = 0U;
+        s_session_cleanup_phase = MUSIC_SESSION_CLEANUP_REMOVING;
+    }
+    else
+    {
+        s_session_cleanup_phase = MUSIC_SESSION_CLEANUP_WAIT_RETRY;
+        s_session_cleanup_retry_ms = lv_tick_get();
+    }
+    _music_session_cleanup_step();
+}
+
+static void _music_session_cleanup_open_login(void)
 {
     const app_manager_nav_request_t request =
     {
@@ -910,8 +965,133 @@ esp_err_t music_ui_reset_to_login(void)
         .has_arguments = false,
         .transition = { .effect = APP_MANAGER_TRANSITION_DEFAULT },
     };
-    return app_manager_navigate_async(&request, _music_reset_to_login_done,
-                                      NULL);
+    s_session_cleanup_phase = MUSIC_SESSION_CLEANUP_OPENING_LOGIN;
+    if (app_manager_navigate_async(&request,
+                                   _music_session_cleanup_open_done,
+                                   NULL) != ESP_OK)
+    {
+        s_session_cleanup_phase = MUSIC_SESSION_CLEANUP_WAIT_RETRY;
+        s_session_cleanup_retry_ms = lv_tick_get();
+    }
+}
+
+static void _music_session_cleanup_step(void)
+{
+    if (s_session_cleanup_phase == MUSIC_SESSION_CLEANUP_WAIT_RETRY)
+    {
+        if ((uint32_t)(lv_tick_get() - s_session_cleanup_retry_ms) <
+                MUSIC_SESSION_CLEANUP_RETRY_MS)
+        {
+            return;
+        }
+        s_session_cleanup_phase = app_page_is_actived(
+                                      APP_MANAGER_ID_MUSIC,
+                                      MUSIC_PAGE_LOGIN_METHOD) ?
+                                  MUSIC_SESSION_CLEANUP_REMOVING :
+                                  MUSIC_SESSION_CLEANUP_OPENING_LOGIN;
+    }
+
+    if (!app_page_is_actived(APP_MANAGER_ID_MUSIC,
+                             MUSIC_PAGE_LOGIN_METHOD))
+    {
+        if (s_session_cleanup_phase ==
+                MUSIC_SESSION_CLEANUP_OPENING_LOGIN)
+        {
+            _music_session_cleanup_open_login();
+        }
+        else
+        {
+            /* Once the user has entered QR login, it is a new foreground
+             * session, not one of the stale pages this transaction owns. */
+            s_session_cleanup_phase = MUSIC_SESSION_CLEANUP_IDLE;
+        }
+        return;
+    }
+    if (s_session_cleanup_phase == MUSIC_SESSION_CLEANUP_OPENING_LOGIN)
+    {
+        s_session_cleanup_phase = MUSIC_SESSION_CLEANUP_REMOVING;
+        s_session_cleanup_target = 0U;
+    }
+    while (s_session_cleanup_target < MUSIC_SESSION_CLEANUP_TARGET_COUNT)
+    {
+        const char *page_id =
+            s_session_cleanup_pages[s_session_cleanup_target];
+        if (!app_manager_is_page_present(APP_MANAGER_ID_MUSIC, page_id))
+        {
+            ++s_session_cleanup_target;
+            continue;
+        }
+        const esp_err_t result = _music_ui_remove_page(
+                                     page_id,
+                                     _music_session_cleanup_complete,
+                                     NULL);
+        if (result != ESP_OK)
+        {
+            s_session_cleanup_phase = MUSIC_SESSION_CLEANUP_WAIT_RETRY;
+            s_session_cleanup_retry_ms = lv_tick_get();
+        }
+        return;
+    }
+    s_session_cleanup_phase = MUSIC_SESSION_CLEANUP_IDLE;
+}
+
+esp_err_t music_ui_reset_to_login(void)
+{
+    if (s_session_cleanup_phase == MUSIC_SESSION_CLEANUP_IDLE)
+    {
+        s_session_cleanup_target = 0U;
+        s_session_cleanup_phase = MUSIC_SESSION_CLEANUP_OPENING_LOGIN;
+    }
+    _music_session_cleanup_driver_start();
+    _music_session_cleanup_step();
+    return ESP_OK;
+}
+
+bool music_ui_guard_session(const music_service_status_t *status)
+{
+    if (!music_ui_login_required(status))
+    {
+        return false;
+    }
+    if (s_session_cleanup_phase != MUSIC_SESSION_CLEANUP_IDLE)
+    {
+        _music_session_cleanup_step();
+    }
+    else if (!app_page_is_actived(APP_MANAGER_ID_MUSIC,
+                                  MUSIC_PAGE_LOGIN_METHOD) &&
+             !app_page_is_actived(APP_MANAGER_ID_MUSIC,
+                                  MUSIC_PAGE_LOGIN))
+    {
+        (void)music_ui_reset_to_login();
+    }
+    return true;
+}
+
+static void _music_session_cleanup_timer_cb(lv_timer_t *timer)
+{
+    (void)timer;
+    if (s_session_cleanup_phase == MUSIC_SESSION_CLEANUP_IDLE)
+    {
+        lv_timer_delete(s_session_cleanup_timer);
+        s_session_cleanup_timer = NULL;
+        return;
+    }
+    _music_session_cleanup_step();
+}
+
+static void _music_session_cleanup_driver_start(void)
+{
+    if (s_session_cleanup_timer == NULL)
+    {
+        s_session_cleanup_timer = lv_timer_create(
+                                      _music_session_cleanup_timer_cb,
+                                      MUSIC_SESSION_CLEANUP_RETRY_MS, NULL);
+    }
+}
+
+bool music_ui_session_cleanup_busy(void)
+{
+    return s_session_cleanup_phase != MUSIC_SESSION_CLEANUP_IDLE;
 }
 
 static void _music_back_to_player_done(esp_err_t result, void *context)

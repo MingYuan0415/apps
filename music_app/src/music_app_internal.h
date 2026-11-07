@@ -171,6 +171,16 @@ esp_err_t music_ui_enter_player(void);
 /** @brief Open the login method page and remove the current app pages. */
 esp_err_t music_ui_reset_to_login(void);
 
+/**
+ * @brief Route to login-method when the service reports an expired session.
+ *
+ * Must run on the UI worker. Returns true when the status requires login.
+ */
+bool music_ui_guard_session(const music_service_status_t *status);
+
+/** @brief Whether expired-account page cleanup still owns navigation. */
+bool music_ui_session_cleanup_busy(void);
+
 /** @brief Return to the player home, falling back to a page open. */
 esp_err_t music_ui_back_to_player(void);
 

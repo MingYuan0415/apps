@@ -618,6 +618,12 @@ static void _queue_timer_cb(lv_timer_t *timer)
     {
         return;
     }
+    music_service_status_t service;
+    if (music_service_get_status(&service) == ESP_OK &&
+            music_ui_guard_session(&service))
+    {
+        return;
+    }
     music_player_status_t player;
     if (state->busy &&
             (uint32_t)(lv_tick_get() - state->busy_since_ms) >= 5000U)

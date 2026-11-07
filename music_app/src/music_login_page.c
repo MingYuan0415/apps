@@ -283,7 +283,10 @@ static void _login_update(music_login_state_t *state)
         lv_obj_set_hidden(state->qr_frame, false);
         _login_show_qr(state, &status);
         _login_set_overlay(state, true);
-        _login_set_status(state, "二维码已过期", APP_UI_STATUS_WARNING);
+        _login_set_status(state,
+                          music_ui_storage_failure(&status) ?
+                          "登录态保存失败" : "二维码已过期",
+                          APP_UI_STATUS_WARNING);
         state->request_pending = false;
     }
     else
@@ -297,8 +300,7 @@ static void _login_update(music_login_state_t *state)
         _login_release_qr(state);
         _login_set_retry(state,
                          status.state == MUSIC_SERVICE_STATE_ERROR ||
-                         (status.state == MUSIC_SERVICE_STATE_AUTH_REQUIRED &&
-                          status.failure != MUSIC_SERVICE_FAILURE_NONE));
+                         music_ui_storage_failure(&status));
         if (status.state == MUSIC_SERVICE_STATE_WAITING_NETWORK)
         {
             _login_set_status(state, "等待网络连接", APP_UI_STATUS_NEUTRAL);
@@ -306,6 +308,16 @@ static void _login_update(music_login_state_t *state)
         else if (status.state == MUSIC_SERVICE_STATE_WAITING_TIME)
         {
             _login_set_status(state, "等待时间同步", APP_UI_STATUS_NEUTRAL);
+        }
+        else if (music_ui_validation_pending(&status))
+        {
+            _login_set_status(state, "正在验证登录状态…",
+                              APP_UI_STATUS_NEUTRAL);
+        }
+        else if (music_ui_storage_failure(&status))
+        {
+            _login_set_status(state, "登录态保存失败，请重新登录",
+                              APP_UI_STATUS_WARNING);
         }
         else if (status.failure != MUSIC_SERVICE_FAILURE_NONE)
         {
@@ -359,8 +371,7 @@ static void _login_timer_cb(lv_timer_t *timer)
     music_service_status_t status;
     if (!state->auto_started && !state->request_pending &&
             music_service_get_status(&status) == ESP_OK &&
-            status.state == MUSIC_SERVICE_STATE_LOGGED_OUT &&
-            !status.logged_in)
+            music_ui_login_auto_start(&status))
     {
         _login_start(state, state->login_type);
     }
@@ -393,7 +404,6 @@ static void _login_start(music_login_state_t *state,
     state->auto_started = true;
     state->login_type = type;
     _login_set_overlay(state, false);
-    (void)music_service_login_cancel();
     _login_release_qr(state);
     lv_obj_set_hidden(state->qr_frame, false);
     lv_obj_set_hidden(state->login_title, false);
@@ -675,8 +685,7 @@ static void _login_resume(const app_manager_page_context_t *context)
     music_service_status_t status;
     if (!state->success && !state->auto_started && !state->request_pending &&
             music_service_get_status(&status) == ESP_OK &&
-            status.state == MUSIC_SERVICE_STATE_LOGGED_OUT &&
-            !status.logged_in)
+            music_ui_login_auto_start(&status))
     {
         _login_start(state, state->login_type);
     }

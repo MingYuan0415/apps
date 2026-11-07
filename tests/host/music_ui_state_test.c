@@ -39,7 +39,14 @@ static void test_service_and_player_copy(void)
     service.state = MUSIC_SERVICE_STATE_QR_EXPIRED;
     assert(strcmp(music_ui_state_text(&service), "二维码已过期") == 0);
     service.state = MUSIC_SERVICE_STATE_AUTH_REQUIRED;
+    service.failure = MUSIC_SERVICE_FAILURE_AUTH;
     assert(strcmp(music_ui_state_text(&service), "登录已过期") == 0);
+    service.failure = MUSIC_SERVICE_FAILURE_STORAGE;
+    assert(strcmp(music_ui_state_text(&service), "登录态保存失败") == 0);
+    service.state = MUSIC_SERVICE_STATE_VALIDATING_SESSION;
+    service.failure = MUSIC_SERVICE_FAILURE_NONE;
+    assert(strcmp(music_ui_state_text(&service),
+                  "正在验证登录状态") == 0);
     assert(strcmp(music_ui_failure_text(MUSIC_SERVICE_FAILURE_AUDIO_BUSY),
                   "音频被其他功能占用") == 0);
     assert(strcmp(music_ui_failure_text(MUSIC_SERVICE_FAILURE_DECODE),
@@ -57,6 +64,63 @@ static void test_service_and_player_copy(void)
                   "已暂停") == 0);
     assert(strcmp(music_ui_playback_text(MUSIC_PLAYBACK_ERROR),
                   "播放失败") == 0);
+}
+
+static void test_login_required(void)
+{
+    music_service_status_t service = {0};
+    assert(!music_ui_login_required(NULL));
+    service.state = MUSIC_SERVICE_STATE_READY;
+    service.logged_in = false;
+    assert(!music_ui_login_required(&service));
+    service.state = MUSIC_SERVICE_STATE_AUTH_REQUIRED;
+    service.failure = MUSIC_SERVICE_FAILURE_AUTH;
+    assert(music_ui_login_required(&service));
+    service.failure = MUSIC_SERVICE_FAILURE_STORAGE;
+    assert(!music_ui_login_required(&service));
+    assert(music_ui_storage_failure(&service));
+    service.failure = MUSIC_SERVICE_FAILURE_NONE;
+    assert(!music_ui_login_required(&service));
+    assert(!music_ui_storage_failure(&service));
+    service.state = MUSIC_SERVICE_STATE_VALIDATING_SESSION;
+    assert(music_ui_validation_pending(&service));
+    assert(!music_ui_login_required(&service));
+    service.logged_in = true;
+    assert(!music_ui_validation_pending(&service));
+}
+
+static void test_login_auto_start(void)
+{
+    music_service_status_t service = {0};
+    assert(!music_ui_login_auto_start(NULL));
+
+    service.state = MUSIC_SERVICE_STATE_LOGGED_OUT;
+    service.network_ready = true;
+    service.time_ready = true;
+    assert(music_ui_login_auto_start(&service));
+
+    service.state = MUSIC_SERVICE_STATE_AUTH_REQUIRED;
+    service.failure = MUSIC_SERVICE_FAILURE_AUTH;
+    assert(music_ui_login_auto_start(&service));
+    service.failure = MUSIC_SERVICE_FAILURE_STORAGE;
+    assert(!music_ui_login_auto_start(&service));
+
+    service.failure = MUSIC_SERVICE_FAILURE_AUTH;
+    service.network_ready = false;
+    assert(!music_ui_login_auto_start(&service));
+    service.network_ready = true;
+    service.time_ready = false;
+    assert(!music_ui_login_auto_start(&service));
+    service.time_ready = true;
+    service.logged_in = true;
+    assert(!music_ui_login_auto_start(&service));
+    service.logged_in = false;
+    service.state = MUSIC_SERVICE_STATE_WAITING_TIME;
+    assert(!music_ui_login_auto_start(&service));
+    service.state = MUSIC_SERVICE_STATE_VALIDATING_SESSION;
+    assert(!music_ui_login_auto_start(&service));
+    service.state = MUSIC_SERVICE_STATE_ERROR;
+    assert(!music_ui_login_auto_start(&service));
 }
 
 static void test_account_text(void)
@@ -362,6 +426,8 @@ int main(void)
 {
     test_time_format();
     test_service_and_player_copy();
+    test_login_required();
+    test_login_auto_start();
     test_account_text();
     test_mode_quality_copy();
     test_control_availability();

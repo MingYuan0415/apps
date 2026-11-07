@@ -336,9 +336,9 @@ static void _player_update(music_player_state_t *state)
     }
     music_service_status_t account;
     if (music_service_get_status(&account) == ESP_OK &&
-            !account.logged_in &&
             (account.state == MUSIC_SERVICE_STATE_LOGGED_OUT ||
-             account.state == MUSIC_SERVICE_STATE_AUTH_REQUIRED) &&
+             music_ui_login_required(&account) ||
+             music_ui_storage_failure(&account)) &&
             !state->routed_login)
     {
         state->routed_login = true;

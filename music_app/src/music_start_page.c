@@ -92,7 +92,8 @@ static void _start_check(music_start_state_t *state)
     }
 
     if (status.state == MUSIC_SERVICE_STATE_LOGGED_OUT ||
-            status.state == MUSIC_SERVICE_STATE_AUTH_REQUIRED)
+            music_ui_login_required(&status) ||
+            music_ui_storage_failure(&status))
     {
         if ((uint32_t)(lv_tick_get() - state->started_ms) <
                 MUSIC_START_MIN_DWELL_MS)
@@ -117,6 +118,12 @@ static void _start_check(music_start_state_t *state)
     if (status.state == MUSIC_SERVICE_STATE_WAITING_TIME)
     {
         _start_set_status(state, "正在同步时间…", APP_UI_COLOR_MUTED);
+        _start_set_retry(state, false);
+        return;
+    }
+    if (music_ui_validation_pending(&status))
+    {
+        _start_set_status(state, "正在验证登录状态…", APP_UI_COLOR_MUTED);
         _start_set_retry(state, false);
         return;
     }

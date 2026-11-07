@@ -514,7 +514,12 @@ static void _sidebar_update_service(music_sidebar_state_t *state)
         lv_obj_set_hidden(state->status_label, false);
         return;
     }
-    if (status.state == MUSIC_SERVICE_STATE_LOGGED_OUT &&
+    if (music_ui_guard_session(&status))
+    {
+        return;
+    }
+    if ((status.state == MUSIC_SERVICE_STATE_LOGGED_OUT ||
+            music_ui_storage_failure(&status)) &&
             state->logout_pending)
     {
         state->logout_pending = false;

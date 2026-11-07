@@ -19,6 +19,24 @@ void music_ui_format_time(uint32_t milliseconds, char *output,
 /** @brief Human-readable account/service state. */
 const char *music_ui_state_text(const music_service_status_t *status);
 
+/** @brief Whether a server-confirmed expiration requires a new login. */
+bool music_ui_login_required(const music_service_status_t *status);
+
+/** @brief Whether the loaded credential is awaiting server validation. */
+bool music_ui_validation_pending(const music_service_status_t *status);
+
+/** @brief Whether login completed but the credential could not be stored. */
+bool music_ui_storage_failure(const music_service_status_t *status);
+
+/**
+ * @brief Whether the QR page should request a new code automatically.
+ *
+ * Covers an account that was never logged in and one whose server-side
+ * session expired. Network and time are required because the service rejects
+ * login requests until both are ready.
+ */
+bool music_ui_login_auto_start(const music_service_status_t *status);
+
 /**
  * @brief Format the current account label for the sidebar.
  *

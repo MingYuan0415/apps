@@ -686,6 +686,12 @@ static void _playlist_schedule(music_playlist_state_t *state)
 static void _playlist_timer_cb(lv_timer_t *timer)
 {
     music_playlist_state_t *state = lv_timer_get_user_data(timer);
+    music_service_status_t service;
+    if (music_service_get_status(&service) == ESP_OK &&
+            music_ui_guard_session(&service))
+    {
+        return;
+    }
     _playlist_collect_pending(state);
     if (state->request_pending &&
             lv_tick_get() - state->loading_since_ms >=

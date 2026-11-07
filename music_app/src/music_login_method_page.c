@@ -27,11 +27,18 @@ static void _method_update(music_login_method_state_t *state);
 static void _method_close_clicked(lv_event_t *event)
 {
     (void)event;
-    app_ui_request_back();
+    if (!music_ui_session_cleanup_busy())
+    {
+        app_ui_request_back();
+    }
 }
 
 static void _method_channel_clicked(lv_event_t *event)
 {
+    if (music_ui_session_cleanup_busy())
+    {
+        return;
+    }
     const uintptr_t encoded = (uintptr_t)lv_obj_get_user_data(
                                   lv_event_get_target_obj(event));
     const music_login_type_t type = encoded == MUSIC_LOGIN_TYPE_WECHAT ?
@@ -221,7 +228,9 @@ static void _method_update(music_login_method_state_t *state)
     const bool waiting = !status.network_ready || !status.time_ready;
     const bool retry = service_error ||
                        (status.failure != MUSIC_SERVICE_FAILURE_NONE &&
-                        status.state != MUSIC_SERVICE_STATE_AUTH_REQUIRED);
+                        status.state != MUSIC_SERVICE_STATE_AUTH_REQUIRED &&
+                        status.state !=
+                        MUSIC_SERVICE_STATE_VALIDATING_SESSION);
     _method_set_retry(state, retry);
     if (retry)
     {
@@ -244,17 +253,33 @@ static void _method_update(music_login_method_state_t *state)
                                APP_UI_STATUS_NEUTRAL);
         lv_obj_set_hidden(state->status_label, false);
     }
-    else if (status.state == MUSIC_SERVICE_STATE_AUTH_REQUIRED)
+    else if (music_ui_login_required(&status))
     {
         app_ui_set_status_text(state->status_label, "登录已过期，请重新登录",
                                APP_UI_STATUS_WARNING);
+        lv_obj_set_hidden(state->status_label, false);
+    }
+    else if (music_ui_storage_failure(&status))
+    {
+        app_ui_set_status_text(state->status_label,
+                               "登录态保存失败，请重新登录",
+                               APP_UI_STATUS_WARNING);
+        lv_obj_set_hidden(state->status_label, false);
+    }
+    else if (music_ui_validation_pending(&status))
+    {
+        app_ui_set_status_text(state->status_label, "正在验证登录状态…",
+                               APP_UI_STATUS_NEUTRAL);
         lv_obj_set_hidden(state->status_label, false);
     }
     else
     {
         lv_obj_set_hidden(state->status_label, true);
     }
-    _method_set_enabled(state, !waiting && !retry);
+    _method_set_enabled(state,
+                        !waiting && !retry &&
+                        !music_ui_session_cleanup_busy() &&
+                        !music_ui_validation_pending(&status));
 }
 
 static void _method_timer_cb(lv_timer_t *timer)

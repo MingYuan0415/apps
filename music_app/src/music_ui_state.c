@@ -42,12 +42,49 @@ const char *music_ui_state_text(const music_service_status_t *status)
     case MUSIC_SERVICE_STATE_READY:
         return status->logged_in ? "已登录" : "未登录";
     case MUSIC_SERVICE_STATE_AUTH_REQUIRED:
-        return "登录已过期";
+        return status->failure == MUSIC_SERVICE_FAILURE_STORAGE ?
+               "登录态保存失败" : "登录已过期";
     case MUSIC_SERVICE_STATE_ERROR:
         return "服务异常";
+    case MUSIC_SERVICE_STATE_VALIDATING_SESSION:
+        return "正在验证登录状态";
     default:
         return "音乐服务不可用";
     }
+}
+
+bool music_ui_login_required(const music_service_status_t *status)
+{
+    return status != NULL &&
+           status->state == MUSIC_SERVICE_STATE_AUTH_REQUIRED &&
+           status->failure == MUSIC_SERVICE_FAILURE_AUTH &&
+           !status->logged_in;
+}
+
+bool music_ui_validation_pending(const music_service_status_t *status)
+{
+    return status != NULL &&
+           status->state == MUSIC_SERVICE_STATE_VALIDATING_SESSION &&
+           !status->logged_in;
+}
+
+bool music_ui_storage_failure(const music_service_status_t *status)
+{
+    return status != NULL &&
+           status->state == MUSIC_SERVICE_STATE_AUTH_REQUIRED &&
+           status->failure == MUSIC_SERVICE_FAILURE_STORAGE &&
+           !status->logged_in;
+}
+
+bool music_ui_login_auto_start(const music_service_status_t *status)
+{
+    if (status == NULL || status->logged_in ||
+            !status->network_ready || !status->time_ready)
+    {
+        return false;
+    }
+    return status->state == MUSIC_SERVICE_STATE_LOGGED_OUT ||
+           music_ui_login_required(status);
 }
 
 void music_ui_account_text(const music_service_status_t *status, char *output,

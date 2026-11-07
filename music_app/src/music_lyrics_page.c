@@ -233,6 +233,12 @@ static void _lyrics_timer_cb(lv_timer_t *timer)
     music_lyrics_state_t *state = lv_timer_get_user_data(timer);
     if (state != NULL)
     {
+        music_service_status_t service;
+        if (music_service_get_status(&service) == ESP_OK &&
+                music_ui_guard_session(&service))
+        {
+            return;
+        }
         _lyrics_poll(state);
     }
 }

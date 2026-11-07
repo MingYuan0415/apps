@@ -170,7 +170,12 @@ drivers directly.
   wraps long lines inside a scrollable panel; login is split into channel
   selection and a dedicated non-scrolling QR page with stable channel identity,
   a centred code, an expired-code refresh overlay and retry for service
-  failures.  The App
+  failures. A loaded credential is shown as validating rather than logged in,
+  and a credential-storage failure is distinct from session expiry. On confirmed
+  expiry the App opens the login-method page and removes old music pages through
+  one serial, retryable cleanup sequence, so back cannot reveal stale account
+  screens. Reopening the QR page for an expired session starts the code request
+  immediately. The App
   consumes `music_service` snapshots only and performs no network, JSON,
   image-decode or audio I/O; playback, login and queue state live in the
   middleware service, while the player applies the product volume through
