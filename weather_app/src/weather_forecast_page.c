@@ -141,38 +141,36 @@ static lv_obj_t *_weather_forecast_temperature_scale(lv_obj_t *parent,
     return scale;
 }
 
-static lv_obj_t *_weather_forecast_compass(lv_obj_t *parent,
-        const char *direction, const char *scale_text)
+static void _weather_forecast_wind_card(lv_obj_t *parent,
+                                        const weather_service_current_t *current)
 {
-    lv_obj_t *box = lv_obj_create(parent);
-    lv_obj_remove_style_all(box);
-    lv_obj_set_size(box, 96, 96);
-    lv_obj_set_style_radius(box, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(box, lv_color_hex(WEATHER_COLOR_SURFACE_HI), 0);
-    lv_obj_set_style_bg_opa(box, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(box, 1, 0);
-    lv_obj_set_style_border_color(box, lv_color_hex(APP_UI_COLOR_HAIRLINE), 0);
-    app_ui_make_passive(box, false);
-    lv_obj_t *north = weather_ui_text_label(box, APP_THEME_FONT_SMALL);
-    lv_obj_set_style_text_color(north, lv_color_hex(WEATHER_COLOR_MUTED), 0);
-    lv_obj_align(north, LV_ALIGN_TOP_MID, 0, 6);
-    lv_label_set_text(north, "N");
-    lv_obj_t *value = weather_ui_text_label(box, APP_THEME_FONT_HEAD);
-    lv_obj_set_width(value, 88);
-    lv_obj_set_style_text_align(value, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(value, lv_color_hex(WEATHER_COLOR_TEXT), 0);
-    lv_obj_align(value, LV_ALIGN_CENTER, 0, -4);
-    lv_label_set_text(value, direction[0] != '\0' ? direction : "--");
-    lv_obj_t *scale = weather_ui_text_label(box, APP_THEME_FONT_SMALL);
-    lv_obj_set_width(scale, 88);
-    lv_obj_set_style_text_align(scale, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(scale, lv_color_hex(WEATHER_COLOR_MUTED), 0);
-    lv_obj_align(scale, LV_ALIGN_BOTTOM_MID, 0, -10);
+    /* Keep the wind card textual: live provider names such as "东南风" are
+     * three glyphs wide and must never be centered over a second label. */
+    lv_obj_t *card = weather_ui_surface(parent, LV_SIZE_CONTENT);
+    lv_obj_set_width(card, 104);
+    lv_obj_set_style_pad_all(card, 8, 0);
+    lv_obj_set_style_pad_row(card, 0, 0);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *direction = weather_ui_text_label(card, APP_THEME_FONT_SMALL);
+    lv_obj_set_width(direction, LV_PCT(100));
+    lv_label_set_long_mode(direction, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(direction, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(direction, lv_color_hex(WEATHER_COLOR_MUTED),
+                                0);
+    lv_label_set_text(direction,
+                      current->wind_direction[0] != '\0' ?
+                      current->wind_direction : "--");
     char text[32];
-    (void)snprintf(text, sizeof(text), "%s级",
-                   scale_text[0] != '\0' ? scale_text : "--");
+    (void)snprintf(text, sizeof(text), "%s 级",
+                   current->wind_scale[0] != '\0' ?
+                   current->wind_scale : "--");
+    lv_obj_t *scale = weather_ui_text_label(card, APP_THEME_FONT_BODY);
+    lv_obj_set_width(scale, LV_PCT(100));
+    lv_obj_set_style_text_align(scale, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(scale, lv_color_hex(WEATHER_COLOR_TEXT), 0);
     lv_label_set_text(scale, text);
-    return box;
 }
 
 static void _weather_forecast_render_now(weather_forecast_state_t *state,
@@ -232,8 +230,7 @@ static void _weather_forecast_render_now(weather_forecast_state_t *state,
     lv_obj_set_style_text_color(condition, lv_color_hex(WEATHER_COLOR_TEXT), 0);
     lv_label_set_text(condition, current->condition_text[0] != '\0' ?
                       current->condition_text : "天气未知");
-    (void)_weather_forecast_compass(hero, current->wind_direction,
-                                    current->wind_scale);
+    _weather_forecast_wind_card(hero, current);
     (void)_weather_forecast_temperature_scale(tile, current, today);
 
     lv_obj_t *grid = weather_ui_container(tile, LV_SIZE_CONTENT,

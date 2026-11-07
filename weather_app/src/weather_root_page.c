@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define WEATHER_ROOT_METRIC_COUNT 3U
-#define WEATHER_ROOT_HERO_MIN_HEIGHT 168
+#define WEATHER_ROOT_HERO_MIN_HEIGHT 160
 #define WEATHER_ROOT_DETAIL_HEIGHT 52
 
 typedef struct weather_root_state
@@ -23,6 +23,9 @@ typedef struct weather_root_state
     lv_obj_t *image_fallback;
     lv_obj_t *alert_button;
     lv_obj_t *alert_label;
+    lv_obj_t *calm_pill;
+    lv_obj_t *calm_glyph;
+    lv_obj_t *calm_label;
     lv_obj_t *metric_values[WEATHER_ROOT_METRIC_COUNT];
     const weather_service_snapshot_t *snapshot;
     event_bus_sub_handle_t subscription;
@@ -199,8 +202,7 @@ static void _weather_root_create_hero(weather_root_state_t *state,
     lv_obj_t *hero = lv_obj_create(parent);
     lv_obj_remove_style_all(hero);
     lv_obj_set_width(hero, LV_PCT(100));
-    lv_obj_set_height(hero, 0);
-    lv_obj_set_flex_grow(hero, 1);
+    lv_obj_set_height(hero, LV_SIZE_CONTENT);
     lv_obj_set_style_min_height(hero, WEATHER_ROOT_HERO_MIN_HEIGHT, 0);
     lv_obj_set_style_radius(hero, APP_UI_RADIUS_SHEET, 0);
     lv_obj_set_style_bg_color(hero, lv_color_hex(WEATHER_COLOR_SURFACE), 0);
@@ -296,6 +298,7 @@ static void _weather_root_create_alert(weather_root_state_t *state,
                         LV_EVENT_CLICKED, NULL);
     state->alert_label = weather_ui_text_label(state->alert_button,
         APP_THEME_FONT_SMALL);
+    lv_label_set_text(state->alert_label, "");
     lv_obj_set_width(state->alert_label, 0);
     lv_obj_set_flex_grow(state->alert_label, 1);
     lv_label_set_long_mode(state->alert_label, LV_LABEL_LONG_WRAP);
@@ -304,6 +307,35 @@ static void _weather_root_create_alert(weather_root_state_t *state,
     lv_obj_t *chevron = weather_ui_symbol_label(state->alert_button);
     lv_obj_set_style_text_color(chevron, lv_color_hex(WEATHER_COLOR_WARNING), 0);
     lv_label_set_text(chevron, LV_SYMBOL_RIGHT);
+}
+
+static void _weather_root_create_calm(weather_root_state_t *state,
+                                      lv_obj_t *parent)
+{
+    /* Keep the alert slot occupied when there is nothing to warn about. This
+     * prevents the hero from stretching into a large empty card and keeps the
+     * page geometry stable across alert/no-alert refreshes. */
+    lv_obj_t *pill = weather_ui_container(parent, 52, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_radius(pill, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(pill, lv_color_hex(APP_UI_COLOR_SUCCESS_TINT), 0);
+    lv_obj_set_style_bg_opa(pill, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_hor(pill, 16, 0);
+    lv_obj_set_style_pad_column(pill, 10, 0);
+    lv_obj_set_style_pad_ver(pill, 0, 0);
+    lv_obj_set_flex_align(pill, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    state->calm_pill = pill;
+    state->calm_glyph = weather_ui_symbol_label(pill);
+    lv_obj_set_style_text_color(state->calm_glyph,
+                                lv_color_hex(APP_UI_COLOR_SUCCESS), 0);
+    lv_label_set_text(state->calm_glyph, LV_SYMBOL_OK);
+    state->calm_label = weather_ui_text_label(pill, APP_THEME_FONT_SMALL);
+    lv_obj_set_width(state->calm_label, 0);
+    lv_obj_set_flex_grow(state->calm_label, 1);
+    lv_label_set_long_mode(state->calm_label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_color(state->calm_label,
+                                lv_color_hex(APP_UI_COLOR_SUCCESS), 0);
+    lv_label_set_text(state->calm_label, "当前无气象预警");
 }
 
 static void _weather_root_create_detail(lv_obj_t *parent)
@@ -507,8 +539,11 @@ static void _weather_root_render(weather_root_state_t *state)
     }
     _weather_root_render_metrics(state);
 
-    if (state->snapshot != NULL && state->snapshot->alerts.meta.available &&
-            state->snapshot->alerts.count > 0U)
+    const bool alerts_available = state->snapshot != NULL &&
+                                  state->snapshot->alerts.meta.available;
+    const bool has_alerts = alerts_available &&
+                            state->snapshot->alerts.count > 0U;
+    if (has_alerts)
     {
         char text[64];
         (void)snprintf(text, sizeof(text), "共 %u 条气象预警%s",
@@ -516,11 +551,23 @@ static void _weather_root_render(weather_root_state_t *state)
                        state->snapshot->alerts.meta.expired ? " · 已过期" :
                        (state->snapshot->alerts.meta.stale ? " · 缓存" : ""));
         lv_label_set_text(state->alert_label, text);
-        lv_obj_set_hidden(state->alert_button, false);
     }
-    else
+    lv_obj_set_hidden(state->alert_button, !has_alerts);
+    lv_obj_set_hidden(state->calm_pill, has_alerts);
+    if (!has_alerts)
     {
-        lv_obj_set_hidden(state->alert_button, true);
+        const bool clear = alerts_available;
+        lv_label_set_text(state->calm_label,
+                          clear ? "当前无气象预警" : "预警数据暂不可用");
+        lv_label_set_text(state->calm_glyph,
+                          clear ? LV_SYMBOL_OK : LV_SYMBOL_MINUS);
+        const uint32_t color = clear ? APP_UI_COLOR_SUCCESS :
+                               APP_UI_COLOR_MUTED;
+        const uint32_t tint = clear ? APP_UI_COLOR_SUCCESS_TINT :
+                              APP_UI_COLOR_SURFACE;
+        lv_obj_set_style_bg_color(state->calm_pill, lv_color_hex(tint), 0);
+        lv_obj_set_style_text_color(state->calm_glyph, lv_color_hex(color), 0);
+        lv_obj_set_style_text_color(state->calm_label, lv_color_hex(color), 0);
     }
 }
 
@@ -635,6 +682,7 @@ static void _weather_root_build(weather_root_state_t *state)
 
     _weather_root_create_hero(state, state->page.content);
     _weather_root_create_alert(state, state->page.content);
+    _weather_root_create_calm(state, state->page.content);
     _weather_root_create_metrics(state, state->page.content);
     _weather_root_create_detail(state->page.content);
 
@@ -706,6 +754,9 @@ static void _weather_root_unmount(
     state->image_fallback = NULL;
     state->alert_button = NULL;
     state->alert_label = NULL;
+    state->calm_pill = NULL;
+    state->calm_glyph = NULL;
+    state->calm_label = NULL;
     for (size_t index = 0U; index < WEATHER_ROOT_METRIC_COUNT; ++index)
     {
         state->metric_values[index] = NULL;
