@@ -11,7 +11,7 @@
 #include "nv_storage.h"
 #include "nvs.h"
 
-#define TEST_BLOB_CAPACITY 128U
+#define TEST_BLOB_CAPACITY 160U
 
 #ifdef HOME_SHORTCUTS_TESTING
     void home_shortcuts_test_reset(void);
@@ -193,30 +193,33 @@ static void _test_catalog_and_default(void)
     assert(home_shortcuts_ensure_loaded() == ESP_OK);
     const home_shortcut_prefs_t *prefs = home_shortcuts_get();
     assert(!prefs->configured);
-    assert(prefs->count == 3U);
-    assert(strcmp(prefs->app_ids[0], "calculator") == 0);
-    assert(strcmp(prefs->app_ids[1], "music") == 0);
-    assert(strcmp(prefs->app_ids[2], "clock") == 0);
+    assert(prefs->count == 4U);
+    assert(strcmp(prefs->app_ids[0], "menu") == 0);
+    assert(strcmp(prefs->app_ids[1], "calculator") == 0);
+    assert(strcmp(prefs->app_ids[2], "music") == 0);
+    assert(strcmp(prefs->app_ids[3], "clock") == 0);
 
     const app_manager_app_desc_t *catalog[HOME_SHORTCUT_CATALOG_MAX];
     const size_t count = home_shortcut_catalog(catalog,
         HOME_SHORTCUT_CATALOG_MAX);
-    assert(count == 6U);
-    assert(strcmp(catalog[0]->id, "weather") == 0);
-    assert(strcmp(catalog[1]->id, "calculator") == 0);
-    assert(strcmp(catalog[2]->id, "music") == 0);
-    assert(strcmp(catalog[3]->id, "clock") == 0);
-    assert(strcmp(catalog[4]->id, "level") == 0);
-    assert(strcmp(catalog[5]->id, "files") == 0);
+    assert(count == 7U);
+    assert(strcmp(catalog[0]->id, "menu") == 0);
+    assert(strcmp(catalog[1]->id, "weather") == 0);
+    assert(strcmp(catalog[2]->id, "calculator") == 0);
+    assert(strcmp(catalog[3]->id, "music") == 0);
+    assert(strcmp(catalog[4]->id, "clock") == 0);
+    assert(strcmp(catalog[5]->id, "level") == 0);
+    assert(strcmp(catalog[6]->id, "files") == 0);
 
     const app_manager_app_desc_t *effective[HOME_SHORTCUT_SLOTS];
     const size_t effective_count = home_shortcut_effective(
                                        prefs, catalog, count, effective,
                                        HOME_SHORTCUT_SLOTS);
-    assert(effective_count == 3U);
-    assert(strcmp(effective[0]->id, "calculator") == 0);
-    assert(strcmp(effective[1]->id, "music") == 0);
-    assert(strcmp(effective[2]->id, "clock") == 0);
+    assert(effective_count == 4U);
+    assert(strcmp(effective[0]->id, "menu") == 0);
+    assert(strcmp(effective[1]->id, "calculator") == 0);
+    assert(strcmp(effective[2]->id, "music") == 0);
+    assert(strcmp(effective[3]->id, "clock") == 0);
 }
 
 static void _test_selection_limit_and_drop(void)
@@ -224,34 +227,35 @@ static void _test_selection_limit_and_drop(void)
     const app_manager_app_desc_t *catalog[HOME_SHORTCUT_CATALOG_MAX];
     const size_t count = home_shortcut_catalog(catalog,
         HOME_SHORTCUT_CATALOG_MAX);
-    assert(count == 6U);
+    assert(count == 7U);
 
-    /* The loaded defaults occupy all three slots. */
-    assert(home_shortcuts_set_selected(catalog[0], true) ==
+    /* The loaded defaults occupy all four slots. */
+    assert(home_shortcuts_set_selected(catalog[1], true) ==
            ESP_ERR_INVALID_STATE);
-    assert(home_shortcuts_set_selected(catalog[1], false) == ESP_OK);
-    assert(home_shortcuts_set_selected(catalog[0], true) == ESP_OK);
-    assert(home_shortcuts_set_selected(catalog[5], true) ==
+    assert(home_shortcuts_set_selected(catalog[2], false) == ESP_OK);
+    assert(home_shortcuts_set_selected(catalog[1], true) == ESP_OK);
+    assert(home_shortcuts_set_selected(catalog[6], true) ==
            ESP_ERR_INVALID_STATE);
 
     const home_shortcut_prefs_t *prefs = home_shortcuts_get();
     assert(prefs->configured);
-    assert(prefs->count == 3U);
+    assert(prefs->count == 4U);
     assert(home_shortcuts_is_selected(prefs, "weather"));
     assert(home_shortcuts_is_selected(prefs, "music"));
     assert(home_shortcuts_is_selected(prefs, "clock"));
 
     const app_manager_app_desc_t *effective[HOME_SHORTCUT_SLOTS];
     assert(home_shortcut_effective(prefs, catalog, count, effective,
-                                   HOME_SHORTCUT_SLOTS) == 3U);
-    assert(strcmp(effective[0]->id, "weather") == 0);
-    assert(strcmp(effective[1]->id, "music") == 0);
-    assert(strcmp(effective[2]->id, "clock") == 0);
+                                   HOME_SHORTCUT_SLOTS) == 4U);
+    assert(strcmp(effective[0]->id, "menu") == 0);
+    assert(strcmp(effective[1]->id, "weather") == 0);
+    assert(strcmp(effective[2]->id, "music") == 0);
+    assert(strcmp(effective[3]->id, "clock") == 0);
 
-    assert(home_shortcuts_set_selected(catalog[2], false) == ESP_OK);
-    assert(home_shortcuts_set_selected(catalog[5], true) == ESP_OK);
+    assert(home_shortcuts_set_selected(catalog[3], false) == ESP_OK);
+    assert(home_shortcuts_set_selected(catalog[6], true) == ESP_OK);
     prefs = home_shortcuts_get();
-    assert(prefs->count == 3U);
+    assert(prefs->count == 4U);
     assert(!home_shortcuts_is_selected(prefs, "music"));
     assert(home_shortcuts_is_selected(prefs, "files"));
 }
@@ -302,9 +306,9 @@ static void _test_load_normalizes_unavailable_and_duplicate_ids(void)
     const app_manager_app_desc_t *catalog[HOME_SHORTCUT_CATALOG_MAX];
     const size_t count = home_shortcut_catalog(catalog,
         HOME_SHORTCUT_CATALOG_MAX);
-    assert(count == 6U);
+    assert(count == 7U);
     const home_shortcut_prefs_t *loaded = home_shortcuts_get();
-    const app_manager_app_desc_t *clock = catalog[3];
+    const app_manager_app_desc_t *clock = catalog[4];
     assert(strcmp(clock->id, "clock") == 0);
     assert(home_shortcuts_set_selected(clock, true) == ESP_OK);
     loaded = home_shortcuts_get();

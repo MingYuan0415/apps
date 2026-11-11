@@ -120,6 +120,14 @@ static void _home_shortcuts_clear_notice(home_shortcuts_page_state_t *state)
     }
 }
 
+static void _home_shortcuts_limit_notice(home_shortcuts_page_state_t *state)
+{
+    char text[32];
+    (void)snprintf(text, sizeof(text), "最多选择 %u 个应用",
+                   (unsigned)HOME_SHORTCUT_SLOTS);
+    _home_shortcuts_notice(state, text, APP_UI_STATUS_WARNING);
+}
+
 static size_t _home_shortcuts_selected_count(
     const home_shortcuts_page_state_t *state)
 {
@@ -212,8 +220,7 @@ static void _home_shortcut_card_clicked(lv_event_t *event)
     if (!selected && _home_shortcuts_selected_count(choice->owner) >=
             HOME_SHORTCUT_SLOTS)
     {
-        _home_shortcuts_notice(choice->owner, "最多选择 3 个应用",
-                               APP_UI_STATUS_WARNING);
+        _home_shortcuts_limit_notice(choice->owner);
         _home_shortcuts_sync(choice->owner);
         return;
     }
@@ -221,8 +228,7 @@ static void _home_shortcut_card_clicked(lv_event_t *event)
         !selected);
     if (result == ESP_ERR_INVALID_STATE)
     {
-        _home_shortcuts_notice(choice->owner, "最多选择 3 个应用",
-                               APP_UI_STATUS_WARNING);
+        _home_shortcuts_limit_notice(choice->owner);
     }
     else if (result != ESP_OK)
     {
@@ -401,11 +407,17 @@ static void _home_shortcuts_page_mount(
     const esp_err_t load_result = home_shortcuts_ensure_loaded();
 
     app_ui_page_create(&state->page, "主页快捷方式", true);
-    app_ui_page_set_subtitle(&state->page, "最多选择 3 个应用");
+    char subtitle[32];
+    (void)snprintf(subtitle, sizeof(subtitle), "最多选择 %u 个应用",
+                   (unsigned)HOME_SHORTCUT_SLOTS);
+    app_ui_page_set_subtitle(&state->page, subtitle);
     lv_obj_t *content = state->page.content;
     lv_obj_set_style_pad_top(content, 4, 0);
     lv_obj_set_style_pad_bottom(content, 16, 0);
-    state->summary = app_ui_add_body_label(content, "已选择 0/3");
+    char summary[32];
+    (void)snprintf(summary, sizeof(summary), "已选择 0/%u",
+                   (unsigned)HOME_SHORTCUT_SLOTS);
+    state->summary = app_ui_add_body_label(content, summary);
     state->notice = _home_shortcuts_small_label(content, "");
     lv_obj_set_hidden(state->notice, true);
     if (load_result != ESP_OK)

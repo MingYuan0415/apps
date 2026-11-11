@@ -12,7 +12,7 @@
 #include <string.h>
 
 #define HOME_SHORTCUT_KEY     "home_shortcut"
-#define HOME_SHORTCUT_VERSION 1U
+#define HOME_SHORTCUT_VERSION 2U
 
 typedef struct home_shortcut_blob
 {

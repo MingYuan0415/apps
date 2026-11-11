@@ -25,6 +25,10 @@
 #define HOME_TIMER_RING          36
 #define HOME_SHORTCUT_WELL       64
 #define HOME_SHORTCUT_IMAGE      56
+#define HOME_WEATHER_ICON_SIZE     40
+#define HOME_WEATHER_COLUMN_GAP    8
+#define HOME_WEATHER_CITY_MIN      48
+#define HOME_WEATHER_CONDITION_MAX 60
 
 typedef struct home_page_state home_page_state_t;
 
@@ -51,6 +55,7 @@ struct home_page_state
     lv_obj_t *weather_image;
     lv_obj_t *weather_fallback;
     lv_obj_t *weather_city;
+    lv_obj_t *weather_reading;
     lv_obj_t *weather_value;
     lv_obj_t *weather_condition;
     lv_obj_t *timer_band;
@@ -60,7 +65,6 @@ struct home_page_state
     lv_obj_t *clock_caption;
     lv_obj_t *shortcut_dock;
     home_shortcut_view_ctx_t shortcut_ctx[HOME_SHORTCUT_SLOTS];
-    home_shortcut_view_ctx_t app_ctx;
     uint32_t shortcut_generation;
     bool shortcut_long_pressed;
     lv_timer_t *refresh_timer;
@@ -133,6 +137,28 @@ static void _home_set_weather_image(home_page_state_t *state,
     }
 }
 
+/* Keep the city inside the width left by the icon and the complete reading
+ * group. A content-sized label stops growing at this cap; longer locations
+ * then scroll inside it instead of squeezing the readings. */
+static void _home_weather_fit_city(home_page_state_t *state)
+{
+    if (state->weather_band == NULL || state->weather_city == NULL ||
+            state->weather_reading == NULL)
+    {
+        return;
+    }
+    lv_obj_update_layout(state->page.root);
+    int32_t width = lv_obj_get_content_width(state->weather_band) -
+                    HOME_WEATHER_ICON_SIZE -
+                    lv_obj_get_width(state->weather_reading) -
+                    2 * HOME_WEATHER_COLUMN_GAP;
+    if (width < HOME_WEATHER_CITY_MIN)
+    {
+        width = HOME_WEATHER_CITY_MIN;
+    }
+    lv_obj_set_style_max_width(state->weather_city, width, 0);
+}
+
 /* A passive ring-sized arc. Its MAIN part draws the background track and its
  * INDICATOR part is reserved for a progress sweep. */
 static lv_obj_t *_home_ring_arc(lv_obj_t *parent, int32_t size, int32_t width,
@@ -173,16 +199,16 @@ static void _home_render_clock(home_page_state_t *state)
     struct tm local_time;
     if (time_service_get_local(&local_time) != ESP_OK)
     {
-        app_ui_label_set_text_if(state->time_label, "--:--");
+        app_ui_label_set_text_if(state->time_label, "--:--:--");
         app_ui_label_set_text_if(state->date_label, "等待有效时间");
         app_ui_pill_set(state->quality_pill, "时间不可用",
                         APP_UI_STATUS_WARNING);
         return;
     }
     char text[48];
-    if (strftime(text, sizeof(text), "%H:%M", &local_time) == 0U)
+    if (strftime(text, sizeof(text), "%H:%M:%S", &local_time) == 0U)
     {
-        (void)snprintf(text, sizeof(text), "--:--");
+        (void)snprintf(text, sizeof(text), "--:--:--");
     }
     app_ui_label_set_text_if(state->time_label, text);
     static const char *const weekdays[] = { "日", "一", "二", "三", "四", "五", "六" };
@@ -361,6 +387,7 @@ static void _home_render_weather(home_page_state_t *state)
         app_ui_label_set_text_if(state->weather_value, "--");
         app_ui_label_set_text_if(state->weather_condition, "不可用");
         _home_set_color(state->weather_value, APP_UI_COLOR_WARNING);
+        _home_weather_fit_city(state);
         return;
     }
     if (snapshot->location.city[0] != '\0')
@@ -406,6 +433,7 @@ static void _home_render_weather(home_page_state_t *state)
         _home_set_color(state->weather_value, APP_UI_COLOR_MUTED);
         _home_set_weather_image(state, 0U, true);
     }
+    _home_weather_fit_city(state);
     weather_service_snapshot_release(snapshot);
 }
 
@@ -620,7 +648,7 @@ static void _home_build_hero(home_page_state_t *state, lv_obj_t *content)
                           LV_FLEX_ALIGN_CENTER);
     app_ui_make_passive(hero, false);
 
-    state->time_label = _home_label(hero, "--:--", APP_THEME_FONT_DISPLAY,
+    state->time_label = _home_label(hero, "--:--:--", APP_THEME_FONT_TITLE,
                                     APP_UI_COLOR_TEXT);
     lv_obj_set_style_text_align(state->time_label, LV_TEXT_ALIGN_CENTER, 0);
 
@@ -630,9 +658,11 @@ static void _home_build_hero(home_page_state_t *state, lv_obj_t *content)
     lv_obj_set_flex_flow(meta, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(meta, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(meta, 10, 0);
+    lv_obj_set_style_pad_column(meta, APP_UI_GAP_TIGHT, 0);
     app_ui_make_passive(meta, false);
-    state->date_label = _home_label(meta, "等待有效时间", APP_THEME_FONT_BODY,
+    /* Date and quality pill share one line; the small role keeps the row
+     * inside the 320 px panel content width. */
+    state->date_label = _home_label(meta, "等待有效时间", APP_THEME_FONT_SMALL,
                                     APP_UI_COLOR_MUTED);
     lv_obj_set_width(state->date_label, LV_SIZE_CONTENT);
     lv_label_set_long_mode(state->date_label, LV_LABEL_LONG_CLIP);
@@ -660,61 +690,58 @@ static void _home_build_weather(home_page_state_t *state, lv_obj_t *content)
                               LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(band, LV_OPA_COVER, LV_STATE_PRESSED);
     lv_obj_set_style_pad_all(band, 4, 0);
-    lv_obj_set_style_pad_column(band, 4, 0);
+    lv_obj_set_style_pad_column(band, HOME_WEATHER_COLUMN_GAP, 0);
     lv_obj_set_flex_flow(band, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(band, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
+    /* Icon, location and readings are three content-sized groups; the free
+     * width is split evenly between the two gaps instead of stretching the
+     * location label. */
+    lv_obj_set_flex_align(band, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_add_event_cb(band, _home_open_app, LV_EVENT_CLICKED,
                         (void *)APP_MANAGER_ID_WEATHER);
     state->weather_band = band;
 
-    /* Identity stays together on the left; readings stay together on the
-     * right. The identity group absorbs spare width, so no single label owns
-     * an arbitrary gap. */
-    lv_obj_t *identity = lv_obj_create(band);
-    lv_obj_remove_style_all(identity);
-    lv_obj_set_width(identity, 0);
-    lv_obj_set_height(identity, LV_SIZE_CONTENT);
-    lv_obj_set_flex_grow(identity, 1);
-    lv_obj_set_flex_flow(identity, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(identity, LV_FLEX_ALIGN_START,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(identity, 4, 0);
-    app_ui_make_passive(identity, false);
-
-    state->weather_image = lv_image_create(identity);
-    lv_obj_set_size(state->weather_image, 40, 40);
+    lv_obj_t *visual = lv_obj_create(band);
+    lv_obj_remove_style_all(visual);
+    lv_obj_set_size(visual, HOME_WEATHER_ICON_SIZE, HOME_WEATHER_ICON_SIZE);
+    app_ui_make_passive(visual, false);
+    state->weather_image = lv_image_create(visual);
+    lv_obj_set_size(state->weather_image, HOME_WEATHER_ICON_SIZE,
+                    HOME_WEATHER_ICON_SIZE);
     app_ui_make_passive(state->weather_image, false);
-    state->weather_fallback = _home_symbol_label(identity, LV_SYMBOL_IMAGE);
+    lv_obj_center(state->weather_image);
+    state->weather_fallback = _home_symbol_label(visual, LV_SYMBOL_IMAGE);
     _home_set_color(state->weather_fallback, APP_UI_COLOR_MUTED);
+    lv_obj_center(state->weather_fallback);
 
-    state->weather_city = _home_inline_label(identity, "",
+    state->weather_city = _home_inline_label(band, "",
         APP_THEME_FONT_SMALL, APP_UI_COLOR_FAINT);
-    lv_obj_set_width(state->weather_city, 0);
-    lv_obj_set_flex_grow(state->weather_city, 1);
+    lv_obj_set_width(state->weather_city, LV_SIZE_CONTENT);
     lv_obj_set_height(state->weather_city,
                       lv_font_get_line_height(
                           app_ui_font(APP_THEME_FONT_SMALL)));
-    lv_label_set_long_mode(state->weather_city, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(state->weather_city,
+                           LV_LABEL_LONG_SCROLL_CIRCULAR);
 
-    lv_obj_t *reading = lv_obj_create(band);
-    lv_obj_remove_style_all(reading);
-    lv_obj_set_size(reading, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(reading, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(reading, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(reading, 8, 0);
-    app_ui_make_passive(reading, false);
+    state->weather_reading = lv_obj_create(band);
+    lv_obj_remove_style_all(state->weather_reading);
+    lv_obj_set_size(state->weather_reading, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(state->weather_reading, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(state->weather_reading, LV_FLEX_ALIGN_END,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(state->weather_reading, 8, 0);
+    app_ui_make_passive(state->weather_reading, false);
 
-    state->weather_condition = _home_inline_label(reading, "天气",
-        APP_THEME_FONT_SMALL, APP_UI_COLOR_MUTED);
+    state->weather_condition = _home_inline_label(state->weather_reading,
+        "天气", APP_THEME_FONT_SMALL, APP_UI_COLOR_MUTED);
     lv_obj_set_width(state->weather_condition, LV_SIZE_CONTENT);
-    lv_obj_set_style_max_width(state->weather_condition, 60, 0);
+    lv_obj_set_style_max_width(state->weather_condition,
+                               HOME_WEATHER_CONDITION_MAX, 0);
     lv_obj_set_height(state->weather_condition,
                       lv_font_get_line_height(
                           app_ui_font(APP_THEME_FONT_SMALL)));
     lv_label_set_long_mode(state->weather_condition, LV_LABEL_LONG_DOT);
-    state->weather_value = _home_inline_label(reading, "--",
+    state->weather_value = _home_inline_label(state->weather_reading, "--",
         APP_THEME_FONT_HEAD, APP_UI_COLOR_SUN);
 }
 
@@ -801,8 +828,10 @@ static void _home_shortcut_clicked(lv_event_t *event)
         ctx->state->shortcut_long_pressed = false;
         return;
     }
-    app_ui_request_run(ctx->app_id != NULL ? ctx->app_id :
-                       APP_MANAGER_ID_MENU);
+    if (ctx->app_id != NULL)
+    {
+        app_ui_request_run(ctx->app_id);
+    }
 }
 
 static lv_obj_t *_home_shortcut_tile(lv_obj_t *parent, uint32_t image_id,
@@ -908,10 +937,6 @@ static void _home_rebuild_shortcuts(home_page_state_t *state)
                                   app->display_name : app->name,
                                   &state->shortcut_ctx[index]);
     }
-    state->app_ctx.state = state;
-    state->app_ctx.app_id = NULL;
-    (void)_home_shortcut_tile(state->shortcut_dock, APP_IMAGE_MENU_ICON,
-                              LV_SYMBOL_LIST, "应用", &state->app_ctx);
     state->shortcut_generation = home_shortcuts_generation();
 }
 
@@ -1046,6 +1071,7 @@ static void _home_page_unmount(const app_manager_page_context_t *context)
     state->weather_image = NULL;
     state->weather_fallback = NULL;
     state->weather_city = NULL;
+    state->weather_reading = NULL;
     state->weather_value = NULL;
     state->weather_condition = NULL;
     state->timer_band = NULL;
@@ -1060,8 +1086,6 @@ static void _home_page_unmount(const app_manager_page_context_t *context)
         state->shortcut_ctx[index].state = NULL;
         state->shortcut_ctx[index].app_id = NULL;
     }
-    state->app_ctx.state = NULL;
-    state->app_ctx.app_id = NULL;
 }
 
 static const app_manager_page_ops_t s_home_ops =

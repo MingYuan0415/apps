@@ -78,8 +78,7 @@ static bool _home_shortcut_eligible(const app_manager_app_desc_t *app)
     {
         return false;
     }
-    return strcmp(app->id, APP_MANAGER_ID_HOME) != 0 &&
-           strcmp(app->id, APP_MANAGER_ID_MENU) != 0;
+    return strcmp(app->id, APP_MANAGER_ID_HOME) != 0;
 }
 
 static bool _home_shortcut_catalog_has_id(

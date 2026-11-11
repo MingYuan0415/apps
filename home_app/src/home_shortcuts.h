@@ -12,7 +12,7 @@ extern "C" {
 #endif
 
 /** Number of application slots in the Home quick-access dock. */
-#define HOME_SHORTCUT_SLOTS 3U
+#define HOME_SHORTCUT_SLOTS 4U
 /** Maximum number of eligible applications exposed to the picker page. */
 #define HOME_SHORTCUT_CATALOG_MAX 24U
 
@@ -50,7 +50,7 @@ uint32_t home_shortcuts_generation(void);
 /**
  * @brief Collect the Apps eligible for the Home shortcut picker.
  *
- * Hidden Apps, Home and Menu are excluded. The result is ordered by
+ * Hidden Apps and Home are excluded. The result is ordered by
  * launcher_order, with zero treated as the last position.
  *
  * @param out receives descriptor pointers.
@@ -96,7 +96,7 @@ bool home_shortcuts_is_selected(const home_shortcut_prefs_t *prefs,
  *
  * @param app is the descriptor to add or remove.
  * @param selected is true to add, false to remove.
- * @return ESP_OK, ESP_ERR_INVALID_ARG, ESP_ERR_INVALID_STATE when the third
+ * @return ESP_OK, ESP_ERR_INVALID_ARG, ESP_ERR_INVALID_STATE when the last
  *         slot is already occupied, or a chore-service admission error.
  */
 esp_err_t home_shortcuts_set_selected(const app_manager_app_desc_t *app,

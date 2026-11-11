@@ -23,16 +23,17 @@ drivers directly.
   group rows). Size and spacing constants (4 px grid, 12/20/full radii, touch
   height) live in `app_ui_theme.h`.
 - `home_app/`: watch-face home page: a top status strip with textual Wi-Fi and
-  Bluetooth state plus battery, a 96 px digital clock, the date and the
-  time-source quality pill, a weather live band, an active countdown/focus
-  band, and a three-slot shortcut dock generated from the App registry. The
-  dock defaults to the first three eligible Apps in `launcher_order` (Weather
-  has its own live band and does not occupy a dock slot); long-press any dock
-  icon or the fixed "应用" tile to open the card-based "主页快捷方式" picker.
-  Selected cards are highlighted, and once three Apps are selected the
-  remaining cards are disabled until one is deselected. The fixed "应用" tile
-  enters the complete App directory; the HOME key enters that directory from
-  the root page and returns to the root from a Home sub-page.
+  Bluetooth state plus battery, a large second-resolution digital clock, the
+  date and the time-source quality pill, a weather live band whose location
+  label scrolls within its width cap, an active countdown/focus band, and a
+  four-slot shortcut dock generated from the App registry. The dock defaults to
+  the first four eligible Apps in `launcher_order` (Weather has its own live
+  band and does not occupy a dock slot); long-press any dock icon to open the
+  card-based "主页快捷方式" picker. Selected cards are highlighted, and once
+  four Apps are selected the remaining cards are disabled until one is
+  deselected. Menu is a selectable dock entry rather than a fixed tile; the
+  HOME key enters the complete App directory from the root page and returns to
+  the root from a Home sub-page.
 - `menu_app/`: registry-driven application index ordered by `launcher_order`.
   Every visible App uses the same two-line navigation row with its icon, name,
   launcher summary and a chevron; adding an App extends the scrollable list

@@ -13,7 +13,7 @@
 #include "nvs.h"
 
 #define TEST_KEY_CAPACITY   16U
-#define TEST_BLOB_CAPACITY  128U
+#define TEST_BLOB_CAPACITY  160U
 #define TEST_ENTRY_CAPACITY 3U
 
 typedef struct test_entry
