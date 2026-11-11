@@ -1078,6 +1078,7 @@ static void _test_browse_mounts_and_lists(void)
     memset(&state, 0, sizeof(state));
     const app_manager_page_context_t context = _context(&state);
     files_browse_page_definition.ops->mount(&context);
+    files_browse_page_definition.ops->resume(&context);
 
     /* The page submits one request and renders the finished batch. */
     _test_step_timers();
@@ -1095,6 +1096,7 @@ static void _test_browse_mounts_and_lists(void)
     memset(&second, 0, sizeof(second));
     const app_manager_page_context_t second_context = _context(&second);
     files_browse_page_definition.ops->mount(&second_context);
+    files_browse_page_definition.ops->resume(&second_context);
     _test_step_timers();
     assert(_test_live_timer() != NULL);
     files_browse_page_definition.ops->unmount(&second_context);
@@ -1118,6 +1120,7 @@ static void _test_browse_row_opens_detail(void)
     memset(&state, 0, sizeof(state));
     const app_manager_page_context_t context = _context(&state);
     files_browse_page_definition.ops->mount(&context);
+    files_browse_page_definition.ops->resume(&context);
     _test_step_timers();
 
     /* A file opens its detail page; the request carries the child path. */
@@ -1165,6 +1168,7 @@ static void _test_detail_reads_and_deletes(void)
     memset(&state, 0, sizeof(state));
     const app_manager_page_context_t context = _context(&state);
     files_detail_page_definition.ops->mount(&context);
+    files_detail_page_definition.ops->resume(&context);
     _test_step_timers();
     assert(_test_has_live_label_containing("相册/照片一.jpg"));
 
@@ -1203,6 +1207,7 @@ static void _test_storage_page_states(void)
     memset(&state, 0, sizeof(state));
     const app_manager_page_context_t context = _context(&state);
     settings_storage_page_definition.ops->mount(&context);
+    settings_storage_page_definition.ops->resume(&context);
     assert(_test_has_live_label_containing("已挂载"));
     assert(_test_has_live_label_containing("剩余空间"));
 
@@ -1268,15 +1273,18 @@ static void _test_retains_detail_across_remount(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     files_detail_page_definition.ops->mount(&context);
+    files_detail_page_definition.ops->resume(&context);
     _test_step_timers();
     files_detail_page_definition.ops->unmount(&context);
     files_detail_page_definition.ops->mount(&context);
+    files_detail_page_definition.ops->resume(&context);
     _test_step_timers();
     assert(_test_has_live_label_containing("相册/保留.txt"));
     files_detail_page_definition.ops->unmount(&context);
     strcpy(target->relative_path, "相册/另一个.txt");
     assert(files_app_select(target) == ESP_OK);
     files_detail_page_definition.ops->mount(&context);
+    files_detail_page_definition.ops->resume(&context);
     _test_step_timers();
     assert(_test_has_live_label_containing("相册/另一个.txt"));
     assert(!_test_has_live_label_containing("相册/保留.txt"));
@@ -1297,6 +1305,7 @@ static void _test_rows_ignore_pending_refresh(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     files_browse_page_definition.ops->mount(&context);
+    files_browse_page_definition.ops->resume(&context);
     _test_step_timers();
     lv_obj_t *old_row = _test_find_button_for_label("stable.txt");
     assert(old_row != NULL);
@@ -1320,6 +1329,7 @@ static void _test_empty_directory_detail_is_reachable(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     files_browse_page_definition.ops->mount(&context);
+    files_browse_page_definition.ops->resume(&context);
     _test_step_timers();
     _test_click_label("空目录");
     s_scripted_batch.count = 0U;
@@ -1348,6 +1358,7 @@ static void _test_busy_delete_is_not_nonempty(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     files_detail_page_definition.ops->mount(&context);
+    files_detail_page_definition.ops->resume(&context);
     _test_step_timers();
     s_delete_reason = FILE_SERVICE_ERROR_BUSY;
     _test_click_label("删除");
@@ -1373,6 +1384,7 @@ static void _test_failed_navigation_clears_rows(void)
         test_page_state_t state = {0};
         const app_manager_page_context_t context = _context(&state);
         files_browse_page_definition.ops->mount(&context);
+        files_browse_page_definition.ops->resume(&context);
         _test_step_timers();
         assert(_test_find_live_label("old_file.txt") != NULL);
         if (asynchronous)
@@ -1413,6 +1425,7 @@ static void _test_unavailable_and_busy_states(void)
         test_page_state_t state = {0};
         const app_manager_page_context_t context = _context(&state);
         files_browse_page_definition.ops->mount(&context);
+        files_browse_page_definition.ops->resume(&context);
         _test_step_timers();
         assert(_test_has_live_label_containing(index == 0U ?
                                                "存储卡未挂载，请前往存储管理重新挂载" : "正在使用，请稍后重试"));
@@ -1496,6 +1509,7 @@ static void _test_recorder_root_reports_failure(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_root_page_definition.ops->mount(&context);
+    recorder_root_page_definition.ops->resume(&context);
     const size_t baseline = _test_live_objects();
     assert(_test_has_live_label_containing("可用 4096 MB"));
     assert(_test_has_live_label_containing("上限 30:00"));
@@ -1536,6 +1550,7 @@ static void _test_recorder_root_pause_and_receipt(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_root_page_definition.ops->mount(&context);
+    recorder_root_page_definition.ops->resume(&context);
     const size_t baseline = _test_live_objects();
     s_recorder_snapshot.state = RECORDER_SERVICE_RECORDING;
     s_recorder_snapshot.duration_ms = 7000U;
@@ -1573,6 +1588,7 @@ static void _test_recorder_root_circle_stops(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_root_page_definition.ops->mount(&context);
+    recorder_root_page_definition.ops->resume(&context);
     assert(_test_find_live_label("开始") != NULL);
     s_recorder_snapshot.state = RECORDER_SERVICE_RECORDING;
     ++s_recorder_snapshot.generation;
@@ -1590,6 +1606,7 @@ static void _test_recorder_row_opens_detail(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     assert(s_recorder_snapshot.file_count == 1U);
     lv_obj_t *row = _test_find_button_for_label(_recorder_time_text());
@@ -1612,6 +1629,7 @@ static void _test_recorder_row_rejects_stale_epoch(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     /* A newer epoch published before the rows were rebuilt leaves the visible
      * row pointing at an identity the service no longer accepts. */
@@ -1636,6 +1654,7 @@ static void _test_recorder_list_notices(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     assert(_test_has_live_label_containing("存储卡未挂载"));
     recorder_files_page_definition.ops->unmount(&context);
@@ -1645,6 +1664,7 @@ static void _test_recorder_list_notices(void)
     test_page_state_t state2 = {0};
     const app_manager_page_context_t context2 = _context(&state2);
     recorder_files_page_definition.ops->mount(&context2);
+    recorder_files_page_definition.ops->resume(&context2);
     _test_step_timers();
     assert(_test_has_live_label_containing("正在读取"));
     recorder_files_page_definition.ops->unmount(&context2);
@@ -1659,6 +1679,7 @@ static void _test_recorder_detail_plays_and_stops(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_detail_page_definition.ops->mount(&context);
+    recorder_detail_page_definition.ops->resume(&context);
     _test_step_timers();
     assert(_test_has_live_label_containing(_recorder_time_text()));
     assert(_test_has_live_label_containing("0:02"));
@@ -1700,6 +1721,7 @@ static void _test_recorder_detail_survives_screen_cycle(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_detail_page_definition.ops->mount(&context);
+    recorder_detail_page_definition.ops->resume(&context);
     _test_step_timers();
     _test_click_label("播放");
     assert(s_recorder_plays == 1U);
@@ -1720,6 +1742,7 @@ static void _test_recorder_detail_survives_screen_cycle(void)
 
     /* Wake: same arena, fresh mount. Playback never stopped in the service. */
     recorder_detail_page_definition.ops->mount(&context);
+    recorder_detail_page_definition.ops->resume(&context);
     _test_step_timers();
     assert(!_test_has_live_label_containing("无法打开该录音"));
     assert(_test_has_live_label_containing(_recorder_time_text()));
@@ -1745,6 +1768,7 @@ static void _test_recorder_detail_delete_returns(void)
         test_page_state_t state = {0};
         const app_manager_page_context_t context = _context(&state);
         recorder_detail_page_definition.ops->mount(&context);
+        recorder_detail_page_definition.ops->resume(&context);
         _test_step_timers();
         _test_click_label("删除");
         assert(_test_has_live_label_containing("删除录音"));
@@ -1784,6 +1808,7 @@ static void _test_recorder_detail_stop_then_delete(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_detail_page_definition.ops->mount(&context);
+    recorder_detail_page_definition.ops->resume(&context);
     _test_step_timers();
     _test_click_label("删除");
     _test_click_label("删除");
@@ -1811,6 +1836,7 @@ static void _test_recorder_detail_blocks_stale_target(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_detail_page_definition.ops->mount(&context);
+    recorder_detail_page_definition.ops->resume(&context);
     _test_step_timers();
     ++s_recorder_snapshot.content_revision;
     ++s_recorder_snapshot.index_revision;
@@ -1833,6 +1859,7 @@ static void _test_recorder_detail_requires_selection(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_detail_page_definition.ops->mount(&context);
+    recorder_detail_page_definition.ops->resume(&context);
     _test_step_timers();
     assert(_test_has_live_label_containing("不可用"));
     _test_click_label("播放");
@@ -1868,6 +1895,7 @@ static void _test_recorder_long_press_enters_selection(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     const size_t rows = _test_live_objects();
     lv_obj_t *row = _test_find_button_for_label(_recorder_time_text());
@@ -1894,6 +1922,7 @@ static void _test_recorder_selection_toggles_and_exits(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     lv_obj_t *first = _test_find_button_for_label(_recorder_time_text());
     assert(first != NULL);
@@ -1929,6 +1958,7 @@ static void _test_recorder_select_all(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     _test_long_press(_test_find_button_for_label(_recorder_time_text()));
     _test_click_label("全选");
@@ -1947,6 +1977,7 @@ static void _test_recorder_selection_cancel(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     _test_long_press(_test_find_button_for_label(_recorder_time_text()));
     _test_click_label("取消");
@@ -1964,6 +1995,7 @@ static void _test_recorder_batch_delete(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     _test_long_press(_test_find_button_for_label(_recorder_time_text()));
     _test_click_label("全选");
@@ -2017,6 +2049,7 @@ static void _test_recorder_batch_delete_stops_on_error(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     _test_long_press(_test_find_button_for_label(_recorder_time_text()));
     _test_click_label("全选");
@@ -2044,6 +2077,7 @@ static void _test_recorder_batch_blocked_while_recording(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     _test_long_press(_test_find_button_for_label(_recorder_time_text()));
     assert(_test_find_live_label("全选") == NULL);
@@ -2065,6 +2099,7 @@ static void _test_recorder_batch_stops_playback_first(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     _test_long_press(_test_find_button_for_label(_recorder_time_text()));
     _test_click_label("全选");
@@ -2094,6 +2129,7 @@ static void _test_recorder_batch_keeps_rows_alive(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     lv_obj_t *row = _test_find_button_for_label(_recorder_time_text());
     assert(row != NULL);
@@ -2121,6 +2157,7 @@ static void _test_recorder_batch_reloads_survivors(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_files_page_definition.ops->mount(&context);
+    recorder_files_page_definition.ops->resume(&context);
     _test_step_timers();
     _test_long_press(_test_find_button_for_label(_recorder_time_text()));
     /* Select only the first row: two recordings must survive the batch. */
@@ -2148,6 +2185,7 @@ static void _test_recorder_root_limit_receipt(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_root_page_definition.ops->mount(&context);
+    recorder_root_page_definition.ops->resume(&context);
     s_recorder_snapshot.state = RECORDER_SERVICE_RECORDING;
     s_recorder_snapshot.duration_ms = 1800000U;
     ++s_recorder_snapshot.generation;
@@ -2169,6 +2207,7 @@ static void _test_recorder_root_error_is_retryable(void)
     test_page_state_t state = {0};
     const app_manager_page_context_t context = _context(&state);
     recorder_root_page_definition.ops->mount(&context);
+    recorder_root_page_definition.ops->resume(&context);
     s_recorder_snapshot.state = RECORDER_SERVICE_ERROR;
     s_recorder_snapshot.last_error = ESP_FAIL;
     ++s_recorder_snapshot.generation;

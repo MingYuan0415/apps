@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define TEST_OBJECT_CAPACITY 256U
@@ -280,6 +281,30 @@ static app_manager_page_context_t _test_context(test_page_state_t *state)
 lv_obj_t *lv_obj_create(lv_obj_t *parent)
 {
     return _test_object_create(parent, false, false, false);
+}
+
+lv_timer_t *lv_timer_create(void (*callback)(lv_timer_t *timer),
+                            uint32_t period_ms, void *user_data)
+{
+    lv_timer_t *timer = calloc(1U, sizeof(*timer));
+    assert(timer != NULL);
+    timer->callback = callback;
+    timer->period_ms = period_ms;
+    timer->user_data = user_data;
+    return timer;
+}
+
+void lv_timer_delete(lv_timer_t *timer)
+{
+    free(timer);
+}
+
+void lv_timer_pause(lv_timer_t *timer)
+{
+    if (timer != NULL)
+    {
+        timer->paused = true;
+    }
 }
 
 lv_obj_t *lv_button_create(lv_obj_t *parent)

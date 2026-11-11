@@ -448,7 +448,7 @@ static void _level_mount(const app_manager_page_context_t *context)
     lv_label_set_text(calibrate_label, "校准当前位置");
     lv_obj_center(calibrate_label);
 
-    state->refresh_timer = lv_timer_create(_level_refresh, 50U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_level_refresh, 50U, state);
     _level_render(state);
 }
 

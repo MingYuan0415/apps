@@ -337,7 +337,7 @@ static void _files_detail_mount(const app_manager_page_context_t *context)
                                         &state->time_value,
                                         APP_THEME_FONT_SMALL);
 
-    state->poll_timer = lv_timer_create(_files_detail_timer, 120U, state);
+    state->poll_timer = app_ui_timer_create_passive(_files_detail_timer, 120U, state);
     _files_detail_submit(state);
 }
 

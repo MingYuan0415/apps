@@ -821,7 +821,7 @@ static void _files_mount(const app_manager_page_context_t *context)
     app_ui_button_set_kind(state->btn_delete, APP_UI_BUTTON_DANGER);
     recorder_ui_set_visible(state->selection_bar, false);
 
-    state->refresh_timer = lv_timer_create(_files_refresh, 250U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_files_refresh, 250U, state);
     _files_render(state);
 }
 

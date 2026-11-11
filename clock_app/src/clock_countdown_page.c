@@ -343,7 +343,7 @@ static void _countdown_mount(const app_manager_page_context_t *context)
                                             _countdown_reset_event, state);
     lv_obj_set_hidden(state->btn_reset, true);
 
-    state->refresh_timer = lv_timer_create(_countdown_refresh, 250U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_countdown_refresh, 250U, state);
     _countdown_render(state);
 }
 

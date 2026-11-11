@@ -693,26 +693,27 @@ static void _weather_root_build(weather_root_state_t *state)
 
 static void _weather_root_resume(weather_root_state_t *state)
 {
+    app_ui_pull_refresh_resume(&s_weather_root_pull);
+    if (state->subscription == EVENT_BUS_SUB_HANDLE_INVALID)
+    {
+        esp_err_t result = event_bus_subscribe(
+                               WEATHER_SERVICE_MSG,
+                               WEATHER_SERVICE_MSG_SUB_TYPE_SNAPSHOT,
+                               _weather_root_event, state,
+                               EVENT_BUS_DISPATCH_UI, &state->subscription);
+        if (result != ESP_OK)
+        {
+            state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+            LOG_W("weather subscription failed: %s", esp_err_to_name(result));
+        }
+    }
     _weather_root_refresh_snapshot(state);
-    if (state->subscription != EVENT_BUS_SUB_HANDLE_INVALID)
-    {
-        return;
-    }
-    esp_err_t result = event_bus_subscribe(
-                           WEATHER_SERVICE_MSG,
-                           WEATHER_SERVICE_MSG_SUB_TYPE_SNAPSHOT,
-                           _weather_root_event, state, EVENT_BUS_DISPATCH_UI,
-                           &state->subscription);
-    if (result != ESP_OK)
-    {
-        state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        LOG_W("weather subscription failed: %s", esp_err_to_name(result));
-    }
 }
 
 static esp_err_t _weather_root_pause(weather_root_state_t *state)
 {
     esp_err_t result = weather_ui_unsubscribe(&state->subscription);
+    app_ui_pull_refresh_pause(&s_weather_root_pull);
     weather_ui_release_snapshot(&state->snapshot);
     return result;
 }
@@ -743,6 +744,7 @@ static void _weather_root_unmount(
     (void)lv_anim_delete(state->main_image, NULL);
     (void)lv_anim_delete(state->image_fallback, NULL);
     app_ui_pull_refresh_detach(&s_weather_root_pull);
+    weather_ui_release_snapshot(&state->snapshot);
     app_ui_page_destroy(&state->page);
     state->city_label = NULL;
     state->status_label = NULL;

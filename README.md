@@ -248,17 +248,20 @@ pull-down capture band (the top 40 px of the screen, with 76 px reserved at
 both corners for page controls), so page-header content must not occupy that
 top region.
 
-Pull-to-refresh is provided by `app_ui_pull_refresh_attach()`: a hint bar
-covered by the page header/content is placed at the page top; dragging down on
-`content` (and on a clickable root) moves the whole page (header + content)
+Pull-to-refresh is configured by `app_ui_pull_refresh_attach()` in MOUNT and
+enabled by `app_ui_pull_refresh_resume()` in RESUME: a hint bar covered by the
+page header/content is placed at the page top; dragging down on `content`
+(and on a clickable root) moves the whole page (header + content)
 down with the displacement and progressively reveals the hint bar; releasing
 past the threshold (about 25 px / 56 px) fires the page refresh callback and
 keeps "正在刷新…" (refreshing) until the page springs back via
 `app_ui_pull_refresh_set_refreshing(false)` (or the 8 s fallback). The weather
 root page reuses `weather_service_request_refresh()`, and the settings Wi-Fi
 page reuses the scan request; when the drag starts on a clickable row it is
-handed to the row/scroll and no pull is triggered. The control center's top
-40 px pull-down still belongs to the control center.
+handed to the row/scroll and no pull is triggered. Pages call
+`app_ui_pull_refresh_pause()` in PAUSE and `app_ui_pull_refresh_resume()` in
+RESUME so no gesture handler or fallback timer survives a successful PAUSE.
+The control center's top 40 px pull-down still belongs to the control center.
 
 Each app describes its typed ops and private memory size with a plain `const`
 Page definition, and explicitly binds `page_id`, the definition and the route
@@ -281,18 +284,25 @@ cycles. New apps use typed ops; raw handlers exist only for compatibility with
 old pages.
 
 Page UI is created and destroyed only in `ONMOUNT/ONUNMOUNT`, and the root
-object must be attached to the Page Screen. Timers, event subscriptions,
-workers and service sessions start and stop only in `ONRESUME/ONPAUSE`; a
-failed cleanup must keep the resource handle and allow a lifecycle retry.
+object must be attached to the Page Screen. LVGL timers may be created in
+MOUNT, but a newly created timer must be paused immediately; only ONRESUME may
+activate it, and ONPAUSE must pause or delete it. Event subscriptions, workers
+and service sessions start and stop only in `ONRESUME/ONPAUSE`; a failed
+cleanup must keep the resource handle and allow a lifecycle retry.
 Every page's private state is constrained to
 `APP_MANAGER_PAGE_STATE_BYTES` by a static assertion. All product pages use
 typed Page ops, and alert details receive a value-copied alert key through a
 Typed Blob; new pages follow the same lifecycle boundary.
 
 When a Weather page returns to the foreground it subscribes to
-`WEATHER_SERVICE_MSG` and acquires the current immutable snapshot, and on pause
-it unsubscribes first and then releases; events only trigger a re-fetch by
-generation and do not copy the hourly, daily or alert arrays. Alert details
+`WEATHER_SERVICE_MSG` first and then acquires the current immutable snapshot,
+and on pause it unsubscribes first and then releases; events only trigger a
+re-fetch by generation and do not copy the hourly, daily or alert arrays.
+MOUNT only builds widgets from passive state. Snapshot acquisition is a
+foreground resource and therefore happens only in RESUME or a UI-dispatched
+event, never in a render helper called by MOUNT. UNMOUNT still releases any
+retained lease defensively because rollback and failed-STOP paths can bypass a
+normal PAUSE. Alert details
 read the alert key from the START/NEWINTENT arguments of a versioned Typed
 Blob and do not depend on a mutable global shared across pages. The detail
 page's temporary formatting buffer lives on the UI worker task stack. Images

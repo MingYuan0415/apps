@@ -152,7 +152,7 @@ static void _diagnostics_mount(const app_manager_page_context_t *context)
         _diagnostics_add_row(state, &state->rows[index]);
     }
     state->status = app_ui_add_body_label(state->page.content, "读取中");
-    state->refresh_timer = lv_timer_create(_diagnostics_refresh, 1000U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_diagnostics_refresh, 1000U, state);
     _diagnostics_render(state);
 }
 

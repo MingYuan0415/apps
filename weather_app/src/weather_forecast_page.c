@@ -636,10 +636,6 @@ static void _weather_forecast_render_daily(weather_forecast_state_t *state,
 
 static void _weather_forecast_render(weather_forecast_state_t *state)
 {
-    if (state->snapshot == NULL)
-    {
-        (void)weather_service_snapshot_acquire(&state->snapshot);
-    }
     int32_t restore_y[WEATHER_FORECAST_TILE_COUNT] = {0};
     for (size_t index = 0U; index < WEATHER_FORECAST_TILE_COUNT; ++index)
     {
@@ -889,21 +885,20 @@ static void _weather_forecast_build(weather_forecast_state_t *state)
 
 static void _weather_forecast_resume(weather_forecast_state_t *state)
 {
+    if (state->subscription == EVENT_BUS_SUB_HANDLE_INVALID)
+    {
+        esp_err_t result = event_bus_subscribe(
+                               WEATHER_SERVICE_MSG,
+                               WEATHER_SERVICE_MSG_SUB_TYPE_SNAPSHOT,
+                               _weather_forecast_event, state,
+                               EVENT_BUS_DISPATCH_UI, &state->subscription);
+        if (result != ESP_OK)
+        {
+            state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
+            LOG_W("weather subscription failed: %s", esp_err_to_name(result));
+        }
+    }
     _weather_forecast_refresh(state);
-    if (state->subscription != EVENT_BUS_SUB_HANDLE_INVALID)
-    {
-        return;
-    }
-    esp_err_t result = event_bus_subscribe(
-                           WEATHER_SERVICE_MSG,
-                           WEATHER_SERVICE_MSG_SUB_TYPE_SNAPSHOT,
-                           _weather_forecast_event, state,
-                           EVENT_BUS_DISPATCH_UI, &state->subscription);
-    if (result != ESP_OK)
-    {
-        state->subscription = EVENT_BUS_SUB_HANDLE_INVALID;
-        LOG_W("weather subscription failed: %s", esp_err_to_name(result));
-    }
 }
 
 static esp_err_t _weather_forecast_pause(weather_forecast_state_t *state)
@@ -935,6 +930,7 @@ static void _weather_forecast_unmount(
     const app_manager_page_context_t *context)
 {
     weather_forecast_state_t *state = context->state;
+    weather_ui_release_snapshot(&state->snapshot);
     app_ui_page_destroy(&state->page);
     for (size_t index = 0U; index < WEATHER_FORECAST_SEGMENT_COUNT; ++index)
     {

@@ -340,7 +340,7 @@ static void _files_browse_mount(const app_manager_page_context_t *context)
     lv_obj_set_flex_flow(state->list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(state->list, APP_UI_GAP_TIGHT, 0);
     app_ui_make_passive(state->list, false);
-    state->poll_timer = lv_timer_create(_files_browse_timer, 120U, state);
+    state->poll_timer = app_ui_timer_create_passive(_files_browse_timer, 120U, state);
     _files_browse_submit(state, NULL);
 }
 

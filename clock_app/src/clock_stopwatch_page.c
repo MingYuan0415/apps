@@ -327,7 +327,7 @@ static void _stopwatch_mount(const app_manager_page_context_t *context)
     lv_obj_set_hidden(state->btn_lap, true);
     lv_obj_set_hidden(state->btn_reset, true);
 
-    state->refresh_timer = lv_timer_create(_stopwatch_refresh, 250U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_stopwatch_refresh, 250U, state);
     _stopwatch_render_laps(state);
     _stopwatch_render(state);
 }

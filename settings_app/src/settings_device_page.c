@@ -113,7 +113,7 @@ static void _device_mount(const app_manager_page_context_t *context)
     (void)app_ui_group_add_nav(action_group, LV_SYMBOL_SD_CARD, "存储管理",
                                NULL, _device_open_storage, NULL);
 
-    state->refresh_timer = lv_timer_create(_device_timer, 1000U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_device_timer, 1000U, state);
     _device_refresh(state);
 }
 

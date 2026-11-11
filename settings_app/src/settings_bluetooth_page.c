@@ -404,7 +404,7 @@ static void _bluetooth_mount(const app_manager_page_context_t *context)
     state->unbind_status = app_ui_add_body_label(state->page.content, " ");
     lv_obj_set_hidden(state->unbind_status, true);
 
-    state->refresh_timer = lv_timer_create(_bluetooth_timer, 1000U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_bluetooth_timer, 1000U, state);
     _bluetooth_refresh(state);
 }
 

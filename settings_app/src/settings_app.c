@@ -295,7 +295,7 @@ static void _settings_info_mount(const app_manager_page_context_t *context)
 
     app_ui_add_body_label(state->page.content,
                           "网络校时需要设备连接 Wi-Fi");
-    state->refresh_timer = lv_timer_create(_settings_info_timer, 1000U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_settings_info_timer, 1000U, state);
     _settings_info_refresh(state);
 }
 

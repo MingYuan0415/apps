@@ -695,7 +695,8 @@ static void _clock_root_mount(const app_manager_page_context_t *context)
     _clock_root_add_card(state, group, "专注", CLOCK_PAGE_FOCUS,
                          CLOCK_CARD_FOCUS);
 
-    state->refresh_timer = lv_timer_create(_clock_root_refresh, 250U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_clock_root_refresh,
+        250U, state);
     _clock_root_render(state);
 }
 

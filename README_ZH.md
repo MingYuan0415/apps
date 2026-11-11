@@ -73,12 +73,15 @@ Setup 页的 Wi-Fi 卡片、绑定/断开/忘记/取消/完成/稍后等行图�
 按钮（`app_ui_page_set_action`）为 42 x 42 圆形且右下对齐，位于系统控制中心顶部下拉捕获带
 （屏幕顶部 40 px，左右各留 76 px 给页头控件）之下，因此页头内容不得占用该顶部区域。
 
-下拉刷新由 `app_ui_pull_refresh_attach()` 提供：在页顶放置一条被页头/内容遮挡的提示条，
-`content`（以及可点击的 root）上向下拖动时整页（页头 + 内容）随位移下移并逐步露出提示条，
+下拉刷新在 MOUNT 由 `app_ui_pull_refresh_attach()` 配置，在 RESUME 由
+`app_ui_pull_refresh_resume()` 启用：在页顶放置一条被页头/内容遮挡的提示条，
+在 `content`（以及可点击的 root）上向下拖动时整页（页头 + 内容）随位移下移并逐步露出提示条，
 达阈值（约 25 px / 56 px）松手触发页面刷新回调并保持「正在刷新…」，页面经
 `app_ui_pull_refresh_set_refreshing(false)`（或 8 s 兜底）回弹。天气根页复用
 `weather_service_request_refresh()`，设置 Wi-Fi 页复用扫描请求；拖动起点落在可点击行上时
-交给行/滚动，不触发下拉。控制中心顶部 40 px 下拉仍归控制中心。
+交给行/滚动，不触发下拉。页面在 PAUSE 调用 `app_ui_pull_refresh_pause()`，在 RESUME
+调用 `app_ui_pull_refresh_resume()`，成功 PAUSE 后不得保留手势 handler 或兜底 timer。
+控制中心顶部 40 px 下拉仍归控制中心。
 
 每个应用以普通 `const` Page definition 描述 typed ops 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。App descriptor（`APP_MANAGER_APP_EXPORT` 及其 `APP_MANAGER_APP_EXPORT_META` 变体）进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。新增应用时应在独立目录中实现生命周期 ops，在 `app_catalog.cmake` 增加一项，并在该 App 的 `app.cmake` 中声明源文件、include、依赖服务与硬件 capability；当前产品清单决定该 App 是否参与编译、链接和资源打包。不要使用递归 glob；`tests/docs/test_app_registration.py` 会校验每条源文件都在 catalog 中，且消费方使用统一的产品展开。
 
@@ -86,10 +89,13 @@ Setup 页的 Wi-Fi 卡片、绑定/断开/忘记/取消/完成/稍后等行图�
 `.mount` 和 `.unmount`；需要前台刷新时再增加 `.resume` 和 `.pause`；需要跨挂载周期保留
 状态时才增加 `.start` 或 `.stop`。新应用使用 typed ops，raw handler 仅用于兼容旧页面。
 
-页面 UI 只在 `ONMOUNT/ONUNMOUNT` 中创建和销毁，根对象必须挂到 Page Screen。Timer、事件订阅、worker 和服务会话只在 `ONRESUME/ONPAUSE` 中启停；清理失败须保留资源 handle 并允许生命周期重试。每个页面私有状态都以静态断言约束在 `APP_MANAGER_PAGE_STATE_BYTES` 内。所有产品页面使用类型化 Page ops，预警详情通过 Typed Blob 接收值复制的 alert key；新增页面沿用同一生命周期边界。
+页面 UI 只在 `ONMOUNT/ONUNMOUNT` 中创建和销毁，根对象必须挂到 Page Screen。LVGL timer 可在 MOUNT 创建，但新建后必须立即 pause；只有 `ONRESUME` 可激活，`ONPAUSE` 必须 pause 或 delete。事件订阅、worker 和服务会话只在 `ONRESUME/ONPAUSE` 中启停；清理失败须保留资源 handle 并允许生命周期重试。每个页面私有状态都以静态断言约束在 `APP_MANAGER_PAGE_STATE_BYTES` 内。所有产品页面使用类型化 Page ops，预警详情通过 Typed Blob 接收值复制的 alert key；新增页面沿用同一生命周期边界。
 
-Weather 页面恢复前台时订阅 `WEATHER_SERVICE_MSG` 并 acquire 当前不可变快照，暂停时
-先退订再 release；事件只触发按 generation 重取，不复制小时、逐日或预警数组。预警详情
+Weather 页面恢复前台时先订阅 `WEATHER_SERVICE_MSG` 再 acquire 当前不可变快照，暂停时
+先退订再 release；事件只触发按 generation 重取，不复制小时、逐日或预警数组。MOUNT 只使用
+被动状态构建控件，快照 acquire 属于前台资源，只能在 RESUME 或 UI 分发事件中发生，不能放在
+MOUNT 调用的 render 辅助函数里。回滚和 STOP 失败路径可能绕过正常 PAUSE，因此 UNMOUNT 仍须
+防御性释放保留的 lease。预警详情
 从版本化 Typed Blob 的 START/NEWINTENT 参数读取 alert key，不依赖跨页面可变全局。详情页
 的临时格式化缓冲位于 UI worker 任务栈。图片按语义 ID 查询 mmap 描述符，资源缺失时使用 LVGL
 symbol，不在页面状态中保存文件路径或可变图片 payload。

@@ -453,7 +453,7 @@ static void _root_mount(const app_manager_page_context_t *context)
                                  _root_open_files, NULL);
     lv_label_set_text(state->library_count_label, "正在读取");
 
-    state->refresh_timer = lv_timer_create(_root_refresh, 250U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_root_refresh, 250U, state);
     _root_render(state);
 }
 

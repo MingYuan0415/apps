@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define TEST_QUEUE_CAPACITY 24U
@@ -83,6 +84,30 @@ static size_t _test_explicit_font_count(const char *text,
         }
     }
     return count;
+}
+
+lv_timer_t *lv_timer_create(void (*callback)(lv_timer_t *timer),
+                            uint32_t period_ms, void *user_data)
+{
+    lv_timer_t *timer = calloc(1U, sizeof(*timer));
+    assert(timer != NULL);
+    timer->callback = callback;
+    timer->period_ms = period_ms;
+    timer->user_data = user_data;
+    return timer;
+}
+
+void lv_timer_delete(lv_timer_t *timer)
+{
+    free(timer);
+}
+
+void lv_timer_pause(lv_timer_t *timer)
+{
+    if (timer != NULL)
+    {
+        timer->paused = true;
+    }
 }
 
 lv_obj_t *lv_obj_create(lv_obj_t *parent)
@@ -370,6 +395,10 @@ int main(void)
     memset(&s_screen, 0, sizeof(s_screen));
     s_screen.live = true;
     memset(s_objects, 0, sizeof(s_objects));
+    lv_timer_t *passive_timer = app_ui_timer_create_passive(NULL, 100U, NULL);
+    assert(passive_timer != NULL);
+    assert(passive_timer->paused);
+    lv_timer_delete(passive_timer);
     app_ui_page_t page;
     app_ui_page_create(&page, "符号字体", true);
     app_ui_page_set_subtitle(&page, "动态副标题");

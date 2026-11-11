@@ -99,6 +99,22 @@ lv_obj_t *app_ui_image(lv_obj_t *parent, uint32_t image_id,
                        const char *fallback_symbol, int32_t size);
 
 /**
+ * @brief Create a foreground timer in the passive MOUNT state.
+ *
+ * The timer is created for page/state ownership but starts paused. A Page
+ * RESUME callback activates it with lv_timer_resume(); PAUSE must pause or
+ * delete it before the Page leaves the foreground.
+ *
+ * @param callback runs while the Page is resumed.
+ * @param period_ms is the timer period.
+ * @param user_data is forwarded to callback.
+ * @return Created timer, already paused, or NULL on LVGL allocation failure.
+ */
+lv_timer_t *app_ui_timer_create_passive(void (*callback)(lv_timer_t *timer),
+                                        uint32_t period_ms,
+                                        void *user_data);
+
+/**
  * @brief Apply one color to a glyph created by app_ui_image.
  *
  * Sets the text color for a symbol fallback and the image recolor for a real
@@ -127,16 +143,21 @@ typedef struct app_ui_pull_refresh
     bool armed;                      /**< Pull passed the trigger threshold. */
     bool tracking;                   /**< The gesture may still become a pull. */
     bool refreshing;                 /**< A refresh is in progress. */
+    bool attached;                   /**< Gesture handlers are enabled. */
+    bool root_was_clickable;         /**< Root click state before handlers. */
+    void *root_event;                /**< Root event descriptor, or NULL. */
+    void *content_event;             /**< Content event descriptor, or NULL. */
     void *timeout;                   /**< Bounded refresh fallback timer, or NULL. */
 } app_ui_pull_refresh_t;
 
 /**
  * @brief Enable whole-page pull-to-refresh on one page.
  *
- * Adds an occluded hint strip at the top of the page and translates the header
- * and content downward as the user drags over the content scroll owner,
- * revealing the hint. Release past the threshold (about 25 px of 56) fires
- * on_refresh; the page then stays open at the hint until
+ * Adds an occluded hint strip and stores the foreground gesture configuration.
+ * A later RESUME uses app_ui_pull_refresh_resume() to install handlers. The
+ * header and content translate downward as the user drags over the content
+ * scroll owner, revealing the hint. Release past the threshold (about
+ * 25 px of 56) fires on_refresh; the page then stays open at the hint until
  * app_ui_pull_refresh_set_refreshing(refresh, false). A drag that starts on a
  * clickable row is left to the row / normal scrolling.
  *
@@ -157,6 +178,23 @@ void app_ui_pull_refresh_attach(app_ui_pull_refresh_t *refresh,
  */
 void app_ui_pull_refresh_set_refreshing(app_ui_pull_refresh_t *refresh,
                                         bool refreshing);
+
+/**
+ * @brief Stop foreground pull-to-refresh activity without forgetting the Page.
+ *
+ * Cancels the fallback timer and any in-flight translation, removes the
+ * foreground gesture handlers, and keeps the caller-owned Page/object pointers
+ * so a later RESUME can call app_ui_pull_refresh_resume().
+ *
+ * @param refresh is the state passed to app_ui_pull_refresh_attach.
+ */
+void app_ui_pull_refresh_pause(app_ui_pull_refresh_t *refresh);
+
+/**
+ * @brief Reinstall gesture handlers after PAUSE.
+ * @param refresh is the state previously passed to app_ui_pull_refresh_pause.
+ */
+void app_ui_pull_refresh_resume(app_ui_pull_refresh_t *refresh);
 
 /**
  * @brief Forget a pull-to-refresh registration before the page is destroyed.

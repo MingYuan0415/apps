@@ -434,7 +434,7 @@ static void _storage_mount(const app_manager_page_context_t *context)
     state->status_label = app_ui_add_body_label(state->page.content,
         "读取中");
 
-    state->refresh_timer = lv_timer_create(_storage_timer, 500U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_storage_timer, 500U, state);
     _storage_render(state);
 }
 

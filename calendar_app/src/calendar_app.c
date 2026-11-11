@@ -594,8 +594,8 @@ static void _calendar_mount(const app_manager_page_context_t *context)
     lv_obj_set_scrollable(state->page.content, false);
     _calendar_build_body(state);
     _calendar_sync(state);
-    state->refresh_timer = lv_timer_create(_calendar_refresh_timer,
-                                           CALENDAR_REFRESH_MS, state);
+    state->refresh_timer = app_ui_timer_create_passive(_calendar_refresh_timer,
+        CALENDAR_REFRESH_MS, state);
 }
 
 static void _calendar_resume(const app_manager_page_context_t *context)

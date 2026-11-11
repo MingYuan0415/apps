@@ -554,6 +554,18 @@ lv_obj_t *app_ui_add_section(lv_obj_t *parent, const char *text)
     return label;
 }
 
+lv_timer_t *app_ui_timer_create_passive(void (*callback)(lv_timer_t *timer),
+                                        uint32_t period_ms,
+                                        void *user_data)
+{
+    lv_timer_t *timer = lv_timer_create(callback, period_ms, user_data);
+    if (timer != NULL)
+    {
+        lv_timer_pause(timer);
+    }
+    return timer;
+}
+
 lv_obj_t *app_ui_image(lv_obj_t *parent, uint32_t image_id,
                        const char *fallback_symbol, int32_t size)
 {

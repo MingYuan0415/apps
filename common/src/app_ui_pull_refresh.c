@@ -73,7 +73,7 @@ static void _pull_arm_timeout(app_ui_pull_refresh_t *refresh)
 static void _pull_event(lv_event_t *event)
 {
     app_ui_pull_refresh_t *refresh = lv_event_get_user_data(event);
-    if (refresh == NULL || refresh->content == NULL)
+    if (refresh == NULL || refresh->content == NULL || !refresh->attached)
     {
         return;
     }
@@ -152,6 +152,39 @@ static void _pull_event(lv_event_t *event)
     }
 }
 
+static bool _pull_install_handlers(app_ui_pull_refresh_t *refresh)
+{
+    if (!refresh->attached)
+    {
+        refresh->root_was_clickable = lv_obj_is_clickable(refresh->root);
+    }
+    lv_obj_set_clickable(refresh->root, true);
+    refresh->attached = true;
+    refresh->root_event = lv_obj_add_event_cb(refresh->root, _pull_event,
+        LV_EVENT_ALL, refresh);
+    refresh->content_event = lv_obj_add_event_cb(refresh->content, _pull_event,
+        LV_EVENT_ALL, refresh);
+    if (refresh->root_event == NULL || refresh->content_event == NULL)
+    {
+        refresh->attached = false;
+        if (refresh->root_event != NULL)
+        {
+            (void)lv_obj_remove_event_dsc(refresh->root,
+                                          refresh->root_event);
+            refresh->root_event = NULL;
+        }
+        if (refresh->content_event != NULL)
+        {
+            (void)lv_obj_remove_event_dsc(refresh->content,
+                                          refresh->content_event);
+            refresh->content_event = NULL;
+        }
+        lv_obj_set_clickable(refresh->root, refresh->root_was_clickable);
+        return false;
+    }
+    return true;
+}
+
 void app_ui_pull_refresh_attach(app_ui_pull_refresh_t *refresh,
                                 app_ui_page_t *page,
                                 app_ui_pull_refresh_cb_t on_refresh,
@@ -199,10 +232,8 @@ void app_ui_pull_refresh_attach(app_ui_pull_refresh_t *refresh,
     }
 
     /* The header sits above the content; a clickable root lets a drag that
-     * starts in the header area (below the control-center band) pull too. */
-    lv_obj_set_clickable(page->root, true);
-    lv_obj_add_event_cb(page->root, _pull_event, LV_EVENT_ALL, refresh);
-    lv_obj_add_event_cb(page->content, _pull_event, LV_EVENT_ALL, refresh);
+     * starts in the header area (below the control-center band) pull too.
+     * Handler installation belongs to RESUME, not MOUNT. */
 }
 
 void app_ui_pull_refresh_set_refreshing(app_ui_pull_refresh_t *refresh,
@@ -222,7 +253,7 @@ void app_ui_pull_refresh_set_refreshing(app_ui_pull_refresh_t *refresh,
     _pull_animate_to(refresh, 0);
 }
 
-void app_ui_pull_refresh_detach(app_ui_pull_refresh_t *refresh)
+void app_ui_pull_refresh_pause(app_ui_pull_refresh_t *refresh)
 {
     if (refresh == NULL)
     {
@@ -234,6 +265,44 @@ void app_ui_pull_refresh_detach(app_ui_pull_refresh_t *refresh)
         lv_timer_delete((lv_timer_t *)refresh->timeout);
         refresh->timeout = NULL;
     }
+    refresh->refreshing = false;
+    refresh->armed = false;
+    refresh->tracking = false;
+    refresh->offset = 0;
+    refresh->attached = false;
+    if (refresh->root_event != NULL)
+    {
+        (void)lv_obj_remove_event_dsc(refresh->root, refresh->root_event);
+        refresh->root_event = NULL;
+    }
+    if (refresh->content_event != NULL)
+    {
+        (void)lv_obj_remove_event_dsc(refresh->content,
+                                      refresh->content_event);
+        refresh->content_event = NULL;
+    }
+    lv_obj_set_clickable(refresh->root, refresh->root_was_clickable);
+    _pull_translate(refresh, 0);
+    _pull_set_hint(refresh, "下拉刷新");
+}
+
+void app_ui_pull_refresh_resume(app_ui_pull_refresh_t *refresh)
+{
+    if (refresh == NULL || refresh->root == NULL ||
+            refresh->content == NULL || refresh->attached)
+    {
+        return;
+    }
+    _pull_install_handlers(refresh);
+}
+
+void app_ui_pull_refresh_detach(app_ui_pull_refresh_t *refresh)
+{
+    if (refresh == NULL)
+    {
+        return;
+    }
+    app_ui_pull_refresh_pause(refresh);
     /* The root, hint, header, and content are Page-owned and released with the
      * Page Screen; only the caller's state is cleared here. */
     memset(refresh, 0, sizeof(*refresh));

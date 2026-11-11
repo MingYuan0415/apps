@@ -721,7 +721,8 @@ static void _wifi_mount(const app_manager_page_context_t *context)
     lv_obj_set_style_pad_row(state->scan_list, 8, 0);
     app_ui_make_passive(state->scan_list, false);
 
-    state->refresh_timer = lv_timer_create(_wifi_timer, 1000U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_wifi_timer, 1000U,
+        state);
     app_ui_pull_refresh_attach(&s_wifi_page_pull, &state->page,
                                _wifi_pull_refresh, state);
     _wifi_refresh(state);
@@ -730,6 +731,7 @@ static void _wifi_mount(const app_manager_page_context_t *context)
 static void _wifi_resume(const app_manager_page_context_t *context)
 {
     settings_wifi_state_t *state = context->state;
+    app_ui_pull_refresh_resume(&s_wifi_page_pull);
     if (state->refresh_timer != NULL)
     {
         lv_timer_resume(state->refresh_timer);
@@ -740,6 +742,7 @@ static void _wifi_resume(const app_manager_page_context_t *context)
 static esp_err_t _wifi_pause(const app_manager_page_context_t *context)
 {
     settings_wifi_state_t *state = context->state;
+    app_ui_pull_refresh_pause(&s_wifi_page_pull);
     if (state->refresh_timer != NULL)
     {
         lv_timer_pause(state->refresh_timer);

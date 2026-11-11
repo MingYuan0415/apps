@@ -404,7 +404,7 @@ static void _detail_mount(const app_manager_page_context_t *context)
         lv_label_set_text(state->size_value, "--");
     }
 
-    state->refresh_timer = lv_timer_create(_detail_tick, 250U, state);
+    state->refresh_timer = app_ui_timer_create_passive(_detail_tick, 250U, state);
     _detail_render(state);
 }
 
