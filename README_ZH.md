@@ -83,7 +83,7 @@ Setup 页的 Wi-Fi 卡片、绑定/断开/忘记/取消/完成/稍后等行图�
 调用 `app_ui_pull_refresh_resume()`，成功 PAUSE 后不得保留手势 handler 或兜底 timer。
 控制中心顶部 40 px 下拉仍归控制中心。
 
-每个应用以普通 `const` Page definition 描述 typed ops 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。App descriptor（`APP_MANAGER_APP_EXPORT` 及其 `APP_MANAGER_APP_EXPORT_META` 变体）进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。新增应用时应在独立目录中实现生命周期 ops，在 `app_catalog.cmake` 增加一项，并在该 App 的 `app.cmake` 中声明源文件、include、依赖服务与硬件 capability；当前产品清单决定该 App 是否参与编译、链接和资源打包。不要使用递归 glob；`tests/docs/test_app_registration.py` 会校验每条源文件都在 catalog 中，且消费方使用统一的产品展开。
+每个应用以普通 `const` Page definition 描述 typed ops 及私有内存大小，并在 App 私有 route 表中显式绑定 `page_id`、definition 和 route `user_data`。App descriptor（`APP_MANAGER_APP_EXPORT`、其 `APP_MANAGER_APP_EXPORT_META` 变体，以及 App 还需要控制中心卡片时使用的 `APP_MANAGER_APP_EXPORT_META_CARD`）进入 `.app_manager_apps` 链接段；`apps` 组件使用 `WHOLE_ARCHIVE`，App Manager 的链接脚本负责保留和发现该段。控制卡片 provider 归 App 所有：它只在控制中心传入的宿主下挂载，以服务快照实现 `is_active`，并在 `unmount` 中释放全部卡片状态。音乐、时钟与录音应用分别用它提供实时播放、计时与录音卡片，卡片视觉内容和控件仍由所属 App 独立控制。新增应用时应在独立目录中实现生命周期 ops，在 `app_catalog.cmake` 增加一项，并在该 App 的 `app.cmake` 中声明源文件、include、依赖服务与硬件 capability；当前产品清单决定该 App 是否参与编译、链接和资源打包。不要使用递归 glob；`tests/docs/test_app_registration.py` 会校验每条源文件都在 catalog 中，且消费方使用统一的产品展开。
 
 页面只声明实际需要的生命周期阶段，无需为未使用阶段编写空回调。例如静态页面只需
 `.mount` 和 `.unmount`；需要前台刷新时再增加 `.resume` 和 `.pause`；需要跨挂载周期保留

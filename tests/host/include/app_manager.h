@@ -20,6 +20,22 @@
         .launcher_subtitle = (subtitle), \
     }
 
+#define APP_MANAGER_APP_EXPORT_META_CARD(n, icon_value, nm, aid, root_id, \
+                                         app_flags, routes, order, subtitle, \
+                                         control_card) \
+    __attribute__((used)) static const app_manager_app_desc_t \
+    _app_manager_app_unused_##n = \
+    { \
+        .id = (aid), \
+        .root_page_id = (root_id), \
+        .page_routes = (routes), \
+        .page_route_count = sizeof(routes) / sizeof((routes)[0]), \
+        .display_name = (nm), \
+        .launcher_order = (uint16_t)(order), \
+        .launcher_subtitle = (subtitle), \
+        .control_center_card = NULL, \
+    }
+
 /** @brief Font roles exposed to application fixtures. */
 typedef enum
 {

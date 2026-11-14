@@ -267,10 +267,15 @@ The control center's top 40 px pull-down still belongs to the control center.
 Each app describes its typed ops and private memory size with a plain `const`
 Page definition, and explicitly binds `page_id`, the definition and the route
 `user_data` in the App-private route table. App descriptors
-(`APP_MANAGER_APP_EXPORT` and its `APP_MANAGER_APP_EXPORT_META` variant) go
-into the `.app_manager_apps` link section; the `apps` component uses
+(`APP_MANAGER_APP_EXPORT`, its `APP_MANAGER_APP_EXPORT_META` variant, and
+`APP_MANAGER_APP_EXPORT_META_CARD` when the App also provides a control-center
+card) go into the `.app_manager_apps` link section; the `apps` component uses
 `WHOLE_ARCHIVE`, and the App Manager linker script keeps and discovers that
-section. When adding an app, implement the lifecycle ops in a separate
+section. A control-card provider is App-owned: it mounts only beneath the host
+passed by the control center, implements `is_active` from a service snapshot,
+and releases all card state in `unmount`. The Music, Clock and Recorder Apps use
+this for their live playback, timer and recording cards; changing visual
+content and controls remains inside the owning App. When adding an app, implement the lifecycle ops in a separate
 directory, add one entry to `app_catalog.cmake` and declare its sources,
 includes, services and capabilities in that App's `app.cmake`; the active
 product manifest decides whether the App is compiled, linked and packaged.

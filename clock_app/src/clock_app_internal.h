@@ -5,6 +5,7 @@
 #include "app_image_ids.h"
 #include "app_ui.h"
 #include "app_ui_theme.h"
+#include "clock_ui_format.h"
 #include "time_service.h"
 #include "timer_service.h"
 
@@ -36,6 +37,10 @@ extern const app_manager_page_definition_t clock_stopwatch_page_definition;
 extern const app_manager_page_definition_t clock_focus_page_definition;
 extern const app_manager_page_definition_t clock_duration_page_definition;
 
+/** @brief Static App-owned provider for the system control-center card. */
+extern const app_manager_control_center_card_ops_t
+clock_control_center_card_ops;
+
 /**
  * @brief Open a clock page carrying the selected countdown minutes.
  * @param page_id is the target route inside the clock app.
@@ -60,14 +65,6 @@ void clock_ui_minutes_set(uint32_t minutes);
  */
 bool clock_ui_take_minutes_argument(uint32_t *minutes);
 
-/**
- * @brief Format milliseconds as minutes:seconds (minutes may exceed 99).
- * @param milliseconds is the duration to render.
- * @param output receives the text.
- * @param output_size is the output buffer size.
- */
-void clock_ui_format_mmss(uint32_t milliseconds, char *output,
-                          size_t output_size);
 /**
  * @brief Drive a ring sweep from a remaining/total pair.
  * @param ring is an app_ui_ring_create object.

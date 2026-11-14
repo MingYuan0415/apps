@@ -60,6 +60,10 @@ extern const app_manager_page_definition_t music_lyrics_page_definition;
 extern const app_manager_page_definition_t music_login_method_page_definition;
 extern const app_manager_page_definition_t music_login_page_definition;
 
+/** @brief Static App-owned provider for the system control-center card. */
+extern const app_manager_control_center_card_ops_t
+music_control_center_card_ops;
+
 /** @brief Create a music icon scaled to the requested display box. */
 lv_obj_t *music_ui_image(lv_obj_t *parent, uint32_t image_id,
                          const char *fallback_symbol, int32_t size);

@@ -3,6 +3,7 @@ set(MT_APP_REQUIRED FALSE)
 set(MT_APP_HIDDEN FALSE)
 set(MT_APP_SOURCES
     src/recorder_app.c
+    src/recorder_control_card.c
     src/recorder_shared.c
     src/recorder_files_page.c
     src/recorder_detail_page.c

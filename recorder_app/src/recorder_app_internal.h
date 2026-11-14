@@ -23,6 +23,10 @@ extern const app_manager_page_definition_t recorder_root_page_definition;
 extern const app_manager_page_definition_t recorder_files_page_definition;
 extern const app_manager_page_definition_t recorder_detail_page_definition;
 
+/** @brief Static App-owned provider for the system control-center card. */
+extern const app_manager_control_center_card_ops_t
+recorder_control_center_card_ops;
+
 /**
  * @brief Allocate one page-lifetime payload from the largest available heap.
  * @param size is the byte count to clear before returning.

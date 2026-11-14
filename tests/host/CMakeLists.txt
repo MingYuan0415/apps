@@ -441,3 +441,15 @@ target_compile_definitions(app_ui_text_test PRIVATE _GNU_SOURCE)
 configure_apps_host_target(app_ui_text_test)
 
 add_apps_host_test(app_ui_text_test app_ui_text_test)
+
+add_executable(clock_ui_format_test
+    clock_ui_format_test.c
+    ../../clock_app/src/clock_ui_format.c
+)
+
+target_include_directories(clock_ui_format_test PRIVATE
+    ../../clock_app/src
+)
+
+configure_apps_host_target(clock_ui_format_test)
+add_apps_host_test(clock_ui_format_test clock_ui_format_test)

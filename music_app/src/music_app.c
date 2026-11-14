@@ -44,7 +44,7 @@ static const app_manager_page_route_t s_music_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT_META(music, APP_IMAGE_MUSIC_ICON, "音乐",
-                            APP_MANAGER_ID_MUSIC, MUSIC_PAGE_START,
-                            APP_MANAGER_APP_FLAG_NONE, s_music_routes, 18U,
-                            "QQ 音乐");
+APP_MANAGER_APP_EXPORT_META_CARD(music, APP_IMAGE_MUSIC_ICON, "音乐",
+                                 APP_MANAGER_ID_MUSIC, MUSIC_PAGE_START,
+                                 APP_MANAGER_APP_FLAG_NONE, s_music_routes, 18U,
+                                 "QQ 音乐", &music_control_center_card_ops);

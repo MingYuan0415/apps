@@ -3,6 +3,8 @@ set(MT_APP_REQUIRED FALSE)
 set(MT_APP_HIDDEN FALSE)
 set(MT_APP_SOURCES
     src/clock_app.c
+    src/clock_control_card.c
+    src/clock_ui_format.c
     src/clock_countdown_page.c
     src/clock_duration_page.c
     src/clock_stopwatch_page.c

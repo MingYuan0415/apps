@@ -48,14 +48,6 @@ typedef struct clock_root_state
 _Static_assert(sizeof(clock_root_state_t) <= APP_MANAGER_PAGE_STATE_BYTES,
                "Clock root state exceeds the lifecycle arena slot");
 
-void clock_ui_format_mmss(uint32_t milliseconds, char *output,
-                          size_t output_size)
-{
-    (void)snprintf(output, output_size, "%u:%02u",
-                   (unsigned)(milliseconds / 60000U),
-                   (unsigned)((milliseconds / 1000U) % 60U));
-}
-
 void clock_ui_ring_update(lv_obj_t *ring, bool active, uint32_t remaining_ms,
                           uint32_t total_ms, uint32_t color)
 {
@@ -787,7 +779,8 @@ static const app_manager_page_route_t s_clock_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT_META(clock, APP_IMAGE_CLOCK_ICON, "时钟",
-                            APP_MANAGER_ID_CLOCK, "root",
-                            APP_MANAGER_APP_FLAG_NONE, s_clock_routes, 20U,
-                            "倒计时与专注");
+APP_MANAGER_APP_EXPORT_META_CARD(clock, APP_IMAGE_CLOCK_ICON, "时钟",
+                                 APP_MANAGER_ID_CLOCK, "root",
+                                 APP_MANAGER_APP_FLAG_NONE, s_clock_routes, 20U,
+                                 "倒计时与专注",
+                                 &clock_control_center_card_ops);

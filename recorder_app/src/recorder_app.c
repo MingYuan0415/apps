@@ -530,7 +530,8 @@ static const app_manager_page_route_t s_recorder_routes[] =
     },
 };
 
-APP_MANAGER_APP_EXPORT_META(recorder, APP_IMAGE_RECORDER_ICON, "录音",
-                            APP_MANAGER_ID_RECORDER, "root",
-                            APP_MANAGER_APP_FLAG_NONE, s_recorder_routes,
-                            30U, "WAV 语音备忘");
+APP_MANAGER_APP_EXPORT_META_CARD(recorder, APP_IMAGE_RECORDER_ICON, "录音",
+                                 APP_MANAGER_ID_RECORDER, "root",
+                                 APP_MANAGER_APP_FLAG_NONE, s_recorder_routes,
+                                 30U, "WAV 语音备忘",
+                                 &recorder_control_center_card_ops);

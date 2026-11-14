@@ -3,6 +3,7 @@ set(MT_APP_REQUIRED FALSE)
 set(MT_APP_HIDDEN FALSE)
 set(MT_APP_SOURCES
     src/music_app.c
+    src/music_control_card.c
     src/music_ui_state.c
     src/music_ui.c
     src/music_lyrics_view.c
